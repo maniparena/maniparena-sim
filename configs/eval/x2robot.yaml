@@ -1,0 +1,13 @@
+enable_cameras: true
+num_envs: 1
+num_episodes: 10
+max_steps: 800
+working_path: "~/Desktop/opencvpr_output/eval/"
+policy_config:
+  model_address: "localhost"
+  model_port: 33030
+  instruction: "sort the blocks"
+  action_horizon: 16
+  action_chunk_length: 4
+  pos_gain: 1.0
+  rot_gain: 1.0

@@ -1,0 +1,1 @@
+"""Environment assets for opencvpr."""

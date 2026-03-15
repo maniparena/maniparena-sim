@@ -1,0 +1,52 @@
+# Byte-compiled / optimized
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Testing / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Output / recordings
+opencvpr_output/
+opencvpr_test/
+recordings/
+*.hdf5
+*.parquet
+
+# OpenXR runtime
+openxr/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Asset thumbnails / cache
+.thumbs/
+*.larkcache
+
+# Jupyter
+.ipynb_checkpoints/
+
+# mypy
+.mypy_cache/

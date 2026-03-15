@@ -1,0 +1,12 @@
+enable_cameras: true
+num_envs: 1
+num_demos: 10
+step_hz: 30
+max_steps: 0
+working_path: "~/Desktop/opencvpr_output/recordings/"
+format: "hdf5"
+teleop_config:
+  remote_ip: "192.168.1.100"
+  remote_port: 5555
+  reconnect_interval: 2.0
+  debug: false

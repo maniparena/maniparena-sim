@@ -1,0 +1,15 @@
+enable_cameras: true
+step_hz: 20
+
+# Input HDF5 dataset path (file or directory)
+dataset_path: "~/Desktop/opencvpr_output/recordings/ex001_6r_sort_blocks_collect/"
+episode: 0
+
+# Replay mode: state / joint / ee
+replay_mode: "state"
+
+# Output path for LeRobot export
+working_path: "~/Desktop/opencvpr_output/recordings/"
+
+# Export LeRobot format from HDF5 replay
+export_lerobot: true

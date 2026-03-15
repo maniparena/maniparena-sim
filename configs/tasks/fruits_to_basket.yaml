@@ -1,0 +1,3 @@
+task_name: fruits_to_basket
+enable_cameras: true
+num_envs: 1
