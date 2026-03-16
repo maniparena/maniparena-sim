@@ -1,8 +1,8 @@
-"""Self-contained X2Robot closed-loop EE policy for opencvpr.
+"""Self-contained Robot closed-loop EE policy for opencvpr.
 
 Communicates with a remote policy server
 via WebSocket (PolicyServerClient) and converts EE predictions
-to delta-pose actions for the EX001-6R embodiment.
+to delta-pose actions for the Desktop embodiment.
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ from opencvpr.utils.math_utils import euler_xyz_to_quat_wxyz
 
 
 @dataclass
-class X2RobotPolicyConfig:
+class RobotPolicyConfig:
     model_address: str = 'localhost'
     model_port: int = 8000
     instruction: str = 'pick up the object'
@@ -54,12 +54,12 @@ class X2RobotPolicyConfig:
     gripper_close_threshold: float = 1.0
 
 
-class X2RobotClosedloopPolicy:
+class RobotClosedloopPolicy:
     """Closed-loop EE policy with built-in action chunk buffering."""
 
     ACTION_DIM = 14
 
-    def __init__(self, config: X2RobotPolicyConfig):
+    def __init__(self, config: RobotPolicyConfig):
         self.cfg = config
         self._client = PolicyServerClient(
             config.model_address, config.model_port,
@@ -415,12 +415,12 @@ class X2RobotClosedloopPolicy:
         try:
             response = self._client.predict(model_input)
         except Exception as e:
-            print(f'[X2RobotPolicy] Inference failed: {e}')
+            print(f'[RobotPolicy] Inference failed: {e}')
             return None
 
         if 'error' in response:
             print(
-                f'[X2RobotPolicy] Server error: '
+                f'[RobotPolicy] Server error: '
                 f'{response["error"]}'
             )
             return None

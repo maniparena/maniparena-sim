@@ -1,4 +1,4 @@
-"""Three-state gripper action term used by EX001-6R."""
+"""Three-state gripper action term used by Desktop."""
 
 from __future__ import annotations
 

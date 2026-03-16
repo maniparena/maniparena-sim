@@ -8,7 +8,7 @@ from typing import Any, Optional, Union
 
 import numpy as np
 
-from opencvpr.terms.recorders.dataset_handlers.ex001_6r_lerobot.handler import (  # noqa: E501
+from opencvpr.terms.recorders.dataset_handlers.desktop_lerobot.handler import (  # noqa: E501
     build_ee_action,
     clip_gripper_channels,
     select_active_joint_positions,

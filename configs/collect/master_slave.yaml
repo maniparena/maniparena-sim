@@ -6,7 +6,7 @@ max_steps: 0
 working_path: "~/Desktop/opencvpr_output/recordings/"
 format: "hdf5"
 teleop_config:
-  remote_ip: "192.168.1.100"
+  remote_ip: "10.0.0.100"
   remote_port: 5555
   reconnect_interval: 2.0
   debug: false

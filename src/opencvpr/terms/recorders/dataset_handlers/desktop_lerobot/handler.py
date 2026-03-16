@@ -1,4 +1,4 @@
-"""Direct EX001-6R to LeRobot dataset writer."""
+"""Direct Desktop to LeRobot dataset writer."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from typing import Any
 import numpy as np
 from isaaclab.utils.datasets import DatasetFileHandlerBase, EpisodeData
 
-from opencvpr.terms.recorders.dataset_handlers.ex001_6r_lerobot.constants import (
+from opencvpr.terms.recorders.dataset_handlers.desktop_lerobot.constants import (
     ACTIVE_JOINT_INDICES,
     CAMERA_NAME_MAPPING,
     CHUNK_SIZE,
@@ -246,8 +246,8 @@ def _build_episode_stats(
     }
 
 
-class EX0016RLeRobotDatasetFileHandler(DatasetFileHandlerBase):
-    """Recorder backend that writes EX001-6R LeRobot datasets directly."""
+class DesktopLeRobotDatasetFileHandler(DatasetFileHandlerBase):
+    """Recorder backend that writes Desktop LeRobot datasets directly."""
 
     output_layout: dict[str, str] = {}
     task_name: str = ""
@@ -354,9 +354,9 @@ class EX0016RLeRobotDatasetFileHandler(DatasetFileHandlerBase):
 
     def _initialize_roots(self) -> None:
         if not self._output_layout:
-            from opencvpr.terms.recorders.dataset_handlers.ex001_6r_lerobot.helpers import resolve_ex001_6r_lerobot_dataset_layout
+            from opencvpr.terms.recorders.dataset_handlers.desktop_lerobot.helpers import resolve_desktop_lerobot_dataset_layout
 
-            self._output_layout = resolve_ex001_6r_lerobot_dataset_layout(save_path=str(self._session_path.parent), env_name=self._env_name or self._session_path.stem)
+            self._output_layout = resolve_desktop_lerobot_dataset_layout(save_path=str(self._session_path.parent), env_name=self._env_name or self._session_path.stem)
         self._dataset_roots = {"joint": Path(self._output_layout["joint_root"]), "ee": Path(self._output_layout["ee_root"])}
         for root in self._dataset_roots.values():
             (root / "meta").mkdir(parents=True, exist_ok=True)
@@ -386,7 +386,7 @@ class EX0016RLeRobotDatasetFileHandler(DatasetFileHandlerBase):
         right_quat = to_numpy(nested_get(data, "obs", "right_eef_delta_quat"))
         joint_source = joint_states if joint_states is not None else obs_joint
         if joint_source is None or left_pos is None or left_quat is None or right_pos is None or right_quat is None:
-            raise ValueError("EpisodeData is missing required EX001-6R keys.")
+            raise ValueError("EpisodeData is missing required Desktop keys.")
         camera_data = nested_get(data, "camera_obs") or {}
         camera_frames = {}
         num_frames = min(len(joint_source), len(left_pos), len(left_quat), len(right_pos), len(right_quat))
@@ -436,4 +436,4 @@ class EX0016RLeRobotDatasetFileHandler(DatasetFileHandlerBase):
 
     def _raise_if_not_initialized(self) -> None:
         if not self._initialized:
-            raise RuntimeError("EX0016RLeRobotDatasetFileHandler is not initialized")
+            raise RuntimeError("DesktopLeRobotDatasetFileHandler is not initialized")

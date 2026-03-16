@@ -1,4 +1,4 @@
-"""Camera update configs used by EX001-6R wrist cameras."""
+"""Camera update configs used by Desktop wrist cameras."""
 
 from __future__ import annotations
 

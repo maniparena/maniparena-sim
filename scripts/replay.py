@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Replay recorded episodes for EX001-6R.
+"""Replay recorded episodes for Desktop.
 
 Usage:
     python scripts/replay.py \
@@ -25,7 +25,7 @@ def load_yaml(path: str) -> dict:
 def parse_args():
     """Parse CLI arguments."""
     parser = argparse.ArgumentParser(
-        description='Replay EX001-6R recorded episodes.',
+        description='Replay Desktop recorded episodes.',
     )
     AppLauncher.add_app_launcher_args(parser)
     parser.add_argument(

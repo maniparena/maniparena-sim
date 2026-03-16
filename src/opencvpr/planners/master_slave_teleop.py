@@ -5,14 +5,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, Tuple
 
-from opencvpr.embodiment.teleop_devices.ex001_6r_master import Ex0016RMasterCfg, Ex0016RMasterTeleop
+from opencvpr.embodiment.teleop_devices.desktop_master import DesktopMasterCfg, DesktopMasterTeleop
 from opencvpr.embodiment.teleop_devices.keyboard import _get_expected_action_dim, _map_action_dim
 from opencvpr.planners.teleop_base import TeleopPlanner, TeleopSettings
 
 
 @dataclass
 class MasterSlaveTeleopSettings(TeleopSettings):
-    remote_ip: str = "192.168.1.100"
+    remote_ip: str = "10.0.0.100"
     remote_port: int = 5555
     reconnect_interval: float = 2.0
     debug: bool = False
@@ -32,7 +32,7 @@ class MasterSlaveTeleopPlanner(TeleopPlanner):
     def _init_device(self, env: Any) -> None:
         embodiment = env.embodiment
         embodiment.action_config = embodiment.JointActionsCfg()
-        cfg = Ex0016RMasterCfg(
+        cfg = DesktopMasterCfg(
             remote_ip=self.settings.remote_ip,
             remote_port=self.settings.remote_port,
             sim_device=str(env.device),
@@ -41,7 +41,7 @@ class MasterSlaveTeleopPlanner(TeleopPlanner):
             joint_signs=self.settings.joint_signs,
             joint_offsets=self.settings.joint_offsets,
         )
-        self._master_controller = Ex0016RMasterTeleop(cfg)
+        self._master_controller = DesktopMasterTeleop(cfg)
         self._expected_action_dim = _get_expected_action_dim(env)
         self._master_controller.add_callback("R", lambda: self.signal_done(success=False))
         self._master_controller.add_callback("H", lambda: self.signal_done(success=True))

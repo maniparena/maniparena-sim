@@ -1,4 +1,4 @@
-"""Constants for EX001-6R direct LeRobot export."""
+"""Constants for Desktop direct LeRobot export."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ ACTIVE_JOINT_INDICES = np.asarray([0, 2, 4, 6, 8, 10, 12, 1, 3, 5, 7, 9, 11, 15]
 GRIPPER_CLIP_MIN = 0.0
 GRIPPER_CLIP_MAX = 4.5
 VECTOR_SIZE = 14
-ROBOT_TYPE = "ex001_6r"
+ROBOT_TYPE = "desktop"
 JOINT_VECTOR_NAMES = [
     "left_arm_joint1",
     "left_arm_joint2",

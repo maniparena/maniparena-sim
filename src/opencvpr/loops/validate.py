@@ -38,7 +38,7 @@ def validate_policy(policy: PolicyLike, environment, config: EvalConfig) -> Vali
         from isaacsim.benchmark.services import BaseIsaacBenchmark
 
         benchmark = BaseIsaacBenchmark(
-            benchmark_name="ex001_6r_eval",
+            benchmark_name="desktop_eval",
             workflow_metadata={"metadata": [{"name": "task", "data": environment.name}, {"name": "num_episodes", "data": config.num_episodes}]},
             backend_type="JSONFileMetrics",
         )

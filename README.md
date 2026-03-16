@@ -1,15 +1,15 @@
 # OpenCVPR
 
-OpenCVPR is a data collection, replay, and policy evaluation framework for the **EX001-6R** bimanual robot, built on [Isaac Lab](https://github.com/isaac-sim/IsaacLab) and [IsaacLab-Arena](https://github.com/LightwheelAI/IsaacLab-Arena).
+OpenCVPR is a data collection, replay, and policy evaluation framework for the **Desktop** bimanual robot, built on [Isaac Lab](https://github.com/isaac-sim/IsaacLab) and [IsaacLab-Arena](https://github.com/LightwheelAI/IsaacLab-Arena).
 
 ## Features
 
-- **EX001-6R** bimanual robot with SE(3) differential-IK and joint-position action spaces
+- **Desktop** bimanual robot with SE(3) differential-IK and joint-position action spaces
 - **3 tabletop tasks**: `sort_blocks`, `fruits_to_basket`, `buttons_contact`
 - **3 teleoperation modes**: keyboard, VR (OpenXR), master-slave
 - **Trajectory replay**: state / joint / end-effector modes from HDF5 or LeRobot datasets
 - **Policy evaluation**: closed-loop inference via WebSocket server-client architecture
-- **Data export**: `ex001_6r_lerobot` (Parquet + video) and `hdf5` formats
+- **Data export**: `desktop_lerobot` (Parquet + video) and `hdf5` formats
 
 ## Prerequisites
 
@@ -151,10 +151,10 @@ Evaluate a remote policy via WebSocket server-client architecture:
 ```bash
 python scripts/eval.py \
     --task sort_blocks \
-    --config configs/eval/x2robot.yaml
+    --config configs/eval/robot.yaml
 ```
 
-Configure the policy server address in `configs/eval/x2robot.yaml`:
+Configure the policy server address in `configs/eval/robot.yaml`:
 
 ```yaml
 policy_config:
@@ -176,7 +176,7 @@ All runtime parameters are driven by YAML files under `configs/`:
 | `configs/collect/master_slave.yaml` | Master-slave collection settings |
 | `configs/replay/hdf5.yaml` | HDF5 replay (with optional LeRobot export) |
 | `configs/replay/lerobot.yaml` | LeRobot replay |
-| `configs/eval/x2robot.yaml` | X2Robot policy evaluation |
+| `configs/eval/robot.yaml` | Robot policy evaluation |
 | `configs/tasks/*.yaml` | Task-specific parameters |
 
 ## Supported Tasks

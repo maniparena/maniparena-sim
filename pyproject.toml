@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "opencvpr"
 version = "0.1.0"
-description = "EX001-6R data collection and validation runtime."
+description = "Desktop data collection and validation runtime."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [

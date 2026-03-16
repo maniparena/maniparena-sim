@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""X2Robot closed-loop policy evaluation for EX001-6R.
+"""Robot closed-loop policy evaluation for Desktop.
 
 Usage:
     python scripts/eval.py \
         --task sort_blocks \
-        --config configs/eval/x2robot.yaml
+        --config configs/eval/robot.yaml
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ def load_yaml(path: str) -> dict:
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description='Evaluate X2Robot policy on EX001-6R.',
+        description='Evaluate Robot policy on Desktop.',
     )
     AppLauncher.add_app_launcher_args(parser)
     parser.add_argument(
@@ -52,9 +52,9 @@ def main() -> int:
     from opencvpr.environment.registry import (
         bootstrap_arena_registry,
     )
-    from opencvpr.policy.x2robot_policy import (
-        X2RobotClosedloopPolicy,
-        X2RobotPolicyConfig,
+    from opencvpr.policy.robot_policy import (
+        RobotClosedloopPolicy,
+        RobotPolicyConfig,
     )
 
     bootstrap_arena_registry()
@@ -67,8 +67,8 @@ def main() -> int:
     gym_env = ctx.gym_env
 
     pc = payload.get('policy_config', {})
-    policy = X2RobotClosedloopPolicy(
-        X2RobotPolicyConfig(
+    policy = RobotClosedloopPolicy(
+        RobotPolicyConfig(
             model_address=str(
                 pc.get('model_address', 'localhost'),
             ),
@@ -92,7 +92,7 @@ def main() -> int:
 
     print('=' * 60)
     print(f'  Task:       {args.task}')
-    print(f'  Policy:     X2RobotClosedloopPolicy')
+    print(f'  Policy:     RobotClosedloopPolicy')
     print(f'  Server:     {policy.cfg.model_address}'
           f':{policy.cfg.model_port}')
     print(f'  Episodes:   {num_episodes}')

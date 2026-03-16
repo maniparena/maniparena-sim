@@ -2,7 +2,7 @@ enable_cameras: true
 step_hz: 20
 
 # Input LeRobot dataset path (directory containing data/)
-dataset_path: "~/Desktop/opencvpr_output/recordings/ex001_6r_sort_blocks_replay/ee"
+dataset_path: "~/Desktop/opencvpr_output/recordings/desktop_sort_blocks_replay/ee"
 episode: 0
 
 # Replay mode: joint / ee (state mode is not supported for LeRobot)

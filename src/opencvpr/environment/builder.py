@@ -1,4 +1,4 @@
-"""Explicit builders for the supported EX001-6R environments."""
+"""Explicit builders for the supported Desktop environments."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from opencvpr.embodiment.robots.ex001_6r import EX0016REmbodiment
+from opencvpr.embodiment.robots.desktop import DesktopEmbodiment
 from opencvpr.environment.assembled_environment import AssembledEnvironment
 from opencvpr.environment.scene_builder import build_scene
 from opencvpr.task.builders.buttons_contact_builder import ButtonsContactBuilder
@@ -60,11 +60,11 @@ def build_task_runtime(task_name: str, scene):
 
 def build_environment(request: EnvironmentBuildRequest) -> AssembledEnvironment:
     scene = build_scene(request.task_name)
-    embodiment = EX0016REmbodiment(enable_cameras=request.enable_cameras)
+    embodiment = DesktopEmbodiment(enable_cameras=request.enable_cameras)
     if not request.enable_cameras:
         embodiment.camera_config = None
     task = build_task_runtime(request.task_name, scene)
-    env_name = request.name or f"ex001_6r_{request.task_name}_env"
+    env_name = request.name or f"desktop_{request.task_name}_env"
     return AssembledEnvironment(
         name=env_name,
         scene=scene,
@@ -90,9 +90,9 @@ def build_collect_gym_env(
     from isaaclab_arena.environments.arena_env_builder import ArenaEnvBuilder
     from isaaclab_arena.environments.isaaclab_arena_environment import IsaacLabArenaEnvironment
 
-    from opencvpr.terms.recorders.dataset_handlers.ex001_6r_lerobot.helpers import (  # noqa: E501
-        create_ex001_6r_lerobot_handler_type,
-        resolve_ex001_6r_lerobot_dataset_layout,
+    from opencvpr.terms.recorders.dataset_handlers.desktop_lerobot.helpers import (  # noqa: E501
+        create_desktop_lerobot_handler_type,
+        resolve_desktop_lerobot_dataset_layout,
     )
     from opencvpr.terms.recorders.recording_terms import PreStepCameraObservationsRecorderCfg
     from opencvpr.utils.camera_utils import deactivate_robot_camera_prims
@@ -100,12 +100,12 @@ def build_collect_gym_env(
     enable_cameras = bool(payload.get('enable_cameras', True))
 
     scene = build_scene(task_name)
-    embodiment = EX0016REmbodiment(enable_cameras=enable_cameras)
+    embodiment = DesktopEmbodiment(enable_cameras=enable_cameras)
     if not enable_cameras:
         embodiment.camera_config = None
     task = build_task_runtime(task_name, scene)
 
-    env_name = f'ex001_6r_{task_name}_collect'
+    env_name = f'desktop_{task_name}_collect'
     arena_env = IsaacLabArenaEnvironment(
         name=env_name, embodiment=embodiment, scene=scene,
         task=task, teleop_device=None,
@@ -148,18 +148,18 @@ def build_collect_gym_env(
 
     # -- resolve output paths --
     working_path = str(payload.get('working_path', '~/Desktop/opencvpr_output/recordings/'))
-    fmt = str(payload.get('format', 'ex001_6r_lerobot'))
+    fmt = str(payload.get('format', 'desktop_lerobot'))
     device_tag = control_mode
     handler_type = None
     exported_paths: list[str] = []
     is_direct_lerobot = False
 
-    if fmt == 'ex001_6r_lerobot':
+    if fmt == 'desktop_lerobot':
         prompt = task.get_prompt()
-        layout = resolve_ex001_6r_lerobot_dataset_layout(
+        layout = resolve_desktop_lerobot_dataset_layout(
             save_path=working_path, env_name=env_name, device_name=device_tag,
         )
-        handler_type = create_ex001_6r_lerobot_handler_type(
+        handler_type = create_desktop_lerobot_handler_type(
             save_path=working_path, env_name=env_name,
             task_name=prompt or env_name,
             fps=float(payload.get('step_hz', 30)),
@@ -258,16 +258,16 @@ def build_replay_gym_env(
     from isaaclab_arena.environments.arena_env_builder import ArenaEnvBuilder
     from isaaclab_arena.environments.isaaclab_arena_environment import IsaacLabArenaEnvironment
 
-    from opencvpr.terms.recorders.dataset_handlers.ex001_6r_lerobot.helpers import (
-        create_ex001_6r_lerobot_handler_type,
-        resolve_ex001_6r_lerobot_dataset_layout,
+    from opencvpr.terms.recorders.dataset_handlers.desktop_lerobot.helpers import (
+        create_desktop_lerobot_handler_type,
+        resolve_desktop_lerobot_dataset_layout,
     )
     from opencvpr.terms.recorders.recording_terms import PreStepCameraObservationsRecorderCfg
 
     enable_cameras = bool(payload.get('enable_cameras', True))
 
     scene = build_scene(task_name)
-    embodiment = EX0016REmbodiment(enable_cameras=enable_cameras)
+    embodiment = DesktopEmbodiment(enable_cameras=enable_cameras)
     if not enable_cameras:
         embodiment.camera_config = None
 
@@ -298,7 +298,7 @@ def build_replay_gym_env(
         )
 
     task = build_task_runtime(task_name, scene)
-    env_name = f'ex001_6r_{task_name}_replay'
+    env_name = f'desktop_{task_name}_replay'
 
     arena_env = IsaacLabArenaEnvironment(
         name=env_name, embodiment=embodiment, scene=scene,
@@ -327,11 +327,11 @@ def build_replay_gym_env(
 
     if export_lerobot:
         prompt = task.get_prompt()
-        layout = resolve_ex001_6r_lerobot_dataset_layout(
+        layout = resolve_desktop_lerobot_dataset_layout(
             save_path=working_path,
             env_name=env_name,
         )
-        handler_type = create_ex001_6r_lerobot_handler_type(
+        handler_type = create_desktop_lerobot_handler_type(
             save_path=working_path,
             env_name=env_name,
             task_name=prompt or env_name,
@@ -412,12 +412,12 @@ def build_eval_gym_env(
     enable_cameras = bool(payload.get('enable_cameras', True))
 
     scene = build_scene(task_name)
-    embodiment = EX0016REmbodiment(enable_cameras=enable_cameras)
+    embodiment = DesktopEmbodiment(enable_cameras=enable_cameras)
     if not enable_cameras:
         embodiment.camera_config = None
     task = build_task_runtime(task_name, scene)
 
-    env_name = f'ex001_6r_{task_name}_eval'
+    env_name = f'desktop_{task_name}_eval'
     arena_env = IsaacLabArenaEnvironment(
         name=env_name, embodiment=embodiment, scene=scene,
         task=task, teleop_device=None,
