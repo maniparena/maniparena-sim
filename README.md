@@ -1,6 +1,8 @@
-# OpenCVPR
+# ManipArena-Sim
 
-OpenCVPR is the simulation environment for [**ManipArena**](https://maniparena.github.io/), a real-robot benchmark for bimanual manipulation. It provides data collection, replay, and policy evaluation for the **Desktop** bimanual robot, built on [Isaac Lab](https://github.com/isaac-sim/IsaacLab) and [IsaacLab-Arena](https://github.com/LightwheelAI/IsaacLab-Arena).
+ManipArena-Sim is the simulation environment for [**ManipArena**](https://maniparena.github.io/), a real-robot benchmark for bimanual manipulation. It provides data collection, replay, and policy evaluation for the **Desktop** bimanual robot, built on [Isaac Lab](https://github.com/isaac-sim/IsaacLab) and [IsaacLab-Arena](https://github.com/LightwheelAI/IsaacLab-Arena).
+
+> **Related repo:** [ManipArena-Server](https://github.com/maniparena/ManipArena-Server) — model server template for submitting your policy.
 
 ## Features
 
