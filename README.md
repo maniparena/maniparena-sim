@@ -1,6 +1,6 @@
 # OpenCVPR
 
-OpenCVPR is a data collection, replay, and policy evaluation framework for the **Desktop** bimanual robot, built on [Isaac Lab](https://github.com/isaac-sim/IsaacLab) and [IsaacLab-Arena](https://github.com/LightwheelAI/IsaacLab-Arena).
+OpenCVPR is the simulation environment for [**ManipArena**](https://maniparena.github.io/), a real-robot benchmark for bimanual manipulation. It provides data collection, replay, and policy evaluation for the **Desktop** bimanual robot, built on [Isaac Lab](https://github.com/isaac-sim/IsaacLab) and [IsaacLab-Arena](https://github.com/LightwheelAI/IsaacLab-Arena).
 
 ## Features
 
