@@ -53,7 +53,7 @@ class PolicyServerClient:
             self.uri, max_size=None,
         )
         metadata_bytes = self._connection.recv()
-        self._metadata = msgpack.unpackb(metadata_bytes)
+        self._metadata = msgpack.unpackb(metadata_bytes, raw=False)
         self._connected = True
         print(
             f'[PolicyServerClient] Connected to {self.uri}'
@@ -75,13 +75,13 @@ class PolicyServerClient:
             raise RuntimeError(
                 'Not connected. Call connect() first.'
             )
-        self._connection.send(msgpack.packb(observation))
+        self._connection.send(msgpack.packb(observation, use_bin_type=True))
         response_bytes = self._connection.recv()
         if isinstance(response_bytes, str):
             raise RuntimeError(
                 f'Server error: {response_bytes}'
             )
-        return msgpack.unpackb(response_bytes)
+        return msgpack.unpackb(response_bytes, raw=False)
 
     def close(self) -> None:
         """Close the connection."""
