@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "opencvpr"
+version = "0.1.0"
+description = "Desktop data collection and validation runtime."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy",
+  "PyYAML",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["opencvpr*"]

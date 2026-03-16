@@ -1,0 +1,14 @@
+enable_cameras: false
+num_envs: 1
+num_demos: 10
+step_hz: 30
+max_steps: 0
+working_path: "~/Desktop/opencvpr_output/recordings/"
+format: "hdf5"
+teleop_config:
+  position_scale: 0.5
+  rotation_scale: 0.5
+  delta_pos_scale_factor: 15.0
+  delta_rot_scale_factor: 10.0
+  alpha_pos: 0.5
+  alpha_rot: 0.5
