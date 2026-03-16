@@ -263,9 +263,7 @@ class RobotClosedloopPolicy:
                 'camera_front': cam_front,
                 'camera_right': cam_right,
             },
-            'instruction': np.array(
-                [self.cfg.instruction], dtype=np.object_,
-            ),
+            'instruction': self.cfg.instruction,
         }
 
     # -- EE coordinate transform --
