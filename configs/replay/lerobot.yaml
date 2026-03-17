@@ -1,0 +1,9 @@
+enable_cameras: true
+step_hz: 20
+
+# Input LeRobot dataset path (directory containing data/)
+dataset_path: "~/maniparena_output/recordings/bimanual_sort_blocks_replay/ee"
+episode: 0
+
+# Replay mode: joint / ee (state mode is not supported for LeRobot)
+replay_mode: "ee"
