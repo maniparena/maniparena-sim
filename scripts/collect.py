@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Teleop data collection for Desktop.
+"""Teleop data collection for Bimanual.
 
 Usage:
     python scripts/collect.py \
@@ -32,7 +32,7 @@ def load_yaml(path: str) -> dict:
 def parse_args():
     """Parse CLI arguments."""
     parser = argparse.ArgumentParser(
-        description='Collect Desktop teleop data.',
+        description='Collect Bimanual teleop data.',
     )
     AppLauncher.add_app_launcher_args(parser)
     parser.add_argument(

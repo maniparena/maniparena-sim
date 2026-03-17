@@ -1,4 +1,4 @@
-"""Desktop embodiment config for the open-source runtime."""
+"""Bimanual embodiment config for the open-source runtime."""
 
 from __future__ import annotations
 
@@ -60,25 +60,25 @@ def _get_or_init_ee_ref(env, key: str, pos: torch.Tensor, quat: torch.Tensor):
     return ref
 
 
-def desktop_left_eef_delta_pos(env, ee_frame_cfg=SceneEntityCfg("left_ee_frame")) -> torch.Tensor:
+def bimanual_left_eef_delta_pos(env, ee_frame_cfg=SceneEntityCfg("left_ee_frame")) -> torch.Tensor:
     pos, quat = _get_ee_world(env, ee_frame_cfg)
     ref_pos, _ = _get_or_init_ee_ref(env, "_left_ee_ref", pos, quat)
     return pos - ref_pos
 
 
-def desktop_left_eef_delta_quat(env, ee_frame_cfg=SceneEntityCfg("left_ee_frame")) -> torch.Tensor:
+def bimanual_left_eef_delta_quat(env, ee_frame_cfg=SceneEntityCfg("left_ee_frame")) -> torch.Tensor:
     pos, quat = _get_ee_world(env, ee_frame_cfg)
     _, ref_quat = _get_or_init_ee_ref(env, "_left_ee_ref", pos, quat)
     return math_utils.quat_mul(quat, math_utils.quat_conjugate(ref_quat))[:, [1, 2, 3, 0]]
 
 
-def desktop_right_eef_delta_pos(env, ee_frame_cfg=SceneEntityCfg("right_ee_frame")) -> torch.Tensor:
+def bimanual_right_eef_delta_pos(env, ee_frame_cfg=SceneEntityCfg("right_ee_frame")) -> torch.Tensor:
     pos, quat = _get_ee_world(env, ee_frame_cfg)
     ref_pos, _ = _get_or_init_ee_ref(env, "_right_ee_ref", pos, quat)
     return pos - ref_pos
 
 
-def desktop_right_eef_delta_quat(env, ee_frame_cfg=SceneEntityCfg("right_ee_frame")) -> torch.Tensor:
+def bimanual_right_eef_delta_quat(env, ee_frame_cfg=SceneEntityCfg("right_ee_frame")) -> torch.Tensor:
     pos, quat = _get_ee_world(env, ee_frame_cfg)
     _, ref_quat = _get_or_init_ee_ref(env, "_right_ee_ref", pos, quat)
     return math_utils.quat_mul(quat, math_utils.quat_conjugate(ref_quat))[:, [1, 2, 3, 0]]
@@ -104,10 +104,10 @@ def wallx_ee_follow_pos(env, ee_frame_cfg=SceneEntityCfg("left_ee_frame"), gripp
 
 
 @register_asset
-class DesktopEmbodiment(EmbodimentBase):
-    """Desktop dual-arm fixed-base embodiment."""
+class BimanualEmbodiment(EmbodimentBase):
+    """Bimanual dual-arm fixed-base embodiment."""
 
-    name = "Desktop"
+    name = "Bimanual"
 
     @configclass
     class SceneCfg:
@@ -264,10 +264,10 @@ class DesktopEmbodiment(EmbodimentBase):
         class PolicyCfg(ObsGroup):
             joint_pos = ObsTerm(func=mdp_isaac_lab.joint_pos_rel, params={"asset_cfg": SceneEntityCfg("robot")})
             joint_vel = ObsTerm(func=mdp_isaac_lab.joint_vel_rel, params={"asset_cfg": SceneEntityCfg("robot")})
-            eef_delta_pos = ObsTerm(func=desktop_left_eef_delta_pos, params={"ee_frame_cfg": SceneEntityCfg("left_ee_frame")})
-            eef_delta_quat = ObsTerm(func=desktop_left_eef_delta_quat, params={"ee_frame_cfg": SceneEntityCfg("left_ee_frame")})
-            right_eef_delta_pos = ObsTerm(func=desktop_right_eef_delta_pos, params={"ee_frame_cfg": SceneEntityCfg("right_ee_frame")})
-            right_eef_delta_quat = ObsTerm(func=desktop_right_eef_delta_quat, params={"ee_frame_cfg": SceneEntityCfg("right_ee_frame")})
+            eef_delta_pos = ObsTerm(func=bimanual_left_eef_delta_pos, params={"ee_frame_cfg": SceneEntityCfg("left_ee_frame")})
+            eef_delta_quat = ObsTerm(func=bimanual_left_eef_delta_quat, params={"ee_frame_cfg": SceneEntityCfg("left_ee_frame")})
+            right_eef_delta_pos = ObsTerm(func=bimanual_right_eef_delta_pos, params={"ee_frame_cfg": SceneEntityCfg("right_ee_frame")})
+            right_eef_delta_quat = ObsTerm(func=bimanual_right_eef_delta_quat, params={"ee_frame_cfg": SceneEntityCfg("right_ee_frame")})
             follow1_pos = ObsTerm(func=wallx_ee_follow_pos, params={"ee_frame_cfg": SceneEntityCfg("left_ee_frame"), "gripper_joint_name": "left_arm_gripper"})
             follow2_pos = ObsTerm(func=wallx_ee_follow_pos, params={"ee_frame_cfg": SceneEntityCfg("right_ee_frame"), "gripper_joint_name": "right_arm_gripper"})
 
@@ -304,8 +304,8 @@ class DesktopEmbodiment(EmbodimentBase):
         self.action_config = self.ActionsCfg()
         self.observation_config = self.StateObservationsCfg()
         self._camera_observation_config = self.CameraObservationsCfg()
-        env_pos = _parse_env_tuple(os.environ.get("ISAACLAB_ARENA_DESKTOP_XR_ANCHOR_POS"), 3)
-        env_rot = _parse_env_tuple(os.environ.get("ISAACLAB_ARENA_DESKTOP_XR_ANCHOR_ROT"), 4)
+        env_pos = _parse_env_tuple(os.environ.get("ISAACLAB_ARENA_BIMANUAL_XR_ANCHOR_POS"), 3)
+        env_rot = _parse_env_tuple(os.environ.get("ISAACLAB_ARENA_BIMANUAL_XR_ANCHOR_ROT"), 4)
         self.xr = XrCfg(
             anchor_pos=xr_anchor_pos or env_pos or (0.0, 0.0, 0.0),
             anchor_rot=xr_anchor_rot or env_rot or (1.0, 0.0, 0.0, 0.0),

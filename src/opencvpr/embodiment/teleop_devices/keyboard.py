@@ -1,4 +1,4 @@
-"""Bimanual keyboard teleop device for Desktop."""
+"""Bimanual keyboard teleop device."""
 
 from __future__ import annotations
 

@@ -3,7 +3,7 @@ num_envs: 1
 num_demos: 10
 step_hz: 30
 max_steps: 0
-working_path: "~/Desktop/opencvpr_output/recordings/"
+working_path: "~/maniparena_output/recordings/"
 format: "hdf5"
 teleop_config:
   remote_ip: "10.0.0.100"

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Replay recorded episodes for Desktop.
+"""Replay recorded episodes for Bimanual.
 
 Usage:
     python scripts/replay.py \
@@ -25,7 +25,7 @@ def load_yaml(path: str) -> dict:
 def parse_args():
     """Parse CLI arguments."""
     parser = argparse.ArgumentParser(
-        description='Replay Desktop recorded episodes.',
+        description='Replay Bimanual recorded episodes.',
     )
     AppLauncher.add_app_launcher_args(parser)
     parser.add_argument(
@@ -52,7 +52,7 @@ def main() -> int:
     dataset_path = str(
         payload.get(
             'dataset_path',
-            '~/Desktop/opencvpr_output/recordings/',
+            '~/maniparena_output/recordings/',
         )
     )
 

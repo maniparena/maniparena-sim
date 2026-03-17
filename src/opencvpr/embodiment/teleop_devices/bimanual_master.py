@@ -1,4 +1,4 @@
-"""WebSocket master-arm teleop device for Desktop joint control."""
+"""WebSocket master-arm teleop device for Bimanual joint control."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class DesktopMasterCfg:
+class BimanualMasterCfg:
     remote_ip: str = "10.0.0.100"
     remote_port: int = 5555
     sim_device: str | None = None
@@ -26,10 +26,10 @@ class DesktopMasterCfg:
     joint_offsets: tuple[float, ...] = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
 
 
-class DesktopMasterTeleop:
+class BimanualMasterTeleop:
     """Background WebSocket receiver that emits 14D joint actions."""
 
-    def __init__(self, cfg: DesktopMasterCfg):
+    def __init__(self, cfg: BimanualMasterCfg):
         self.cfg = cfg
         self._sim_device = cfg.sim_device
         self._additional_callbacks: dict[str, Callable[[], None]] = {}

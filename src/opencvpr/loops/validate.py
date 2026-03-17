@@ -24,7 +24,7 @@ class EvalConfig:
     task_name: str
     num_episodes: int = 10
     max_steps: int = 800
-    working_path: str = "~/Desktop/opencvpr_output/eval/"
+    working_path: str = "~/maniparena_output/eval/"
     policy_type: str = ""
     policy_config: dict[str, Any] = field(default_factory=dict)
 
@@ -38,7 +38,7 @@ def validate_policy(policy: PolicyLike, environment, config: EvalConfig) -> Vali
         from isaacsim.benchmark.services import BaseIsaacBenchmark
 
         benchmark = BaseIsaacBenchmark(
-            benchmark_name="desktop_eval",
+            benchmark_name="bimanual_eval",
             workflow_metadata={"metadata": [{"name": "task", "data": environment.name}, {"name": "num_episodes", "data": config.num_episodes}]},
             backend_type="JSONFileMetrics",
         )

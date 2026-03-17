@@ -1,4 +1,4 @@
-"""Three-state gripper action term used by Desktop."""
+"""Three-state gripper action term used by Bimanual."""
 
 from __future__ import annotations
 

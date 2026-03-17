@@ -2,7 +2,7 @@ enable_cameras: true
 num_envs: 1
 num_episodes: 10
 max_steps: 800
-working_path: "~/Desktop/opencvpr_output/eval/"
+working_path: "~/maniparena_output/eval/"
 policy_config:
   model_address: "localhost"
   model_port: 33030

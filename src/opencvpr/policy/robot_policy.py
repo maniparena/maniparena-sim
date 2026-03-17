@@ -2,7 +2,7 @@
 
 Communicates with a remote policy server
 via WebSocket (PolicyServerClient) and converts EE predictions
-to delta-pose actions for the Desktop embodiment.
+to delta-pose actions for the Bimanual embodiment.
 """
 
 from __future__ import annotations

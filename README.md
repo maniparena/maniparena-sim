@@ -1,17 +1,17 @@
 # ManipArena-Sim
 
-ManipArena-Sim is the simulation environment for [**ManipArena**](https://maniparena.github.io/), a real-robot benchmark for bimanual manipulation. It provides data collection, replay, and policy evaluation for the **Desktop** bimanual robot, built on [Isaac Lab](https://github.com/isaac-sim/IsaacLab) and [IsaacLab-Arena](https://github.com/LightwheelAI/IsaacLab-Arena).
+ManipArena-Sim is the simulation environment for [**ManipArena**](https://maniparena.github.io/), a real-robot benchmark for bimanual manipulation. It provides data collection, replay, and policy evaluation for the bimanual robot, built on [Isaac Lab](https://github.com/isaac-sim/IsaacLab) and [IsaacLab-Arena](https://github.com/LightwheelAI/IsaacLab-Arena).
 
 > **Related repo:** [ManipArena Model Server](https://github.com/maniparena/maniparena_model_server) — model server template for submitting your policy.
 
 ## Features
 
-- **Desktop** bimanual robot with SE(3) differential-IK and joint-position action spaces
+- **Bimanual** robot with SE(3) differential-IK and joint-position action spaces
 - **3 tabletop tasks**: `sort_blocks`, `fruits_to_basket`, `buttons_contact`
 - **3 teleoperation modes**: keyboard, VR (OpenXR), master-slave
 - **Trajectory replay**: state / joint / end-effector modes from HDF5 or LeRobot datasets
 - **Policy evaluation**: closed-loop inference via WebSocket server-client architecture
-- **Data export**: `desktop_lerobot` (Parquet + video) and `hdf5` formats
+- **Data export**: `bimanual_lerobot` (Parquet + video) and `hdf5` formats
 
 ## Prerequisites
 

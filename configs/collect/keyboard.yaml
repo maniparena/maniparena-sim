@@ -3,8 +3,8 @@ num_envs: 1
 num_demos: 10
 step_hz: 30
 max_steps: 0
-working_path: "~/Desktop/opencvpr_output/recordings/"
-format: "desktop_lerobot"
+working_path: "~/maniparena_output/recordings/"
+format: "bimanual_lerobot"
 teleop_config:
   position_scale: 0.05
   rotation_scale: 0.5

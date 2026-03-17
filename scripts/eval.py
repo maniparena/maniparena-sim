@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Robot closed-loop policy evaluation for Desktop.
+"""Robot closed-loop policy evaluation for Bimanual.
 
 Usage:
     python scripts/eval.py \
@@ -22,7 +22,7 @@ def load_yaml(path: str) -> dict:
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description='Evaluate Robot policy on Desktop.',
+        description='Evaluate Robot policy on Bimanual.',
     )
     AppLauncher.add_app_launcher_args(parser)
     parser.add_argument(

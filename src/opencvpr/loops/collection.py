@@ -15,9 +15,9 @@ from opencvpr.planners.planner_base import PlannerBase
 from opencvpr.planners.vr_teleop import VRTeleopPlanner
 from opencvpr.loops.result_types import CollectionResult
 from opencvpr.loops.teleop_collection import run_teleop_collection_loop
-from opencvpr.terms.recorders.dataset_handlers.desktop_lerobot.helpers import (
-    create_desktop_lerobot_handler_type,
-    resolve_desktop_lerobot_dataset_layout,
+from opencvpr.terms.recorders.dataset_handlers.bimanual_lerobot.helpers import (
+    create_bimanual_lerobot_handler_type,
+    resolve_bimanual_lerobot_dataset_layout,
 )
 
 
@@ -28,8 +28,8 @@ class CollectConfig:
     num_demos: int = 10
     step_hz: int = 30
     max_steps: int = 400
-    working_path: str = "~/Desktop/opencvpr_output/recordings/"
-    format: str = "desktop_lerobot"
+    working_path: str = "~/maniparena_output/recordings/"
+    format: str = "bimanual_lerobot"
     teleop_config: dict[str, Any] = field(default_factory=dict)
 
 
@@ -55,15 +55,15 @@ def create_teleop_planner(config: CollectConfig) -> PlannerBase:
 def _resolve_dataset_export(environment, env_name: str, prompt: str, planner: PlannerBase, config: CollectConfig):
     if config.format == "hdf5":
         return None, {}, []
-    if config.format != "desktop_lerobot":
+    if config.format != "bimanual_lerobot":
         return None, {}, []
     dataset_fps = environment.dataset_fps or float(config.step_hz)
-    layout = resolve_desktop_lerobot_dataset_layout(
+    layout = resolve_bimanual_lerobot_dataset_layout(
         save_path=config.working_path,
         env_name=env_name,
         device_name=planner.device_name,
     )
-    handler_type = create_desktop_lerobot_handler_type(
+    handler_type = create_bimanual_lerobot_handler_type(
         save_path=config.working_path,
         env_name=env_name,
         task_name=prompt or env_name,
