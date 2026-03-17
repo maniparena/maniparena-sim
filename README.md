@@ -24,8 +24,8 @@ ManipArena-Sim is the simulation environment for [**ManipArena**](https://manipa
 ## Installation
 
 ```bash
-git clone https://github.com/maniparena/opencvpr.git
-cd opencvpr
+git clone https://github.com/maniparena/maniparena_sim.git
+cd maniparena_sim
 pip install -e .
 ```
 
@@ -33,17 +33,17 @@ USD assets under `assets/` are tracked via [Git LFS](https://git-lfs.github.com/
 
 ```bash
 git lfs install
-git clone https://github.com/maniparena/opencvpr.git
+git clone https://github.com/maniparena/maniparena_sim.git
 ```
 
 ## Project Structure
 
 ```text
-opencvpr/
+maniparena_sim/
 ├── assets/           # USD scene & object assets (Git LFS)
 ├── configs/          # YAML configurations (collect, eval, replay, tasks)
 ├── scripts/          # Entry-point scripts (collect, eval, replay)
-└── src/opencvpr/     # Python package
+└── src/maniparena_sim/     # Python package
     ├── assets/       # Asset registration (environments, objects)
     ├── embodiment/    # Robot, actions, sensors, teleop devices
     ├── environment/   # Environment assembly & scene building

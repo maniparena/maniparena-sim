@@ -28,8 +28,8 @@ htmlcov/
 .tox/
 
 # Output / recordings
-opencvpr_output/
-opencvpr_test/
+maniparena_sim_output/
+maniparena_sim_test/
 recordings/
 *.hdf5
 *.parquet

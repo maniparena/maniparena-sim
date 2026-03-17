@@ -61,19 +61,19 @@ def main() -> int:
 
     import torch
 
-    from opencvpr.environment.builder import (
+    from maniparena_sim.environment.builder import (
         build_replay_gym_env,
     )
-    from opencvpr.environment.registry import (
+    from maniparena_sim.environment.registry import (
         bootstrap_arena_registry,
     )
-    from opencvpr.loops.replay_loop import (
+    from maniparena_sim.loops.replay_loop import (
         restore_initial_state,
         run_ee_replay,
         run_joint_replay,
         run_state_replay,
     )
-    from opencvpr.terms.replay.reader import (
+    from maniparena_sim.terms.replay.reader import (
         ReplayDataReader,
     )
 

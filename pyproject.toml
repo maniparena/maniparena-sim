@@ -3,7 +3,7 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "opencvpr"
+name = "maniparena_sim"
 version = "0.1.0"
 description = "Bimanual data collection and validation runtime."
 readme = "README.md"
@@ -15,4 +15,4 @@ dependencies = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["opencvpr*"]
+include = ["maniparena_sim*"]

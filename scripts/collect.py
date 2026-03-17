@@ -57,7 +57,7 @@ def _create_planner(control_mode: str, payload: dict):
     max_steps = int(payload.get('max_steps', 400))
 
     if control_mode == 'keyboard':
-        from opencvpr.planners.keyboard_teleop import (
+        from maniparena_sim.planners.keyboard_teleop import (
             KeyboardTeleopPlanner,
             KeyboardTeleopSettings,
         )
@@ -75,7 +75,7 @@ def _create_planner(control_mode: str, payload: dict):
         return planner
 
     if control_mode == 'vr':
-        from opencvpr.planners.vr_teleop import (
+        from maniparena_sim.planners.vr_teleop import (
             VRTeleopPlanner,
             VRTeleopSettings,
         )
@@ -91,7 +91,7 @@ def _create_planner(control_mode: str, payload: dict):
         return planner
 
     if control_mode == 'master_slave':
-        from opencvpr.planners.master_slave_teleop import (
+        from maniparena_sim.planners.master_slave_teleop import (
             MasterSlaveTeleopPlanner,
             MasterSlaveTeleopSettings,
         )
@@ -136,13 +136,13 @@ def main() -> int:
     app_launcher = AppLauncher(args)
     simulation_app = app_launcher.app
 
-    from opencvpr.environment.builder import (
+    from maniparena_sim.environment.builder import (
         build_collect_gym_env,
     )
-    from opencvpr.environment.registry import (
+    from maniparena_sim.environment.registry import (
         bootstrap_arena_registry,
     )
-    from opencvpr.loops.teleop_collection import (
+    from maniparena_sim.loops.teleop_collection import (
         run_planner_collection,
     )
 

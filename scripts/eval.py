@@ -48,11 +48,11 @@ def main() -> int:
 
     import torch
 
-    from opencvpr.environment.builder import build_eval_gym_env
-    from opencvpr.environment.registry import (
+    from maniparena_sim.environment.builder import build_eval_gym_env
+    from maniparena_sim.environment.registry import (
         bootstrap_arena_registry,
     )
-    from opencvpr.policy.robot_policy import (
+    from maniparena_sim.policy.robot_policy import (
         RobotClosedloopPolicy,
         RobotPolicyConfig,
     )
