@@ -6,6 +6,7 @@ import argparse
 from typing import Any
 
 import numpy as np
+from maniparena_sim.environment.render_settings import apply_carb_settings, patch_env_cfg_render
 from maniparena_sim.terms.recorders.recording_terms import PreStepCameraObservationsRecorderCfg
 
 
@@ -74,6 +75,9 @@ class AssembledEnvironment:
         args = args or self._create_default_args()
         self._env_builder = ArenaEnvBuilder(self._arena_env, args)
         env_name, env_cfg = self._env_builder.build_registered()
+
+        render_cfg_dict = getattr(self.scene, "render_cfg_dict", None) or {}
+        patch_env_cfg_render(env_cfg, render_cfg_dict)
         task_seed = self._resolve_task_seed()
         if task_seed is not None and hasattr(env_cfg, "seed"):
             env_cfg.seed = task_seed
@@ -89,6 +93,8 @@ class AssembledEnvironment:
             self._apply_evaluation_overrides(env_cfg, output_dir, output_file_name)
         self._gym_env = gym.make(env_name, cfg=env_cfg).unwrapped
         self._run_post_spawn_hooks()
+
+        apply_carb_settings(getattr(self.scene, "render_carb_dict", None) or {})
         self.is_built = True
         return self._gym_env
 

@@ -120,13 +120,11 @@ class Bread(_TabletopObject):
 
 
 @register_asset
-class PlatformPink(_TabletopObject):
+class BasketB(_TabletopObject):
     name = "platform_pink"
     tags = ["object", "container"]
-    usd_path = os.path.join(
-        _OBJECTS_DIR, "platform_pink", "platform_pink_physics.usd",
-    )
-    scale = (0.003, 0.003, 0.003)
+    usd_path = _object_usd("platform_pink", "platform_pink.usd")
+    scale = (0.8, 0.8, 0.8)
 
 
 @register_asset

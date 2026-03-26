@@ -7,6 +7,7 @@ from isaaclab_arena.scene.scene import Scene
 from isaaclab_arena.utils.pose import Pose
 
 from maniparena_sim.environment.registry import bootstrap_arena_registry
+from maniparena_sim.environment.render_settings import load_render_settings
 
 
 def _apply_semantic_tags(asset) -> None:
@@ -81,7 +82,7 @@ def _build_fruits_to_basket_scene(registry: AssetRegistry) -> Scene:
     basket.set_initial_pose(
         Pose(
             position_xyz=(0.262, -0.194, -0.226),
-            rotation_wxyz=(0.0, 0.70711, 0.70711, 0.0),
+            rotation_wxyz=(0.70711, 0.0, 0.0, 0.70711),
         )
     )
     _apply_semantic_tags(basket)
@@ -131,13 +132,32 @@ def _build_buttons_contact_scene(registry: AssetRegistry) -> Scene:
     return Scene(assets=[background, *buttons])
 
 
+def _attach_render_settings(
+    scene: Scene,
+    settings_name: str = "green_booth",
+    sim_fps: int = 60,
+    render_decremental: int = 1,
+) -> Scene:
+    """Load render settings and attach to scene."""
+    render_cfg_dict, carb_dict = load_render_settings(
+        settings_name,
+    )
+    scene.render_cfg_dict = render_cfg_dict
+    scene.render_carb_dict = carb_dict
+    scene.sim_fps = sim_fps
+    scene.render_decremental = render_decremental
+    return scene
+
+
 def build_scene(task_name: str):
     bootstrap_arena_registry()
     registry = AssetRegistry()
     if task_name == "sort_blocks":
-        return _build_sort_blocks_scene(registry)
-    if task_name == "fruits_to_basket":
-        return _build_fruits_to_basket_scene(registry)
-    if task_name == "buttons_contact":
-        return _build_buttons_contact_scene(registry)
-    raise ValueError(f"Unsupported task '{task_name}' for scene assembly.")
+        scene = _build_sort_blocks_scene(registry)
+    elif task_name == "fruits_to_basket":
+        scene = _build_fruits_to_basket_scene(registry)
+    elif task_name == "buttons_contact":
+        scene = _build_buttons_contact_scene(registry)
+    else:
+        raise ValueError(f"Unsupported task '{task_name}' for scene assembly.")
+    return _attach_render_settings(scene)

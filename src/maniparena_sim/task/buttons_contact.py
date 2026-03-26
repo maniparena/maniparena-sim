@@ -31,6 +31,7 @@ class ButtonsContactTask(TaskBase):
         self.scene_config = None
         self.events_cfg = None
         self.termination_cfg = None
+        self.viewer_cfg = None
 
     def get_scene_cfg(self):
         return self.scene_config
@@ -51,6 +52,8 @@ class ButtonsContactTask(TaskBase):
         return [SuccessRateMetric()]
 
     def get_viewer_cfg(self) -> ViewerCfg:
+        if self.viewer_cfg is not None:
+            return self.viewer_cfg
         return ViewerCfg()
 
     @classmethod

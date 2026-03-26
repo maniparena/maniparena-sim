@@ -1,0 +1,12 @@
+#usda 1.0
+(
+    customLayerData = {
+        dictionary renderSettings = {
+            bool "rtx:ecoMode:enabled" = 0
+            int "rtx:post:dlss:execMode" = 1
+            bool "rtx:post:tonemap:ocio:enabled" = 1
+            bool "rtx:raytracing:cached:enabled" = 1
+        }
+    }
+)
+

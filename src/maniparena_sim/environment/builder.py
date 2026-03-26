@@ -9,6 +9,10 @@ from typing import Any
 
 from maniparena_sim.embodiment.robots.bimanual import BimanualEmbodiment
 from maniparena_sim.environment.assembled_environment import AssembledEnvironment
+from maniparena_sim.environment.render_settings import (
+    apply_carb_settings,
+    patch_env_cfg_render,
+)
 from maniparena_sim.environment.scene_builder import build_scene
 from maniparena_sim.task.builders.buttons_contact_builder import ButtonsContactBuilder
 from maniparena_sim.task.builders.fruits_to_basket_builder import FruitsToBasketBuilder
@@ -116,6 +120,10 @@ def build_collect_gym_env(
     cli_args.device = device
     cli_args.enable_cameras = enable_cameras
     reg_name, env_cfg = ArenaEnvBuilder(arena_env, cli_args).build_registered()
+    patch_env_cfg_render(
+        env_cfg,
+        getattr(scene, 'render_cfg_dict', None) or {},
+    )
 
     if control_mode == 'master_slave':
         from isaaclab.envs.mdp.actions.actions_cfg import JointPositionActionCfg
@@ -191,6 +199,9 @@ def build_collect_gym_env(
         env_cfg.observations.policy.concatenate_terms = False
 
     gym_env = gym.make(reg_name, cfg=env_cfg).unwrapped
+    apply_carb_settings(
+        getattr(scene, 'render_carb_dict', None) or {},
+    )
 
     if not enable_cameras:
         n_disabled = deactivate_robot_camera_prims(logger=print)
@@ -311,6 +322,10 @@ def build_replay_gym_env(
     reg_name, env_cfg = ArenaEnvBuilder(
         arena_env, cli_args,
     ).build_registered()
+    patch_env_cfg_render(
+        env_cfg,
+        getattr(scene, 'render_cfg_dict', None) or {},
+    )
 
     export_lerobot = bool(payload.get('export_lerobot', False))
 
@@ -371,6 +386,9 @@ def build_replay_gym_env(
         env_cfg.observations.policy.concatenate_terms = False
 
     gym_env = gym.make(reg_name, cfg=env_cfg).unwrapped
+    apply_carb_settings(
+        getattr(scene, 'render_carb_dict', None) or {},
+    )
 
     if export_lerobot:
         rm = gym_env.recorder_manager
@@ -429,6 +447,10 @@ def build_eval_gym_env(
     reg_name, env_cfg = ArenaEnvBuilder(
         arena_env, cli_args,
     ).build_registered()
+    patch_env_cfg_render(
+        env_cfg,
+        getattr(scene, 'render_cfg_dict', None) or {},
+    )
 
     if (
         hasattr(env_cfg, 'observations')
@@ -437,6 +459,9 @@ def build_eval_gym_env(
         env_cfg.observations.policy.concatenate_terms = False
 
     gym_env = gym.make(reg_name, cfg=env_cfg).unwrapped
+    apply_carb_settings(
+        getattr(scene, 'render_carb_dict', None) or {},
+    )
 
     if not enable_cameras:
         n = deactivate_robot_camera_prims(logger=print)
