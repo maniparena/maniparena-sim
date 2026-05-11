@@ -77,7 +77,12 @@ class AssembledEnvironment:
         env_name, env_cfg = self._env_builder.build_registered()
 
         render_cfg_dict = getattr(self.scene, "render_cfg_dict", None) or {}
-        patch_env_cfg_render(env_cfg, render_cfg_dict)
+        patch_env_cfg_render(
+            env_cfg,
+            render_cfg_dict,
+            sim_fps=getattr(self.scene, "sim_fps", 120),
+            render_interval=getattr(self.scene, "render_decremental", 2),
+        )
         task_seed = self._resolve_task_seed()
         if task_seed is not None and hasattr(env_cfg, "seed"):
             env_cfg.seed = task_seed

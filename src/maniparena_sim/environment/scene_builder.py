@@ -135,8 +135,8 @@ def _build_buttons_contact_scene(registry: AssetRegistry) -> Scene:
 def _attach_render_settings(
     scene: Scene,
     settings_name: str = "green_booth",
-    sim_fps: int = 60,
-    render_decremental: int = 1,
+    sim_fps: int = 120,
+    render_decremental: int = 2,
 ) -> Scene:
     """Load render settings and attach to scene."""
     render_cfg_dict, carb_dict = load_render_settings(

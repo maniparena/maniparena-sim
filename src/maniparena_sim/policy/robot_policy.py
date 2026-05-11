@@ -289,11 +289,8 @@ class RobotClosedloopPolicy:
         ) = self._get_current_ee_poses(env)
 
     def _gripper_command(self, val: float) -> float:
-        if val >= self.cfg.gripper_open_threshold:
-            return 1.0
-        if val <= self.cfg.gripper_close_threshold:
-            return -1.0
-        return 0.0
+        midpoint = (self.cfg.gripper_open_threshold + self.cfg.gripper_close_threshold) * 0.5
+        return 1.0 if val >= midpoint else -1.0
 
     def _response_to_action_chunk(
         self,

@@ -23,6 +23,8 @@ def _update_camera_base(prim: Usd.Prim, cfg) -> UsdGeom.Camera:
         camera.GetFocusDistanceAttr().Set(cfg.focus_distance)
     if cfg.f_stop:
         camera.GetFStopAttr().Set(cfg.f_stop)
+    if cfg.focal_length is not None:
+        camera.GetFocalLengthAttr().Set(float(cfg.focal_length))
     return camera
 
 
@@ -76,5 +78,6 @@ class OpenCVFisheyeCameraCfg(PinholeCameraCfg):
     cy: float | None = None
     distortion_coefficients: list[float] | None = None
     clipping_range: tuple[float, float] | None = None
+    focal_length: float | None = None
     focus_distance: float | None = None
     f_stop: float | None = None

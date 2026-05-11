@@ -84,8 +84,8 @@ def load_render_settings(
 def patch_env_cfg_render(
     env_cfg: Any,
     render_cfg_dict: dict[str, Any],
-    sim_fps: int = 60,
-    render_interval: int = 1,
+    sim_fps: int = 120,
+    render_interval: int = 2,
 ) -> None:
     """Patch sim timing and render settings on env_cfg.
 

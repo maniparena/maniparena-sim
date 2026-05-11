@@ -123,6 +123,8 @@ def build_collect_gym_env(
     patch_env_cfg_render(
         env_cfg,
         getattr(scene, 'render_cfg_dict', None) or {},
+        sim_fps=getattr(scene, 'sim_fps', 120),
+        render_interval=getattr(scene, 'render_decremental', 2),
     )
 
     if control_mode == 'master_slave':
@@ -325,6 +327,8 @@ def build_replay_gym_env(
     patch_env_cfg_render(
         env_cfg,
         getattr(scene, 'render_cfg_dict', None) or {},
+        sim_fps=getattr(scene, 'sim_fps', 120),
+        render_interval=getattr(scene, 'render_decremental', 2),
     )
 
     export_lerobot = bool(payload.get('export_lerobot', False))
@@ -450,6 +454,8 @@ def build_eval_gym_env(
     patch_env_cfg_render(
         env_cfg,
         getattr(scene, 'render_cfg_dict', None) or {},
+        sim_fps=getattr(scene, 'sim_fps', 120),
+        render_interval=getattr(scene, 'render_decremental', 2),
     )
 
     if (

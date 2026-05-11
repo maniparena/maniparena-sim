@@ -12,7 +12,11 @@ from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
 from isaaclab.devices.openxr import XrCfg
-from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg, JointPositionActionCfg
+from isaaclab.envs.mdp.actions.actions_cfg import (
+    BinaryJointPositionActionCfg,
+    DifferentialInverseKinematicsActionCfg,
+    JointPositionActionCfg,
+)
 from isaaclab.managers import ActionTermCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -27,7 +31,6 @@ from isaaclab_arena.embodiments.embodiment_base import EmbodimentBase
 from isaaclab_arena.utils.configclass import combine_configclass_instances
 from isaaclab_arena.utils.pose import Pose
 
-from maniparena_sim.embodiment.actions.three_state_gripper import ThreeStateGripperActionCfg
 from maniparena_sim.assets import ASSETS_DIR
 from maniparena_sim.embodiment.sensors.update_camera import OpenCVFisheyeCameraCfg
 
@@ -166,7 +169,7 @@ class BimanualEmbodiment(EmbodimentBase):
             height=480,
             width=640,
             data_types=["rgb"],
-            spawn=OpenCVFisheyeCameraCfg(clipping_range=(0.05, 1.0e5)),
+            spawn=OpenCVFisheyeCameraCfg(clipping_range=(0.03, 1.0e5)),
         )
         right_wrist_camera: CameraCfg = CameraCfg(
             prim_path="{ENV_REGEX_NS}/Robot/right_arm_gripper_camera_color_frame/Right_Gripper_Camera",
@@ -174,18 +177,23 @@ class BimanualEmbodiment(EmbodimentBase):
             height=480,
             width=640,
             data_types=["rgb"],
-            spawn=OpenCVFisheyeCameraCfg(clipping_range=(0.05, 1.0e5)),
+            spawn=OpenCVFisheyeCameraCfg(clipping_range=(0.03, 1.0e5)),
         )
         head_camera: CameraCfg = CameraCfg(
             prim_path="{ENV_REGEX_NS}/Robot/Head_Camera",
             update_period=0.0333,
-            height=480,
-            width=640,
+            height=720,
+            width=1280,
             data_types=["rgb"],
-            spawn=PinholeCameraCfg(focal_length=14.0, clipping_range=(0.1, 1.0e5)),
+            spawn=PinholeCameraCfg(
+                horizontal_aperture=5.54,
+                vertical_aperture=3.09,
+                focal_length=2.97,
+                clipping_range=(0.03, 1.0e5),
+            ),
             offset=CameraCfg.OffsetCfg(
-                pos=(0.1453, 0.0, 0.44),
-                rot=(0.66611, 0.23726, -0.23726, -0.66611),
+                pos=(0.084, 0.0, 0.517),
+                rot=(0.67438, 0.21263, -0.21263, -0.67438),
                 convention="opengl",
             ),
         )
@@ -199,15 +207,11 @@ class BimanualEmbodiment(EmbodimentBase):
             controller=DifferentialIKControllerCfg(command_type="pose", use_relative_mode=True, ik_method="dls"),
             scale=1.0,
         )
-        gripper_action: ActionTermCfg = ThreeStateGripperActionCfg(
+        gripper_action: ActionTermCfg = BinaryJointPositionActionCfg(
             asset_name="robot",
             joint_names=["left_arm_gripper"],
             open_command_expr={"left_arm_gripper": 4.5},
             close_command_expr={"left_arm_gripper": 0.0},
-            contact_sensor_name="left_gripper_contact",
-            force_threshold=5.0,
-            left_finger_body_regex="left_arm_gripper_left_link",
-            right_finger_body_regex="left_arm_gripper_right_link",
         )
         right_arm_action: ActionTermCfg = DifferentialInverseKinematicsActionCfg(
             asset_name="robot",
@@ -216,46 +220,28 @@ class BimanualEmbodiment(EmbodimentBase):
             controller=DifferentialIKControllerCfg(command_type="pose", use_relative_mode=True, ik_method="dls"),
             scale=1.0,
         )
-        right_gripper_action: ActionTermCfg = ThreeStateGripperActionCfg(
+        right_gripper_action: ActionTermCfg = BinaryJointPositionActionCfg(
             asset_name="robot",
             joint_names=["right_arm_gripper"],
             open_command_expr={"right_arm_gripper": 4.5},
             close_command_expr={"right_arm_gripper": 0.0},
-            contact_sensor_name="right_gripper_contact",
-            force_threshold=5.0,
-            left_finger_body_regex="right_arm_gripper_left_link",
-            right_finger_body_regex="right_arm_gripper_right_link",
         )
 
     @configclass
     class JointActionsCfg:
         arm_action: ActionTermCfg = JointPositionActionCfg(asset_name="robot", joint_names=["left_arm_joint[1-6]"], scale=1.0, use_default_offset=False)
-        gripper_action: ActionTermCfg = ThreeStateGripperActionCfg(
+        gripper_action: ActionTermCfg = BinaryJointPositionActionCfg(
             asset_name="robot",
             joint_names=["left_arm_gripper"],
             open_command_expr={"left_arm_gripper": 5.0},
             close_command_expr={"left_arm_gripper": 0.0},
-            absolute_input=True,
-            open_threshold=3.3,
-            close_threshold=1.0,
-            contact_sensor_name="left_gripper_contact",
-            force_threshold=5.0,
-            left_finger_body_regex="left_arm_gripper_left_link",
-            right_finger_body_regex="left_arm_gripper_right_link",
         )
         right_arm_action: ActionTermCfg = JointPositionActionCfg(asset_name="robot", joint_names=["right_arm_joint[1-6]"], scale=1.0, use_default_offset=False)
-        right_gripper_action: ActionTermCfg = ThreeStateGripperActionCfg(
+        right_gripper_action: ActionTermCfg = BinaryJointPositionActionCfg(
             asset_name="robot",
             joint_names=["right_arm_gripper"],
             open_command_expr={"right_arm_gripper": 5.0},
             close_command_expr={"right_arm_gripper": 0.0},
-            absolute_input=True,
-            open_threshold=3.3,
-            close_threshold=1.0,
-            contact_sensor_name="right_gripper_contact",
-            force_threshold=5.0,
-            left_finger_body_regex="right_arm_gripper_left_link",
-            right_finger_body_regex="right_arm_gripper_right_link",
         )
 
     @configclass
