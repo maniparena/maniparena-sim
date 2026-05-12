@@ -2,7 +2,7 @@
 
 Communicates with a remote policy server
 via WebSocket (PolicyServerClient) and converts EE predictions
-to delta-pose actions for the Bimanual embodiment.
+to absolute IK actions for the Bimanual embodiment.
 """
 
 from __future__ import annotations
@@ -14,11 +14,7 @@ from typing import Any, Dict, Optional
 import cv2
 import numpy as np
 import torch
-from isaaclab.utils.math import (
-    axis_angle_from_quat,
-    quat_conjugate,
-    quat_mul,
-)
+from isaaclab.utils.math import subtract_frame_transforms
 from scipy.spatial.transform import Rotation
 
 from maniparena_sim.policy.server_client import PolicyServerClient
@@ -31,14 +27,18 @@ class RobotPolicyConfig:
     model_port: int = 8000
     instruction: str = 'pick up the object'
 
-    action_horizon: int = 16
-    action_chunk_length: int = 4
+    action_horizon: int = 32
+    action_chunk_length: int = 32
+    interpolation_multiplier: int = 2
+    ee_pose_normalize: bool = True
 
     camera_left: str = 'left_wrist_cam'
     camera_right: str = 'right_wrist_cam'
     camera_front: str = 'head_cam'
     target_image_size: tuple = (480, 640, 3)
 
+    obs_left_follow_key: str = 'follow1_pos'
+    obs_right_follow_key: str = 'follow2_pos'
     obs_left_eef_pos_key: str = 'eef_delta_pos'
     obs_left_eef_quat_key: str = 'eef_delta_quat'
     obs_right_eef_pos_key: str = 'right_eef_delta_pos'
@@ -57,7 +57,7 @@ class RobotPolicyConfig:
 class RobotClosedloopPolicy:
     """Closed-loop EE policy with built-in action chunk buffering."""
 
-    ACTION_DIM = 14
+    ACTION_DIM = 16
 
     def __init__(self, config: RobotPolicyConfig):
         self.cfg = config
@@ -68,6 +68,11 @@ class RobotClosedloopPolicy:
         self._left_init_quat: Optional[torch.Tensor] = None
         self._right_init_pos: Optional[torch.Tensor] = None
         self._right_init_quat: Optional[torch.Tensor] = None
+        self._left_init_follow: Optional[np.ndarray] = None
+        self._right_init_follow: Optional[np.ndarray] = None
+        self._left_default_follow: Optional[np.ndarray] = None
+        self._right_default_follow: Optional[np.ndarray] = None
+        self._stale_after_reset = False
         self._query_count = 0
 
         self._chunk: Optional[torch.Tensor] = None
@@ -102,7 +107,7 @@ class RobotClosedloopPolicy:
         if self._chunk is not None:
             actions[0] = self._chunk[self._chunk_idx]
             self._chunk_idx += 1
-            if self._chunk_idx >= self.cfg.action_chunk_length:
+            if self._chunk_idx >= self._chunk.shape[0]:
                 self._chunk_idx = -1
                 self._needs_chunk = True
 
@@ -113,6 +118,17 @@ class RobotClosedloopPolicy:
         self._left_init_quat = None
         self._right_init_pos = None
         self._right_init_quat = None
+        self._left_init_follow = None
+        self._right_init_follow = None
+        if env_ids is None:
+            self._left_default_follow = None
+            self._right_default_follow = None
+            self._stale_after_reset = False
+        elif (
+            self._left_default_follow is not None
+            and self._right_default_follow is not None
+        ):
+            self._stale_after_reset = True
         self._query_count = 0
         if self._chunk is not None:
             self._chunk.zero_()
@@ -129,7 +145,9 @@ class RobotClosedloopPolicy:
             image = np.clip(image, 0, 255).astype(np.uint8)
         if len(image.shape) == 3 and image.shape[2] == 3:
             image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-        ok, encoded = cv2.imencode('.jpg', image)
+        ok, encoded = cv2.imencode(
+            '.jpg', image, [cv2.IMWRITE_JPEG_QUALITY, 95],
+        )
         if not ok:
             return ''
         return base64.b64encode(encoded).decode('utf-8')
@@ -162,6 +180,73 @@ class RobotClosedloopPolicy:
             return 0.0
         return float(jp[idx])
 
+    def _get_follow_state(
+        self, policy_obs: Dict[str, Any], side: str,
+    ) -> Optional[np.ndarray]:
+        key = (
+            self.cfg.obs_left_follow_key
+            if side == 'left'
+            else self.cfg.obs_right_follow_key
+        )
+        value = self._to_numpy(policy_obs.get(key))
+        if value is not None and value.shape[0] >= 7:
+            return value[:7].astype(np.float32)
+        return None
+
+    @staticmethod
+    def _normalize_one_ee_pose(
+        pose: np.ndarray, init_pose: np.ndarray,
+    ) -> np.ndarray:
+        out = pose.astype(np.float32, copy=True)
+        out[0:3] = pose[0:3] - init_pose[0:3]
+        rel_rot = (
+            Rotation.from_euler('xyz', pose[3:6])
+            * Rotation.from_euler('xyz', init_pose[3:6]).inv()
+        )
+        out[3:6] = rel_rot.as_euler('xyz').astype(np.float32)
+        return out
+
+    @staticmethod
+    def _denormalize_one_ee_pose(
+        pose: np.ndarray, init_pose: np.ndarray,
+    ) -> np.ndarray:
+        out = pose.astype(np.float32, copy=True)
+        out[0:3] = pose[0:3] + init_pose[0:3]
+        world_rot = (
+            Rotation.from_euler('xyz', pose[3:6])
+            * Rotation.from_euler('xyz', init_pose[3:6])
+        )
+        out[3:6] = world_rot.as_euler('xyz').astype(np.float32)
+        return out
+
+    def _normalize_request_follow_states(
+        self, left: np.ndarray, right: np.ndarray,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        if not self.cfg.ee_pose_normalize:
+            return left, right
+        if (
+            self._stale_after_reset
+            and self._left_default_follow is not None
+            and self._right_default_follow is not None
+        ):
+            left = self._left_default_follow.copy()
+            right = self._right_default_follow.copy()
+            self._left_init_follow = left.copy()
+            self._right_init_follow = right.copy()
+            self._stale_after_reset = False
+        if self._left_init_follow is None:
+            self._left_init_follow = left.copy()
+        if self._right_init_follow is None:
+            self._right_init_follow = right.copy()
+        if self._left_default_follow is None:
+            self._left_default_follow = self._left_init_follow.copy()
+        if self._right_default_follow is None:
+            self._right_default_follow = self._right_init_follow.copy()
+        return (
+            self._normalize_one_ee_pose(left, self._left_init_follow),
+            self._normalize_one_ee_pose(right, self._right_init_follow),
+        )
+
     def _get_camera_b64(
         self, observation: Dict[str, Any],
         cam_name: Optional[str],
@@ -179,12 +264,6 @@ class RobotClosedloopPolicy:
             rgb = rgb.detach().cpu().numpy()
         if len(rgb.shape) == 4:
             rgb = rgb[0]
-        th, tw = self.cfg.target_image_size[:2]
-        if rgb.shape[0] != th or rgb.shape[1] != tw:
-            rgb = cv2.resize(
-                rgb, (tw, th),
-                interpolation=cv2.INTER_AREA,
-            )
         return self._compress_image_b64(rgb)
 
     def build_model_input(
@@ -192,17 +271,57 @@ class RobotClosedloopPolicy:
     ) -> Dict[str, Any]:
         po = observation.get('policy', {})
 
+        follow1 = self._get_follow_state(po, 'left')
+        follow2 = self._get_follow_state(po, 'right')
+
+        if follow1 is None or follow2 is None:
+            follow1, follow2 = self._build_legacy_delta_follow_state(po)
+
+        follow1, follow2 = self._normalize_request_follow_states(
+            follow1, follow2,
+        )
+
+        cam_left = self._get_camera_b64(
+            observation, self.cfg.camera_left,
+        )
+        cam_right = self._get_camera_b64(
+            observation, self.cfg.camera_right,
+        )
+        cam_front = self._get_camera_b64(
+            observation, self.cfg.camera_front,
+        )
+
+        views = {}
+        if cam_left is not None:
+            views['camera_left'] = cam_left
+        if cam_front is not None:
+            views['camera_front'] = cam_front
+        if cam_right is not None:
+            views['camera_right'] = cam_right
+
+        return {
+            'state': {
+                'follow1_pos': follow1,
+                'follow2_pos': follow2,
+            },
+            'views': views,
+            'instruction': self.cfg.instruction,
+        }
+
+    def _build_legacy_delta_follow_state(
+        self, policy_obs: Dict[str, Any],
+    ) -> tuple[np.ndarray, np.ndarray]:
         lp = self._to_numpy(
-            po.get(self.cfg.obs_left_eef_pos_key),
+            policy_obs.get(self.cfg.obs_left_eef_pos_key),
         )
         lq = self._to_numpy(
-            po.get(self.cfg.obs_left_eef_quat_key),
+            policy_obs.get(self.cfg.obs_left_eef_quat_key),
         )
         rp = self._to_numpy(
-            po.get(self.cfg.obs_right_eef_pos_key),
+            policy_obs.get(self.cfg.obs_right_eef_pos_key),
         )
         rq = self._to_numpy(
-            po.get(self.cfg.obs_right_eef_quat_key),
+            policy_obs.get(self.cfg.obs_right_eef_quat_key),
         )
 
         if lp is None:
@@ -228,69 +347,68 @@ class RobotClosedloopPolicy:
                 'xyz',
             ).astype(np.float32)
 
-        lg = self._get_gripper_from_joint(po, 'left')
-        rg = self._get_gripper_from_joint(po, 'right')
-
-        follow1 = np.concatenate(
-            [lp.astype(np.float32), le, [lg]],
-        ).astype(np.float32)
-        follow2 = np.concatenate(
-            [rp.astype(np.float32), re, [rg]],
-        ).astype(np.float32)
-
-        cam_left = self._get_camera_b64(
-            observation, self.cfg.camera_left,
+        lg = self._get_gripper_from_joint(policy_obs, 'left')
+        rg = self._get_gripper_from_joint(policy_obs, 'right')
+        return (
+            np.concatenate(
+                [lp.astype(np.float32), le, [lg]],
+            ).astype(np.float32),
+            np.concatenate(
+                [rp.astype(np.float32), re, [rg]],
+            ).astype(np.float32),
         )
-        cam_right = self._get_camera_b64(
-            observation, self.cfg.camera_right,
-        )
-        cam_front = self._get_camera_b64(
-            observation, self.cfg.camera_front,
-        )
-        if cam_front is None:
-            h, w = self.cfg.target_image_size[:2]
-            cam_front = self._compress_image_b64(
-                np.zeros((h, w, 3), dtype=np.uint8),
-            )
-
-        return {
-            'state': {
-                'follow1_pos': follow1,
-                'follow2_pos': follow2,
-            },
-            'views': {
-                'camera_left': cam_left,
-                'camera_front': cam_front,
-                'camera_right': cam_right,
-            },
-            'instruction': self.cfg.instruction,
-        }
 
     # -- EE coordinate transform --
 
     @staticmethod
-    def _get_current_ee_poses(env: Any):
-        left = env.scene['left_ee_frame']
-        right = env.scene['right_ee_frame']
-        lp = left.data.target_pos_w[0, 0, :].detach().clone()
-        lq = left.data.target_quat_w[0, 0, :].detach().clone()
-        rp = right.data.target_pos_w[0, 0, :].detach().clone()
-        rq = right.data.target_quat_w[0, 0, :].detach().clone()
-        return lp, lq, rp, rq
+    def _interpolate_rows(rows: np.ndarray, multiplier: int) -> np.ndarray:
+        multiplier = max(1, int(multiplier))
+        if multiplier == 1:
+            return rows
+        rows = np.asarray(rows, dtype=np.float32)
+        if rows.ndim == 1:
+            rows = rows.reshape(1, -1)
+        in_len, dim = rows.shape
+        out_len = in_len * multiplier
+        if in_len <= 1:
+            return np.repeat(rows, multiplier, axis=0)
+        src = np.arange(in_len, dtype=np.float64)
+        dst = np.linspace(0.0, float(in_len - 1), out_len)
+        out = np.zeros((out_len, dim), dtype=np.float32)
+        for j in range(dim):
+            out[:, j] = np.interp(dst, src, rows[:, j]).astype(np.float32)
+        return out
 
-    def _ensure_initial_ee_pose(self, env: Any):
-        if self._left_init_pos is not None:
-            return
-        (
-            self._left_init_pos,
-            self._left_init_quat,
-            self._right_init_pos,
-            self._right_init_quat,
-        ) = self._get_current_ee_poses(env)
+    def _denormalize_response(
+        self, rows: np.ndarray, side: str,
+    ) -> np.ndarray:
+        if not self.cfg.ee_pose_normalize:
+            return rows
+        init_pose = (
+            self._left_init_follow
+            if side == 'left'
+            else self._right_init_follow
+        )
+        if init_pose is None:
+            return rows
+        return np.stack(
+            [
+                self._denormalize_one_ee_pose(row[:7], init_pose)
+                for row in rows
+            ],
+        ).astype(np.float32)
 
-    def _gripper_command(self, val: float) -> float:
-        midpoint = (self.cfg.gripper_open_threshold + self.cfg.gripper_close_threshold) * 0.5
-        return 1.0 if val >= midpoint else -1.0
+    @staticmethod
+    def _get_env_origin(env: Any, device) -> torch.Tensor:
+        origins = getattr(env.scene, 'env_origins', None)
+        if origins is None:
+            return torch.zeros(3, dtype=torch.float32, device=device)
+        return origins[0].to(device=device, dtype=torch.float32)
+
+    @staticmethod
+    def _get_robot_root_pose(env: Any):
+        robot = env.scene['robot']
+        return robot.data.root_pos_w[0], robot.data.root_quat_w[0]
 
     def _response_to_action_chunk(
         self,
@@ -309,6 +427,12 @@ class RobotClosedloopPolicy:
             f1 = f1.reshape(1, -1)
         if f2.ndim == 1:
             f2 = f2.reshape(1, -1)
+        if f1.shape[-1] < 7 or f2.shape[-1] < 7:
+            print(
+                '[RobotPolicy] Invalid response shape: '
+                f'follow1={f1.shape}, follow2={f2.shape}',
+            )
+            return None
 
         horizon = min(
             f1.shape[0], f2.shape[0],
@@ -317,83 +441,74 @@ class RobotClosedloopPolicy:
         if horizon <= 0:
             return None
 
-        self._ensure_initial_ee_pose(env)
-        clp, clq, crp, crq = self._get_current_ee_poses(env)
+        f1 = self._denormalize_response(f1[:horizon, :7], 'left')
+        f2 = self._denormalize_response(f2[:horizon, :7], 'right')
 
         chunk = torch.zeros(
             self.cfg.action_horizon, self.ACTION_DIM,
             dtype=torch.float32, device=device,
         )
 
-        prev_lp, prev_rp = clp.clone(), crp.clone()
-        prev_lq, prev_rq = clq.clone(), crq.clone()
+        origin = self._get_env_origin(env, device)
+        root_pos, root_quat = self._get_robot_root_pose(env)
+        root_pos = root_pos.to(device=device, dtype=torch.float32)
+        root_quat = root_quat.to(device=device, dtype=torch.float32)
+        root_pos_b = root_pos.unsqueeze(0)
+        root_quat_b = root_quat.unsqueeze(0)
 
         for i in range(horizon):
-            tgt_lp = self._left_init_pos + torch.as_tensor(
-                f1[i, 0:3], dtype=torch.float32, device=device,
+            tgt_lp = (
+                torch.as_tensor(
+                    f1[i, 0:3], dtype=torch.float32, device=device,
+                )
+                + origin
             )
-            tgt_rp = self._right_init_pos + torch.as_tensor(
-                f2[i, 0:3], dtype=torch.float32, device=device,
+            tgt_rp = (
+                torch.as_tensor(
+                    f2[i, 0:3], dtype=torch.float32, device=device,
+                )
+                + origin
             )
-            l_rq = torch.as_tensor(
+            tgt_lq = torch.as_tensor(
                 euler_xyz_to_quat_wxyz(
                     np.asarray([f1[i, 3:6]], dtype=np.float32),
                 )[0],
                 dtype=torch.float32, device=device,
             )
-            r_rq = torch.as_tensor(
+            tgt_rq = torch.as_tensor(
                 euler_xyz_to_quat_wxyz(
                     np.asarray([f2[i, 3:6]], dtype=np.float32),
                 )[0],
                 dtype=torch.float32, device=device,
             )
-            tgt_lq = quat_mul(
-                l_rq.unsqueeze(0),
-                self._left_init_quat.unsqueeze(0),
-            )[0]
-            tgt_rq = quat_mul(
-                r_rq.unsqueeze(0),
-                self._right_init_quat.unsqueeze(0),
-            )[0]
 
-            ref_lp = clp if i == 0 else prev_lp
-            ref_rp = crp if i == 0 else prev_rp
-            ref_lq = clq if i == 0 else prev_lq
-            ref_rq = crq if i == 0 else prev_rq
-
-            pg = float(self.cfg.pos_gain)
-            rg = float(self.cfg.rot_gain)
-            l_dp = (tgt_lp - ref_lp) * pg
-            r_dp = (tgt_rp - ref_rp) * pg
-            l_dr = axis_angle_from_quat(
-                quat_mul(
-                    tgt_lq.unsqueeze(0),
-                    quat_conjugate(ref_lq.unsqueeze(0)),
-                ),
-            )[0] * rg
-            r_dr = axis_angle_from_quat(
-                quat_mul(
-                    tgt_rq.unsqueeze(0),
-                    quat_conjugate(ref_rq.unsqueeze(0)),
-                ),
-            )[0] * rg
-
-            chunk[i, 0:3] = l_dp
-            chunk[i, 3:6] = l_dr
-            chunk[i, 6] = self._gripper_command(
-                float(f1[i, 6]),
+            l_pos_b, l_quat_b = subtract_frame_transforms(
+                root_pos_b, root_quat_b,
+                tgt_lp.unsqueeze(0), tgt_lq.unsqueeze(0),
             )
-            chunk[i, 7:10] = r_dp
-            chunk[i, 10:13] = r_dr
-            chunk[i, 13] = self._gripper_command(
-                float(f2[i, 6]),
+            r_pos_b, r_quat_b = subtract_frame_transforms(
+                root_pos_b, root_quat_b,
+                tgt_rp.unsqueeze(0), tgt_rq.unsqueeze(0),
             )
 
-            prev_lp, prev_rp = tgt_lp, tgt_rp
-            prev_lq, prev_rq = tgt_lq, tgt_rq
+            chunk[i, 0:3] = l_pos_b[0]
+            chunk[i, 3:7] = l_quat_b[0]
+            chunk[i, 7] = float(f1[i, 6])
+            chunk[i, 8:11] = r_pos_b[0]
+            chunk[i, 11:15] = r_quat_b[0]
+            chunk[i, 15] = float(f2[i, 6])
 
         if horizon < self.cfg.action_horizon:
             chunk[horizon:] = chunk[horizon - 1]
+
+        if self.cfg.interpolation_multiplier > 1:
+            interpolated = self._interpolate_rows(
+                chunk.detach().cpu().numpy(),
+                self.cfg.interpolation_multiplier,
+            )
+            return torch.as_tensor(
+                interpolated, dtype=torch.float32, device=device,
+            )
 
         return chunk
 

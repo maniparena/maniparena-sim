@@ -12,6 +12,7 @@ from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
 from isaaclab.devices.openxr import XrCfg
+from isaaclab.envs.mdp.actions import joint_actions
 from isaaclab.envs.mdp.actions.actions_cfg import (
     BinaryJointPositionActionCfg,
     DifferentialInverseKinematicsActionCfg,
@@ -21,9 +22,10 @@ from isaaclab.managers import ActionTermCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
+from isaaclab.managers.action_manager import ActionTerm
 from isaaclab.sensors import CameraCfg
 from isaaclab.sensors.contact_sensor import ContactSensorCfg
-from isaaclab.sensors.frame_transformer.frame_transformer_cfg import FrameTransformerCfg, OffsetCfg
+from isaaclab.sensors.frame_transformer.frame_transformer_cfg import FrameTransformerCfg
 from isaaclab.sim import PinholeCameraCfg
 from isaaclab.utils import configclass
 from isaaclab_arena.assets.register import register_asset
@@ -33,6 +35,34 @@ from isaaclab_arena.utils.pose import Pose
 
 from maniparena_sim.assets import ASSETS_DIR
 from maniparena_sim.embodiment.sensors.update_camera import OpenCVFisheyeCameraCfg
+
+
+_BIMANUAL_GRIPPER_OPEN = 5.717175
+_BIMANUAL_GRIPPER_CLOSE = 0.0
+
+
+class ClampedRawGripperAction(joint_actions.JointPositionAction):
+    """Absolute gripper joint target with clamp bounds."""
+
+    cfg: "ClampedRawGripperActionCfg"
+
+    def process_actions(self, actions: torch.Tensor) -> None:
+        super().process_actions(actions)
+        self._processed_actions = torch.clamp(
+            self._processed_actions,
+            min=float(self.cfg.clamp_min),
+            max=float(self.cfg.clamp_max),
+        )
+
+
+@configclass
+class ClampedRawGripperActionCfg(JointPositionActionCfg):
+    """Config for raw gripper joint targets."""
+
+    class_type: type[ActionTerm] = ClampedRawGripperAction
+
+    clamp_min: float = _BIMANUAL_GRIPPER_CLOSE
+    clamp_max: float = _BIMANUAL_GRIPPER_OPEN
 
 
 def _parse_env_tuple(value: str | None, count: int) -> tuple[float, ...] | None:
@@ -141,12 +171,12 @@ class BimanualEmbodiment(EmbodimentBase):
         left_ee_frame: FrameTransformerCfg = FrameTransformerCfg(
             prim_path="{ENV_REGEX_NS}/Robot/left_arm_gripper_base_link",
             debug_vis=False,
-            target_frames=[FrameTransformerCfg.FrameCfg(prim_path="{ENV_REGEX_NS}/Robot/left_arm_gripper_base_link", name="end_effector", offset=OffsetCfg(pos=[0.09, 0.0, 0.0]))],
+            target_frames=[FrameTransformerCfg.FrameCfg(prim_path="{ENV_REGEX_NS}/Robot/left_arm_gripper_base_link", name="end_effector")],
         )
         right_ee_frame: FrameTransformerCfg = FrameTransformerCfg(
             prim_path="{ENV_REGEX_NS}/Robot/right_arm_gripper_base_link",
             debug_vis=False,
-            target_frames=[FrameTransformerCfg.FrameCfg(prim_path="{ENV_REGEX_NS}/Robot/right_arm_gripper_base_link", name="right_end_effector", offset=OffsetCfg(pos=[0.09, 0.0, 0.0]))],
+            target_frames=[FrameTransformerCfg.FrameCfg(prim_path="{ENV_REGEX_NS}/Robot/right_arm_gripper_base_link", name="right_end_effector")],
         )
         left_gripper_contact: ContactSensorCfg = ContactSensorCfg(
             prim_path="{ENV_REGEX_NS}/Robot/left_arm_gripper_.*_link",
@@ -204,27 +234,29 @@ class BimanualEmbodiment(EmbodimentBase):
             asset_name="robot",
             joint_names=["left_arm_joint[1-6]"],
             body_name="left_arm_gripper_base_link",
-            controller=DifferentialIKControllerCfg(command_type="pose", use_relative_mode=True, ik_method="dls"),
+            controller=DifferentialIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="dls"),
             scale=1.0,
         )
-        gripper_action: ActionTermCfg = BinaryJointPositionActionCfg(
+        gripper_action: ActionTermCfg = ClampedRawGripperActionCfg(
             asset_name="robot",
             joint_names=["left_arm_gripper"],
-            open_command_expr={"left_arm_gripper": 4.5},
-            close_command_expr={"left_arm_gripper": 0.0},
+            scale=1.0,
+            offset=0.0,
+            use_default_offset=False,
         )
         right_arm_action: ActionTermCfg = DifferentialInverseKinematicsActionCfg(
             asset_name="robot",
             joint_names=["right_arm_joint[1-6]"],
             body_name="right_arm_gripper_base_link",
-            controller=DifferentialIKControllerCfg(command_type="pose", use_relative_mode=True, ik_method="dls"),
+            controller=DifferentialIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="dls"),
             scale=1.0,
         )
-        right_gripper_action: ActionTermCfg = BinaryJointPositionActionCfg(
+        right_gripper_action: ActionTermCfg = ClampedRawGripperActionCfg(
             asset_name="robot",
             joint_names=["right_arm_gripper"],
-            open_command_expr={"right_arm_gripper": 4.5},
-            close_command_expr={"right_arm_gripper": 0.0},
+            scale=1.0,
+            offset=0.0,
+            use_default_offset=False,
         )
 
     @configclass

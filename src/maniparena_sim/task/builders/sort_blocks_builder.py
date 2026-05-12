@@ -13,7 +13,7 @@ from maniparena_sim.terms.terminations import all_objects_on_destinations, any_o
 
 
 class SortBlocksBuilder:
-    DEFAULT_POSE_RANGE = {"x": (0.0, 0.1), "y": (-0.7, 0.15), "z": (-0.15, -0.15), "yaw": (-0.5, 0.5)}
+    DEFAULT_POSE_RANGE = {"x": (0.06, 0.13), "y": (-0.5, 0.0), "z": (-0.15, -0.15), "yaw": (-0.5, 0.5)}
 
     def finalize(self, task_cfg, scene):
         blocks = find_assets_by_tag(scene, "sort_target")

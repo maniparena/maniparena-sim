@@ -7,7 +7,9 @@ policy_config:
   model_address: "localhost"
   model_port: 33030
   instruction: "sort the blocks"
-  action_horizon: 16
-  action_chunk_length: 4
+  action_horizon: 32
+  action_chunk_length: 16
+  interpolation_multiplier: 2
+  ee_pose_normalize: true
   pos_gain: 1.0
   rot_gain: 1.0

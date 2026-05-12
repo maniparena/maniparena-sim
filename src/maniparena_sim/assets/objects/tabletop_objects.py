@@ -53,37 +53,40 @@ class _Button(_TabletopObject):
 class YellowBrick(_Brick):
     name = "yellow_brick"
     usd_path = _object_usd("brick", "brick_yellow.usd")
+    scale = (2.0, 2.0, 2.0)
 
 
 @register_asset
 class GreenBrick(_Brick):
     name = "green_brick"
     usd_path = _object_usd("brick", "brick_green.usd")
+    scale = (2.0, 2.0, 2.0)
 
 
 @register_asset
 class RedBrick(_Brick):
     name = "red_brick"
     usd_path = _object_usd("brick", "brick_red.usd")
-
+    scale = (2.0, 2.0, 2.0)
 
 @register_asset
 class YellowPaper(_Paper):
     name = "yellow_paper"
     usd_path = _object_usd("paper", "paper_yellow.usd")
+    scale = (0.8, 0.8, 0.8)
 
 
 @register_asset
 class GreenPaper(_Paper):
     name = "green_paper"
     usd_path = _object_usd("paper", "paper_green.usd")
-
+    scale = (0.8, 0.8, 0.8)
 
 @register_asset
 class PinkPaper(_Paper):
     name = "pink_paper"
     usd_path = _object_usd("paper", "paper_pink.usd")
-
+    scale = (0.8, 0.8, 0.8)
 
 @register_asset
 class ButtonGreen(_Button):

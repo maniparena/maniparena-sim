@@ -16,11 +16,13 @@ from isaaclab.app import AppLauncher
 
 
 def load_yaml(path: str) -> dict:
+    """Load a YAML config file."""
     with open(path, 'r', encoding='utf-8') as f:
         return yaml.safe_load(f) or {}
 
 
 def parse_args():
+    """Parse command line arguments."""
     parser = argparse.ArgumentParser(
         description='Evaluate Robot policy on Bimanual.',
     )
@@ -37,6 +39,7 @@ def parse_args():
 
 
 def main() -> int:
+    """Run closed-loop policy evaluation."""
     args = parse_args()
     payload = load_yaml(args.config)
     args.enable_cameras = bool(
@@ -77,10 +80,16 @@ def main() -> int:
                 pc.get('instruction', 'pick up the object'),
             ),
             action_horizon=int(
-                pc.get('action_horizon', 16),
+                pc.get('action_horizon', 32),
             ),
             action_chunk_length=int(
-                pc.get('action_chunk_length', 4),
+                pc.get('action_chunk_length', 32),
+            ),
+            interpolation_multiplier=int(
+                pc.get('interpolation_multiplier', 2),
+            ),
+            ee_pose_normalize=bool(
+                pc.get('ee_pose_normalize', True),
             ),
             pos_gain=float(pc.get('pos_gain', 1.0)),
             rot_gain=float(pc.get('rot_gain', 1.0)),
@@ -92,7 +101,7 @@ def main() -> int:
 
     print('=' * 60)
     print(f'  Task:       {args.task}')
-    print(f'  Policy:     RobotClosedloopPolicy')
+    print('  Policy:     RobotClosedloopPolicy')
     print(f'  Server:     {policy.cfg.model_address}'
           f':{policy.cfg.model_port}')
     print(f'  Episodes:   {num_episodes}')
