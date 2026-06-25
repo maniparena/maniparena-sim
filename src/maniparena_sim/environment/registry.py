@@ -19,7 +19,9 @@ def bootstrap_arena_registry(extra_asset_modules: list[str] | None = None) -> No
 
     # Register maniparena_sim assets via decorators.
     import maniparena_sim.assets.environments.green_booth  # noqa: F401
+    import maniparena_sim.assets.environments.green_booth_mesh_ground  # noqa: F401
     import maniparena_sim.assets.objects.tabletop_objects  # noqa: F401
+    import maniparena_sim.assets.environments.nav_f16  # noqa: F401
 
     if extra_asset_modules:
         for module_name in extra_asset_modules:

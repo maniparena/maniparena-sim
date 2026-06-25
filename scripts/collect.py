@@ -1,10 +1,18 @@
 #!/usr/bin/env python3
-"""Teleop data collection for Bimanual.
+"""Teleop data collection for Bimanual and ex001.
 
 Usage:
     python scripts/collect.py \
-        --task sort_blocks --control-mode keyboard \
+        --robot bimanual --task sort_blocks --control-mode keyboard \
         --config configs/collect/keyboard.yaml
+
+    python scripts/collect.py \
+        --robot ex001 --task sort_blocks --control-mode keyboard \
+        --config configs/collect/keyboard.yaml
+
+    python scripts/collect.py \
+        --robot ex001 --task sort_blocks --control-mode vuer \
+        --config configs/collect/vuer.yaml
 
     python scripts/collect.py \
         --task sort_blocks --control-mode vr \
@@ -36,15 +44,19 @@ def parse_args():
     )
     AppLauncher.add_app_launcher_args(parser)
     parser.add_argument(
+        '--robot', default='bimanual',
+        choices=['bimanual', 'ex001'],
+    )
+    parser.add_argument(
         '--task', required=True,
         choices=[
             'sort_blocks', 'fruits_to_basket',
-            'buttons_contact',
+            'buttons_contact', 'sandbox',
         ],
     )
     parser.add_argument(
         '--control-mode', required=True,
-        choices=['keyboard', 'vr', 'master_slave'],
+        choices=['keyboard', 'vr', 'master_slave', 'vuer'],
     )
     parser.add_argument('--config', required=True)
     return parser.parse_args()
@@ -53,7 +65,7 @@ def parse_args():
 def _create_planner(control_mode: str, payload: dict):
     """Instantiate a TeleopPlanner for the given mode."""
     teleop_cfg = payload.get('teleop_config', {})
-    step_hz = int(payload.get('step_hz', 30))
+    step_hz = int(payload.get('step_hz', 20))
     max_steps = int(payload.get('max_steps', 400))
 
     if control_mode == 'keyboard':
@@ -113,6 +125,30 @@ def _create_planner(control_mode: str, payload: dict):
     )
 
 
+def _create_ex001_planner(control_mode: str, payload: dict):
+    """Instantiate an ex001 TeleopPlanner for the given mode."""
+    teleop_cfg = payload.get('teleop_config', {})
+    step_hz = int(payload.get('step_hz', 20))
+    max_steps = int(payload.get('max_steps', 400))
+
+    if control_mode == 'keyboard':
+        # Same keyboard planner/device as the desktop arm; base control turns
+        # on automatically via the ex001 embodiment's diff-drive cfg.
+        return _create_planner('keyboard', payload)
+
+    if control_mode in ('vr', 'vuer'):
+        from maniparena_sim.planners.ex001_vr_teleop import (
+            Ex001VRTeleopPlanner, Ex001VRTeleopSettings,
+        )
+        fields = {k: v for k, v in teleop_cfg.items() if k in Ex001VRTeleopSettings.__dataclass_fields__}
+        fields['input_backend'] = 'vuer' if control_mode == 'vuer' else 'openxr'
+        planner = Ex001VRTeleopPlanner()
+        planner.settings = Ex001VRTeleopSettings(step_hz=step_hz, max_steps=max_steps, **fields)
+        return planner
+
+    raise ValueError(f'Unsupported ex001 control mode: {control_mode}')
+
+
 def main() -> int:
     """Collection entry point."""
     args = parse_args()
@@ -137,6 +173,7 @@ def main() -> int:
     simulation_app = app_launcher.app
 
     from maniparena_sim.environment.builder import (
+        EX001_SUPPORTED_TASKS,
         build_collect_gym_env,
     )
     from maniparena_sim.environment.registry import (
@@ -147,14 +184,38 @@ def main() -> int:
     )
 
     bootstrap_arena_registry()
-    ctx = build_collect_gym_env(
-        args.task, payload,
-        control_mode=control_mode,
-        headless=bool(getattr(args, 'headless', False)),
-        device=getattr(args, 'device', 'cuda:0'),
-    )
 
-    planner = _create_planner(control_mode, payload)
+    if args.robot == 'ex001':
+        if args.task not in EX001_SUPPORTED_TASKS:
+            raise ValueError(
+                "ex001 robot supports tasks "
+                f"{list(EX001_SUPPORTED_TASKS)}, got: {args.task}"
+            )
+        if control_mode not in ('keyboard', 'vr', 'vuer'):
+            raise ValueError(
+                "ex001 robot supports control modes "
+                "keyboard/vr/vuer, "
+                f"got: {control_mode}"
+            )
+        from maniparena_sim.environment.builder import (
+            build_ex001_collect_gym_env,
+        )
+        ctx = build_ex001_collect_gym_env(
+            args.task,
+            payload,
+            control_mode=control_mode,
+            headless=bool(getattr(args, 'headless', False)),
+            device=getattr(args, 'device', 'cuda:0'),
+        )
+        planner = _create_ex001_planner(control_mode, payload)
+    else:
+        ctx = build_collect_gym_env(
+            args.task, payload,
+            control_mode=control_mode,
+            headless=bool(getattr(args, 'headless', False)),
+            device=getattr(args, 'device', 'cuda:0'),
+        )
+        planner = _create_planner(control_mode, payload)
 
     if control_mode == 'keyboard':
         print(
@@ -181,6 +242,10 @@ def main() -> int:
     )
     for p in result.exported_paths:
         print(f'exported: {p}')
+
+    if args.robot == 'ex001':
+        from maniparena_sim.terms.recorders.streaming.file_session import drain_recorder_async_exports
+        drain_recorder_async_exports(ctx.gym_env)
 
     ctx.gym_env.close()
     simulation_app.close()

@@ -50,3 +50,6 @@ Thumbs.db
 
 # mypy
 .mypy_cache/
+
+# Local agent planning notes (not part of the repo)
+docs/superpowers/

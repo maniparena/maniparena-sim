@@ -1,0 +1,26 @@
+#usda 1.0
+(
+    customLayerData = {
+        dictionary renderSettings = {
+            bool "rtx:ambientOcclusion:enabled" = 1
+            bool "rtx:directLighting:sampledLighting:ris:meshLights" = 1
+            int "rtx:directLighting:sampledLighting:samplesPerPixel" = 2
+            int "rtx:indirectDiffuse:maxBounces" = 4
+            int "rtx:pathtracing:maxSpecularAndTransmissionBounces" = 4
+            int "rtx:pathtracing:maxVolumeBounces" = 32
+            int "rtx:pathtracing:ptfog:maxBounces" = 1
+            bool "rtx:pathtracing:ris:meshLights" = 1
+            bool "rtx:post:tonemap:ocio:enabled" = 1
+            bool "rtx:raytracing:fractionalCutoutOpacity" = 1
+            bool "rtx:raytracing:subsurface:enabled" = 1
+            int "rtx:raytracing:subsurface:maxSamplePerFrame" = 16
+            bool "rtx:reflections:enabled" = 1
+            double "rtx:reflections:maxRoughness" = 0.3
+            bool "rtx:translucency:enabled" = 1
+            int "rtx:translucency:maxRefractionBounces" = 7
+            bool "rtx:translucency:virtualDepth" = 0
+            bool "rtx:translucency:virtualMotion" = 0
+        }
+    }
+)
+

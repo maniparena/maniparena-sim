@@ -26,7 +26,7 @@ class CollectConfig:
     task_name: str
     control_mode: str
     num_demos: int = 10
-    step_hz: int = 30
+    step_hz: int = 20
     max_steps: int = 400
     working_path: str = "~/maniparena_output/recordings/"
     format: str = "bimanual_lerobot"

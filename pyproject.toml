@@ -11,8 +11,13 @@ requires-python = ">=3.10"
 dependencies = [
   "numpy",
   "PyYAML",
+  "av",
 ]
 
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["maniparena_sim*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

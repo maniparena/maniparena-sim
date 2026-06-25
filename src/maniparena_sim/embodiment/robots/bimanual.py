@@ -336,3 +336,15 @@ class BimanualEmbodiment(EmbodimentBase):
 
     def get_xr_cfg(self):
         return self.xr
+
+    def get_vr_gripper_clamp(self) -> dict[str, tuple[float, float]]:
+        return {
+            "left_arm_gripper": (_BIMANUAL_GRIPPER_CLOSE, _BIMANUAL_GRIPPER_OPEN),
+            "right_arm_gripper": (_BIMANUAL_GRIPPER_CLOSE, _BIMANUAL_GRIPPER_OPEN),
+        }
+
+    def get_vr_gripper_joint_names(self) -> tuple[str, str]:
+        return "left_arm_gripper", "right_arm_gripper"
+
+    def get_vr_ee_frame_names(self) -> tuple[str, str]:
+        return "left_ee_frame", "right_ee_frame"

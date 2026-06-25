@@ -1,0 +1,377 @@
+{
+    "version": "1.0",
+    "file_records": [
+        {
+            "source_url": "F:/art_assets/scenes/nav_f16/nav_f16.usd",
+            "source_hash": "c3dc1471dedb07776be0bb9518581149dfedd903",
+            "target_url": "./nav_f16.usd",
+            "target_hash": "df13c51a979ba66e2a87b75a94292ac219c5fcfc"
+        },
+        {
+            "source_url": "F:/art_assets/materials/carpet/Carpet_Berber_Multi/Carpet_Berber_Multi_BaseColor.png",
+            "source_hash": "df8f2a319cd7a30084395cf32ec0bdbade75e6e6",
+            "target_url": "./materials/carpet/Carpet_Berber_Multi/Carpet_Berber_Multi_BaseColor.png",
+            "target_hash": "df8f2a319cd7a30084395cf32ec0bdbade75e6e6"
+        },
+        {
+            "source_url": "F:/art_assets/materials/carpet/Carpet_Berber_Multi/Carpet_Berber_Multi_Normal.png",
+            "source_hash": "b30ddb4fca528663bc21382dd02a5b6dbb79e668",
+            "target_url": "./materials/carpet/Carpet_Berber_Multi/Carpet_Berber_Multi_Normal.png",
+            "target_hash": "b30ddb4fca528663bc21382dd02a5b6dbb79e668"
+        },
+        {
+            "source_url": "F:/art_assets/materials/carpet/Carpet_Berber_Multi/Carpet_Berber_Multi_ORM.png",
+            "source_hash": "8a7a46faf30f957614eb216d5b64f9d50475629e",
+            "target_url": "./materials/carpet/Carpet_Berber_Multi/Carpet_Berber_Multi_ORM.png",
+            "target_hash": "8a7a46faf30f957614eb216d5b64f9d50475629e"
+        },
+        {
+            "source_url": "F:/art_assets/materials/fabrics/textures/velvet_norm.jpg",
+            "source_hash": "e80a434cdfd5ec8e37811a24f2004f5b19ec7f28",
+            "target_url": "./materials/fabrics/textures/velvet_norm.jpg",
+            "target_hash": "e80a434cdfd5ec8e37811a24f2004f5b19ec7f28"
+        },
+        {
+            "source_url": "F:/art_assets/materials/metals/Bronze/Bronze_N.png",
+            "source_hash": "0f0d01648587d5d04e90852b302954b10ae99ff6",
+            "target_url": "./materials/metals/Bronze/Bronze_N.png",
+            "target_hash": "0f0d01648587d5d04e90852b302954b10ae99ff6"
+        },
+        {
+            "source_url": "F:/art_assets/materials/metals/Bronze/Bronze_ORM.png",
+            "source_hash": "54806096e621b3c2764ecc67d9252a466bea3cd7",
+            "target_url": "./materials/metals/Bronze/Bronze_ORM.png",
+            "target_hash": "54806096e621b3c2764ecc67d9252a466bea3cd7"
+        },
+        {
+            "source_url": "F:/art_assets/materials/metals/Steel_Stainless/Steel_Stainless_BaseColor.png",
+            "source_hash": "9c9cd9397ea44a7576e8ec47a020633d134d9718",
+            "target_url": "./materials/metals/Steel_Stainless/Steel_Stainless_BaseColor.png",
+            "target_hash": "9c9cd9397ea44a7576e8ec47a020633d134d9718"
+        },
+        {
+            "source_url": "F:/art_assets/materials/metals/Steel_Stainless/Steel_Stainless_N.png",
+            "source_hash": "9dda8b35b3b919449fa26027de7e5a78d8fea6b7",
+            "target_url": "./materials/metals/Steel_Stainless/Steel_Stainless_N.png",
+            "target_hash": "9dda8b35b3b919449fa26027de7e5a78d8fea6b7"
+        },
+        {
+            "source_url": "F:/art_assets/materials/metals/Steel_Stainless/Steel_Stainless_ORM.png",
+            "source_hash": "2f35f6b233302bd872a98da95f464268f6f71ed3",
+            "target_url": "./materials/metals/Steel_Stainless/Steel_Stainless_ORM.png",
+            "target_hash": "2f35f6b233302bd872a98da95f464268f6f71ed3"
+        },
+        {
+            "source_url": "F:/art_assets/materials/skybox/Studio/carlight.hdr",
+            "source_hash": "e87368c88217f0340327b68d3131685477c72de3",
+            "target_url": "./materials/skybox/Studio/carlight.hdr",
+            "target_hash": "e87368c88217f0340327b68d3131685477c72de3"
+        },
+        {
+            "source_url": "F:/art_assets/materials/stone/Granite_Dark/Granite_Dark_BaseColor.png",
+            "source_hash": "82384c5725a9f083839352f23ca170b07b2d1cb8",
+            "target_url": "./materials/stone/Granite_Dark/Granite_Dark_BaseColor.png",
+            "target_hash": "82384c5725a9f083839352f23ca170b07b2d1cb8"
+        },
+        {
+            "source_url": "F:/art_assets/materials/stone/Granite_Dark/Granite_Dark_N.png",
+            "source_hash": "13ceb99c2f0903be1a2196fd76aa9f52e1faa59c",
+            "target_url": "./materials/stone/Granite_Dark/Granite_Dark_N.png",
+            "target_hash": "13ceb99c2f0903be1a2196fd76aa9f52e1faa59c"
+        },
+        {
+            "source_url": "F:/art_assets/materials/stone/Granite_Dark/Granite_Dark_ORM.png",
+            "source_hash": "b030bfbce469c49df96b774e8cf4725d717fe5fd",
+            "target_url": "./materials/stone/Granite_Dark/Granite_Dark_ORM.png",
+            "target_hash": "b030bfbce469c49df96b774e8cf4725d717fe5fd"
+        },
+        {
+            "source_url": "F:/art_assets/materials/stone/Marble_Smooth/Marble_Smooth_BaseColor.png",
+            "source_hash": "613ad5389bde5dc4eb19662ba522368fdfc13b8f",
+            "target_url": "./materials/stone/Marble_Smooth/Marble_Smooth_BaseColor.png",
+            "target_hash": "613ad5389bde5dc4eb19662ba522368fdfc13b8f"
+        },
+        {
+            "source_url": "F:/art_assets/materials/stone/Marble_Smooth/Marble_Smooth_N.png",
+            "source_hash": "d1dd42e5836a683c4f6726b4ba9244d89768b9f7",
+            "target_url": "./materials/stone/Marble_Smooth/Marble_Smooth_N.png",
+            "target_hash": "d1dd42e5836a683c4f6726b4ba9244d89768b9f7"
+        },
+        {
+            "source_url": "F:/art_assets/materials/stone/Marble_Smooth/Marble_Smooth_ORM.png",
+            "source_hash": "b87a235bbed1c1db4c18bd9228e9bbd4bb2a63e9",
+            "target_url": "./materials/stone/Marble_Smooth/Marble_Smooth_ORM.png",
+            "target_hash": "b87a235bbed1c1db4c18bd9228e9bbd4bb2a63e9"
+        },
+        {
+            "source_url": "F:/art_assets/materials/stone/Marble_Tile_12/Marble_Tile_12_BaseColor.png",
+            "source_hash": "fda84c6d8fbfb51107f692e7b4a383c4a7743e85",
+            "target_url": "./materials/stone/Marble_Tile_12/Marble_Tile_12_BaseColor.png",
+            "target_hash": "fda84c6d8fbfb51107f692e7b4a383c4a7743e85"
+        },
+        {
+            "source_url": "F:/art_assets/materials/stone/Marble_Tile_12/Marble_Tile_12_N.png",
+            "source_hash": "c2cdb28ec7724da7540ebc254b1be5d8204369d7",
+            "target_url": "./materials/stone/Marble_Tile_12/Marble_Tile_12_N.png",
+            "target_hash": "c2cdb28ec7724da7540ebc254b1be5d8204369d7"
+        },
+        {
+            "source_url": "F:/art_assets/materials/stone/Marble_Tile_12/Marble_Tile_12_ORM.png",
+            "source_hash": "536b7c5c6de98ab719726e1193715a0b6b21b798",
+            "target_url": "./materials/stone/Marble_Tile_12/Marble_Tile_12_ORM.png",
+            "target_hash": "536b7c5c6de98ab719726e1193715a0b6b21b798"
+        },
+        {
+            "source_url": "F:/art_assets/materials/stone/Slate/Slate_Tile_BaseColor.png",
+            "source_hash": "af893dabe1282679136661c6dc76e44fd5f6e551",
+            "target_url": "./materials/stone/Slate/Slate_Tile_BaseColor.png",
+            "target_hash": "af893dabe1282679136661c6dc76e44fd5f6e551"
+        },
+        {
+            "source_url": "F:/art_assets/materials/stone/Slate/Slate_Tile_N.png",
+            "source_hash": "eeccc5e9aaf060e9e2b88457135d3315bacda3e2",
+            "target_url": "./materials/stone/Slate/Slate_Tile_N.png",
+            "target_hash": "eeccc5e9aaf060e9e2b88457135d3315bacda3e2"
+        },
+        {
+            "source_url": "F:/art_assets/materials/stone/Slate/Slate_Tile_ORM.png",
+            "source_hash": "0998de9805282465e587aaf58983010fd890f1fd",
+            "target_url": "./materials/stone/Slate/Slate_Tile_ORM.png",
+            "target_hash": "0998de9805282465e587aaf58983010fd890f1fd"
+        },
+        {
+            "source_url": "F:/art_assets/materials/wall/textures/wall_room_bc.jpg",
+            "source_hash": "a38d39c03007bd5abf5d91b8063f5df57c0d964f",
+            "target_url": "./materials/wall/textures/wall_room_bc.jpg",
+            "target_hash": "a38d39c03007bd5abf5d91b8063f5df57c0d964f"
+        },
+        {
+            "source_url": "F:/art_assets/materials/wall/textures/wall_room_m.jpg",
+            "source_hash": "f7fa9cc2a1edee947e5559ea306876635c63578d",
+            "target_url": "./materials/wall/textures/wall_room_m.jpg",
+            "target_hash": "f7fa9cc2a1edee947e5559ea306876635c63578d"
+        },
+        {
+            "source_url": "F:/art_assets/materials/wall/textures/wall_room_n.jpg",
+            "source_hash": "108bf6fe8c5a498908780e97305f0a97466281b8",
+            "target_url": "./materials/wall/textures/wall_room_n.jpg",
+            "target_hash": "108bf6fe8c5a498908780e97305f0a97466281b8"
+        },
+        {
+            "source_url": "F:/art_assets/materials/wall/textures/wall_room_r.jpg",
+            "source_hash": "8579a8b9fb2fd0129ff99bc35e53b0916bb005f5",
+            "target_url": "./materials/wall/textures/wall_room_r.jpg",
+            "target_hash": "8579a8b9fb2fd0129ff99bc35e53b0916bb005f5"
+        },
+        {
+            "source_url": "F:/art_assets/materials/wood/Oak/Oak_BaseColor.png",
+            "source_hash": "6c3e3dd93aa3fa6bbd55cb8390c6b5bb404ca492",
+            "target_url": "./materials/wood/Oak/Oak_BaseColor.png",
+            "target_hash": "6c3e3dd93aa3fa6bbd55cb8390c6b5bb404ca492"
+        },
+        {
+            "source_url": "F:/art_assets/materials/wood/Oak/Oak_N.png",
+            "source_hash": "8052a89d562ee3cb1514c50165f9e30da0868b76",
+            "target_url": "./materials/wood/Oak/Oak_N.png",
+            "target_hash": "8052a89d562ee3cb1514c50165f9e30da0868b76"
+        },
+        {
+            "source_url": "F:/art_assets/materials/wood/Oak/Oak_ORM.png",
+            "source_hash": "ef69c2443efe260f38b8758b51d2d288bda919d7",
+            "target_url": "./materials/wood/Oak/Oak_ORM.png",
+            "target_hash": "ef69c2443efe260f38b8758b51d2d288bda919d7"
+        },
+        {
+            "source_url": "F:/art_assets/scenes/nav_f16/textures/passwordcube.png",
+            "source_hash": "241cc18d321327d3329dcb01456707ca15d4e5ce",
+            "target_url": "./textures/passwordcube.png",
+            "target_hash": "241cc18d321327d3329dcb01456707ca15d4e5ce"
+        },
+        {
+            "source_url": "F:/art_assets/materials/carpet/Carpet_Berber_Multi.mdl",
+            "source_hash": "dfed26dfa232e96523a4e53976ac3c61954b2ff8",
+            "target_url": "./materials/carpet/Carpet_Berber_Multi.mdl",
+            "target_hash": "bc483bb90fa067467c746eaa48abbe1f0e97406f"
+        },
+        {
+            "source_url": "F:/art_assets/materials/emissives/light_12000k.mdl",
+            "source_hash": "524ae86408c281434d43d4a42219ad585b0c622a",
+            "target_url": "./materials/emissives/light_12000k.mdl",
+            "target_hash": "8ebca2734e49f40e03e59cb328e0814c49ed67df"
+        },
+        {
+            "source_url": "F:/art_assets/materials/glasses/Clear_Glass.mdl",
+            "source_hash": "3656d7c68ced7d421b760cbb105bae3d902932fc",
+            "target_url": "./materials/glasses/Clear_Glass.mdl",
+            "target_hash": "ad96029819fd9a3f4d04f919d3521f40dc1c54f9"
+        },
+        {
+            "source_url": "F:/art_assets/materials/metals/Bronze.mdl",
+            "source_hash": "913fada18f5a2ed821d75d133ba4fcd2c41c4fa9",
+            "target_url": "./materials/metals/Bronze.mdl",
+            "target_hash": "e02ff8126757efa1d3075894bee3bb530642ebd6"
+        },
+        {
+            "source_url": "F:/art_assets/materials/metals/Steel_Stainless.mdl",
+            "source_hash": "9bcdce676cb7fb31f52d320f0e01743704b7bc9e",
+            "target_url": "./materials/metals/Steel_Stainless.mdl",
+            "target_hash": "cb19d17555146f43fb1be85a15a8c33f59c9be09"
+        },
+        {
+            "source_url": "F:/art_assets/materials/stone/Granite_Dark.mdl",
+            "source_hash": "a465b5f531bc1718cbf8e8c2d7d9f39fd7148aa2",
+            "target_url": "./materials/stone/Granite_Dark.mdl",
+            "target_hash": "026330e0f2ba19d8f71081100123966757945208"
+        },
+        {
+            "source_url": "F:/art_assets/materials/stone/Marble_Smooth.mdl",
+            "source_hash": "8b28603d8a0e246acf956a78a63907b3d0929e76",
+            "target_url": "./materials/stone/Marble_Smooth.mdl",
+            "target_hash": "d0a5747860b9468675ea5807fea7f5813c91965b"
+        },
+        {
+            "source_url": "F:/art_assets/materials/stone/Marble_Tile_12.mdl",
+            "source_hash": "26d34b241cc44db886028e6d4805cc6e8351610f",
+            "target_url": "./materials/stone/Marble_Tile_12.mdl",
+            "target_hash": "c4356857fe02d58fdea4448882734498ed471b02"
+        },
+        {
+            "source_url": "F:/art_assets/materials/stone/Slate.mdl",
+            "source_hash": "f9bcd6864e999cf7396349fec5b9556c55eddd6a",
+            "target_url": "./materials/stone/Slate.mdl",
+            "target_hash": "bd5103c3223b8996152758dd85167ffbd632ac13"
+        },
+        {
+            "source_url": "F:/art_assets/materials/wood/Oak.mdl",
+            "source_hash": "d37f880b2088b727547f99bb17f71640c3ec7439",
+            "target_url": "./materials/wood/Oak.mdl",
+            "target_hash": "fd2d1202b3c00ba461271a13d57654e9f7ee9042"
+        },
+        {
+            "source_url": "F:/art_assets/models/props/flowerpot/palm_a.usd",
+            "source_hash": "4897308ee2a4918516b10a5a91710f11e9614a57",
+            "target_url": "./models/props/flowerpot/palm_a.usd",
+            "target_hash": "4897308ee2a4918516b10a5a91710f11e9614a57"
+        },
+        {
+            "source_url": "F:/art_assets/models/props/flowerpot/plant_taro_b.usd",
+            "source_hash": "43f1b11b112f75d9040f3c81ffa4dd49eca33f47",
+            "target_url": "./models/props/flowerpot/plant_taro_b.usd",
+            "target_hash": "43f1b11b112f75d9040f3c81ffa4dd49eca33f47"
+        },
+        {
+            "source_url": "F:/art_assets/scenes/nav_f16/models/door.usd",
+            "source_hash": "0b9e5e809e598cc04eaaaeda036af4158181843d",
+            "target_url": "./models/door.usd",
+            "target_hash": "0b9e5e809e598cc04eaaaeda036af4158181843d"
+        },
+        {
+            "source_url": "F:/art_assets/scenes/nav_f16/models/door_collision.usd",
+            "source_hash": "b27fb1ffad6e573034b014ee2c49d792836dc24f",
+            "target_url": "./models/door_collision.usd",
+            "target_hash": "b27fb1ffad6e573034b014ee2c49d792836dc24f"
+        },
+        {
+            "source_url": "F:/art_assets/scenes/nav_f16/models/elevator.usd",
+            "source_hash": "bb22d58906501910025c5e70d0debac78b90c807",
+            "target_url": "./models/elevator.usd",
+            "target_hash": "bb22d58906501910025c5e70d0debac78b90c807"
+        },
+        {
+            "source_url": "F:/art_assets/scenes/nav_f16/models/floor.usd",
+            "source_hash": "2e238757797cb306a8f4d553436d00f2047233e2",
+            "target_url": "./models/floor.usd",
+            "target_hash": "2e238757797cb306a8f4d553436d00f2047233e2"
+        },
+        {
+            "source_url": "F:/art_assets/scenes/nav_f16/models/glass.usd",
+            "source_hash": "11a313b02c699c86ba518e30595117991504732e",
+            "target_url": "./models/glass.usd",
+            "target_hash": "11a313b02c699c86ba518e30595117991504732e"
+        },
+        {
+            "source_url": "F:/art_assets/scenes/nav_f16/models/light.usd",
+            "source_hash": "6a5366b07290d3d838459c8e075b954b7b1c73be",
+            "target_url": "./models/light.usd",
+            "target_hash": "6a5366b07290d3d838459c8e075b954b7b1c73be"
+        },
+        {
+            "source_url": "F:/art_assets/scenes/nav_f16/models/light_circle.usd",
+            "source_hash": "2447ffb0529c2967d4f788eae3a26ce2da813542",
+            "target_url": "./models/light_circle.usd",
+            "target_hash": "2447ffb0529c2967d4f788eae3a26ce2da813542"
+        },
+        {
+            "source_url": "F:/art_assets/scenes/nav_f16/models/light_point.usd",
+            "source_hash": "a3426c102ca9cd777eaf4e03e81bb84467776a06",
+            "target_url": "./models/light_point.usd",
+            "target_hash": "a3426c102ca9cd777eaf4e03e81bb84467776a06"
+        },
+        {
+            "source_url": "F:/art_assets/scenes/nav_f16/models/roomnum.usd",
+            "source_hash": "25f6a38512a4f2fd6443918d5ef1199257965eba",
+            "target_url": "./models/roomnum.usd",
+            "target_hash": "25f6a38512a4f2fd6443918d5ef1199257965eba"
+        },
+        {
+            "source_url": "F:/art_assets/scenes/nav_f16/models/top.usd",
+            "source_hash": "535e539dd3ba3e68ef415c7328cef9b7fbe219e7",
+            "target_url": "./models/top.usd",
+            "target_hash": "535e539dd3ba3e68ef415c7328cef9b7fbe219e7"
+        },
+        {
+            "source_url": "F:/art_assets/scenes/nav_f16/models/wall.usd",
+            "source_hash": "8d52543da2c4731709cf547833608cfc23111e42",
+            "target_url": "./models/wall.usd",
+            "target_hash": "8d52543da2c4731709cf547833608cfc23111e42"
+        },
+        {
+            "source_url": "F:/art_assets/scenes/nav_f16/models/wall_collision.usd",
+            "source_hash": "55df736fc3a42eea235d205aec05ec655ace5b83",
+            "target_url": "./models/wall_collision.usd",
+            "target_hash": "55df736fc3a42eea235d205aec05ec655ace5b83"
+        },
+        {
+            "source_url": "F:/art_assets/models/props/flowerpot/textures/plant_taro.jpg",
+            "source_hash": "ccca6a7645e7f3333e2451e163a7e8528c2f9f9e",
+            "target_url": "./models/props/flowerpot/textures/plant_taro.jpg",
+            "target_hash": "ccca6a7645e7f3333e2451e163a7e8528c2f9f9e"
+        },
+        {
+            "source_url": "F:/art_assets/models/props/flowerpot/textures/plant_taro_normal.jpg",
+            "source_hash": "84133a1d7ca397c350ed73ee934228c5b6b420fb",
+            "target_url": "./models/props/flowerpot/textures/plant_taro_normal.jpg",
+            "target_hash": "84133a1d7ca397c350ed73ee934228c5b6b420fb"
+        },
+        {
+            "source_url": "F:/art_assets/models/props/flowerpot/textures/plant_taro_orm.jpg",
+            "source_hash": "8f0a45a467def0bec8feae7bf2e31690679c85bb",
+            "target_url": "./models/props/flowerpot/textures/plant_taro_orm.jpg",
+            "target_hash": "8f0a45a467def0bec8feae7bf2e31690679c85bb"
+        },
+        {
+            "source_url": "F:/art_assets/models/props/flowerpot/textures/palm_a.jpg",
+            "source_hash": "6d7e899bd5044f74ecd7fb83fdb1d2cb968f70c4",
+            "target_url": "./models/props/flowerpot/textures/palm_a.jpg",
+            "target_hash": "6d7e899bd5044f74ecd7fb83fdb1d2cb968f70c4"
+        },
+        {
+            "source_url": "F:/art_assets/models/props/flowerpot/textures/palm_a_normal.jpg",
+            "source_hash": "24c1348e4cde12f9e5b5b532a1b34a79c5b08457",
+            "target_url": "./models/props/flowerpot/textures/palm_a_normal.jpg",
+            "target_hash": "24c1348e4cde12f9e5b5b532a1b34a79c5b08457"
+        },
+        {
+            "source_url": "F:/art_assets/models/props/flowerpot/textures/palm_a_orm.jpg",
+            "source_hash": "7766c3b62faff26fc85bfe816fceb714857eb67a",
+            "target_url": "./models/props/flowerpot/textures/palm_a_orm.jpg",
+            "target_hash": "7766c3b62faff26fc85bfe816fceb714857eb67a"
+        },
+        {
+            "source_url": "F:/art_assets/materials/metals/Bronze/Bronze_BaseColor.png",
+            "source_hash": "cbd21cd5ddebef053e937985c52b587b336d551f",
+            "target_url": "./materials/metals/Bronze/Bronze_BaseColor.png",
+            "target_hash": "cbd21cd5ddebef053e937985c52b587b336d551f"
+        }
+    ]
+}

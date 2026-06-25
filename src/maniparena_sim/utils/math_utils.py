@@ -89,3 +89,23 @@ def to_numpy_keep_shape(value):
     if hasattr(value, 'detach'):
         return value.detach().cpu().numpy()
     return np.asarray(value)
+
+
+def quat_wxyz_normalize(quat_wxyz: np.ndarray) -> np.ndarray:
+    """Normalize a WXYZ quaternion (returns float32)."""
+    quat = np.asarray(quat_wxyz, dtype=np.float32)
+    norm = np.linalg.norm(quat, axis=-1, keepdims=True)
+    norm = np.where(norm < 1e-8, 1.0, norm)
+    return (quat / norm).astype(np.float32)
+
+
+def quat_wxyz_to_xyzw(quat_wxyz: np.ndarray) -> np.ndarray:
+    """Reorder WXYZ -> XYZW."""
+    quat = np.asarray(quat_wxyz, dtype=np.float32)
+    return quat[..., [1, 2, 3, 0]].astype(np.float32)
+
+
+def quat_xyzw_to_wxyz(quat_xyzw: np.ndarray) -> np.ndarray:
+    """Reorder XYZW -> WXYZ."""
+    quat = np.asarray(quat_xyzw, dtype=np.float32)
+    return quat[..., [3, 0, 1, 2]].astype(np.float32)

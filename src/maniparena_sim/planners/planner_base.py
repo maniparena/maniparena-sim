@@ -12,7 +12,7 @@ import torch
 @dataclass
 class SettingsCFG:
     max_steps: int = 400
-    step_hz: int = 30
+    step_hz: int = 20
     num_success_steps: int = 10
 
 

@@ -1,10 +1,12 @@
 enable_cameras: false
 num_envs: 1
 num_demos: 10
-step_hz: 30
+step_hz: 20
 max_steps: 0
 working_path: "~/maniparena_output/recordings/"
 format: "hdf5"
+async_writer: false
+stager_chunk_size: 32
 teleop_config:
   position_scale: 0.5
   rotation_scale: 0.5

@@ -1,7 +1,7 @@
 enable_cameras: true
 num_envs: 1
 num_demos: 10
-step_hz: 30
+step_hz: 20
 max_steps: 0
 working_path: "~/maniparena_output/recordings/"
 format: "hdf5"
