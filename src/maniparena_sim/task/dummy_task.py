@@ -1,4 +1,8 @@
-"""Empty sandbox task for open-scene teleop bring-up."""
+"""Dummy task for open-scene teleop and navigation bring-up.
+
+No objects and no success condition — episodes end manually. Used by both
+teleop collection (open-scene practice) and the ROS2 navigation script.
+"""
 
 from __future__ import annotations
 
@@ -19,17 +23,17 @@ from maniparena_sim.task.utils import find_background
 
 
 def _never_success(env):
-    """Sandbox episodes end manually; success never auto-fires."""
+    """Dummy episodes end manually; success never auto-fires."""
     return torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
 
 
 @configclass
-class SandboxTerminationsCfg:
+class DummyTaskTerminationsCfg:
     time_out: TerminationTermCfg = TerminationTermCfg(func=mdp_isaac_lab.time_out, time_out=True)
     success: TerminationTermCfg = TerminationTermCfg(func=_never_success)
 
 
-class SandboxTask(TaskBase):
+class DummyTask(TaskBase):
     def __init__(self, background_scene, episode_length_s: float | None = None):
         super().__init__(episode_length_s=episode_length_s)
         self.background_scene = background_scene
@@ -48,7 +52,7 @@ class SandboxTask(TaskBase):
         return self.termination_cfg
 
     def get_prompt(self) -> str:
-        return "Teleoperate in the open sandbox."
+        return "Teleoperate or navigate in the open scene."
 
     def get_mimic_env_cfg(self, embodiment_name: str) -> Any:
         return None
@@ -63,10 +67,10 @@ class SandboxTask(TaskBase):
     def from_scene(cls, scene, **kwargs):
         bg = find_background(scene)
         if bg is None:
-            raise ValueError("SandboxTask needs a background asset")
+            raise ValueError("DummyTask needs a background asset")
         return cls(background_scene=bg, **kwargs)
 
 
 @dataclass
-class SandboxTaskCFG(TaskCFG):
-    class_type: type = SandboxTask
+class DummyTaskCFG(TaskCFG):
+    class_type: type = DummyTask

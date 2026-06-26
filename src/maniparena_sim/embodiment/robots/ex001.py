@@ -1,6 +1,6 @@
 """EX001 whole-body embodiment (mobile base + dual 6-DOF arms + grippers + lift).
 
-Separate robot from the desktop BimanualEmbodiment. Names follow manaenv:
+Separate robot from the desktop BimanualEmbodiment. Joint/link names:
 arms ``*_arm_joint[1-6]``, grippers ``*_arm_gripper`` ([0, 1.89]), EE
 links ``*_arm_gripper_base_link``, wheels ``left/right_wheel_joint``, prismatic
 ``lift_joint`` ([0, 0.78] m).
@@ -33,6 +33,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers.action_manager import ActionTerm
 from isaaclab.sensors import CameraCfg
 from isaaclab.sensors.contact_sensor import ContactSensorCfg
+from isaaclab.sensors.imu import ImuCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import FrameTransformerCfg
 from isaaclab.utils import configclass
 from isaaclab_arena.assets.register import register_asset
@@ -133,6 +134,7 @@ class EX001Embodiment(EmbodimentBase):
         )
         left_gripper_contact: ContactSensorCfg = ContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/left_arm_gripper_.*_link", update_period=0.0, history_length=1, track_air_time=False)
         right_gripper_contact: ContactSensorCfg = ContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/right_arm_gripper_.*_link", update_period=0.0, history_length=1, track_air_time=False)
+        imu: ImuCfg = ImuCfg(prim_path="{ENV_REGEX_NS}/Robot/imu_link", update_period=1.0 / 60.0)
         # SCENE_END_MARKER
 
     @configclass
@@ -182,6 +184,31 @@ class EX001Embodiment(EmbodimentBase):
         right_gripper_action: ActionTermCfg = ClampedRawGripperActionCfg(asset_name="robot", joint_names=["right_arm_gripper"], scale=1.0, offset=0.0, use_default_offset=False)
         base_action: ActionTermCfg = JointVelocityActionCfg(asset_name="robot", joint_names=["left_wheel_joint", "right_wheel_joint"], scale=1.0, use_default_offset=False)
         lift_action: ActionTermCfg = JointPositionActionCfg(asset_name="robot", joint_names=["lift_joint"], scale=1.0, use_default_offset=False)
+
+    @configclass
+    class ActionsCfgNav:
+        """Joint-position arms/lift/grippers + diff-drive wheel velocity (ROS2 nav).
+
+        ``joint_pos`` covers every non-wheel joint with ABSOLUTE position targets
+        (``use_default_offset=False``); the nav loop seeds the action vector with
+        the robot's default joint positions so an idle command holds the pose and
+        ``/mock_robot_interface/command`` writes absolute targets directly.
+        ``base_action`` drives the two wheels by velocity (summed keyboard +
+        ``/chassis/cmd_vel``), so everything flows through one ``env.step``.
+        """
+
+        joint_pos: ActionTermCfg = JointPositionActionCfg(
+            asset_name="robot",
+            joint_names=["^(?!left_wheel_joint$|right_wheel_joint$).*"],
+            scale=1.0,
+            use_default_offset=False,
+        )
+        base_action: ActionTermCfg = JointVelocityActionCfg(
+            asset_name="robot",
+            joint_names=["left_wheel_joint", "right_wheel_joint"],
+            scale=1.0,
+            use_default_offset=False,
+        )
 
     @configclass
     class ActionsCfgRelIK:

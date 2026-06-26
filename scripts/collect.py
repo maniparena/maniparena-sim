@@ -51,7 +51,7 @@ def parse_args():
         '--task', required=True,
         choices=[
             'sort_blocks', 'fruits_to_basket',
-            'buttons_contact', 'sandbox',
+            'buttons_contact', 'dummy_task',
         ],
     )
     parser.add_argument(

@@ -1,4 +1,4 @@
-"""Streaming MP4 sidecar writer (RGB only), trimmed from manaenv.
+"""Streaming MP4 sidecar writer (RGB only).
 
 Encodes RGB uint8 frame chunks to per-(env,key) temp MP4s on a background
 thread (PyAV/libx264); on finish, renames the temp file to

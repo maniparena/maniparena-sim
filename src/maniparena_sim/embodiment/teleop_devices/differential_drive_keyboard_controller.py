@@ -1,5 +1,4 @@
-# src/maniparena_sim/embodiment/teleop_devices/differential_drive_keyboard_controller.py
-"""Differential-drive keyboard controller config (ported from manaenv)."""
+"""Differential-drive keyboard controller config."""
 
 from __future__ import annotations
 
@@ -29,7 +28,7 @@ class DifferentialDriveKeyboardControllerCfg:
     randomize_key: str = "T"
 
 
-# ex001 wheel geometry (manaenv EX001DiffDriveKeyboardControllerCfg).
+# ex001 wheel geometry.
 EX001_DIFF_DRIVE_KEYBOARD_CFG = DifferentialDriveKeyboardControllerCfg(
     mode_name="ex001_differential",
     linear_velocity=0.5,

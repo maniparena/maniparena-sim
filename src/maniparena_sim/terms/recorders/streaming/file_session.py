@@ -1,4 +1,4 @@
-"""Per-episode HDF5 export helpers (trimmed port of manaenv file_session)."""
+"""Per-episode HDF5 export helpers."""
 
 from __future__ import annotations
 

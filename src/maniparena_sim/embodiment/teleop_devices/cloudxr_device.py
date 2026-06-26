@@ -21,10 +21,7 @@ from maniparena_sim.embodiment.teleop_devices.openxr_controller_retargeters impo
     ControllerJoystickRetargeterCfg,
     ControllerSe3AbsRetargeterCfg,
 )
-
-
-def manaprint(*args, **kwargs):
-    print(*args, **kwargs)
+from maniparena_sim.utils.debug_print import manaprint
 
 
 @dataclass

@@ -1,6 +1,6 @@
 """Monkey-patch a live RecorderManager to stage obs off-GPU + stream MP4.
 
-Trimmed port of manaenv recorder_runtime/install.py: keeps install_staging,
+Keeps install_staging,
 install_sync_export_sidecar_finalize, and install_async_writer. Drops
 phase-segments, language-instruction stamping, and x2robot mirroring.
 """

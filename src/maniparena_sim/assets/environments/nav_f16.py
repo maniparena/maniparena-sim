@@ -1,4 +1,4 @@
-"""nav_f16 empty sandbox background for ex001 bring-up."""
+"""nav_f16 open-scene background for ex001 teleop and navigation."""
 
 from __future__ import annotations
 

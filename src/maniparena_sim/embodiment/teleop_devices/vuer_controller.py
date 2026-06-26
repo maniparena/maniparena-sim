@@ -17,11 +17,8 @@ import torch
 from isaaclab.devices.device_base import DeviceBase, DeviceCfg
 from scipy.spatial.transform import Rotation
 
+from maniparena_sim.utils.debug_print import manaprint
 from maniparena_sim.utils.math_utils import quat_wxyz_normalize, quat_wxyz_to_xyzw
-
-
-def manaprint(*args, **kwargs):
-    print(*args, **kwargs)
 
 
 def _matrix_from_vuer(value: Any) -> np.ndarray | None:

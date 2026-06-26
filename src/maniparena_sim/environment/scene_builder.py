@@ -113,7 +113,7 @@ def _build_buttons_contact_scene(registry: AssetRegistry, robot: str) -> Scene:
     return Scene(assets=[background, *buttons])
 
 
-def _build_sandbox_scene(registry: AssetRegistry) -> Scene:
+def _build_dummy_task_scene(registry: AssetRegistry) -> Scene:
     background = registry.get_asset_by_name("nav_f16")()
     background.set_initial_pose(_pose_at((0.0, 0.0, 0.0)))
     return Scene(assets=[background])
@@ -152,11 +152,9 @@ def build_scene(task_name: str, *, robot: str = "bimanual"):
         scene = _build_fruits_to_basket_scene(registry, robot)
     elif task_name == "buttons_contact":
         scene = _build_buttons_contact_scene(registry, robot)
-    elif task_name == "sandbox":
-        if robot == "ex001":
-            raise ValueError("ex001 does not support sandbox; use sort_blocks, fruits_to_basket, or buttons_contact.")
-        scene = _build_sandbox_scene(registry)
+    elif task_name == "dummy_task":
+        scene = _build_dummy_task_scene(registry)
     else:
         raise ValueError(f"Unsupported task '{task_name}' for scene assembly.")
-    settings_name = "nav_f16" if task_name == "sandbox" else "green_booth"
+    settings_name = "nav_f16" if task_name == "dummy_task" else "green_booth"
     return _attach_render_settings(scene, settings_name=settings_name)

@@ -4,7 +4,7 @@ Two backends, selected by ``input_backend``:
   * "vuer"   -> vuer web/Pico WebXR (VuerControllerDevice).
   * "openxr" -> IsaacLab official CloudXR/OpenXR (VRTeleopDevice).
 
-Coordinate handling mirrors manaenv's ex001_6r teleoperation (NOT cx002):
+Coordinate handling for the ex001_6r-style arm teleoperation:
   * openxr: the controller-pose quaternion offset is applied inside the
     OpenXR retargeter (see ``openxr_controller_retargeters.py``); the planner
     converts world-frame controller poses into base-frame absolute IK targets.
@@ -13,7 +13,7 @@ Coordinate handling mirrors manaenv's ex001_6r teleoperation (NOT cx002):
     controller deltas added to the reference EE pose in base frame. Rotation is
     a controller-rotation delta mapped through the same axis matrix.
 
-Button scheme (vuer / motion controller), per manaenv ex001_6r:
+Button scheme (vuer / motion controller):
   * Left-X  -> start teleop (captures the vuer delta reference)
   * Left-Y  -> manually export the current episode as success
   * Right-A -> reset / skip the current episode
@@ -267,7 +267,7 @@ class Ex001VRTeleopPlanner(TeleopPlanner):
         quat_base = self._apply_abs_quat_offset(quat_base.reshape(-1))
         return pos_base.reshape(-1), self._normalize_quat(quat_base)
 
-    # ── vuer delta-target coordinate path (manaenv ex001_6r) ──────────────
+    # ── vuer delta-target coordinate path ─────────────────────────
     def _vuer_delta_enabled(self) -> bool:
         return (
             str(self.settings.input_backend).strip().lower() == "vuer"

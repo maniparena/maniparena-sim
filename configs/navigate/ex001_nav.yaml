@@ -1,0 +1,12 @@
+# EX001 ROS2 navigation (2D-lidar, cameras on). No data recording.
+
+# Keyboard chassis sensitivity (summed with /chassis/cmd_vel).
+keyboard:
+  linear_velocity: 0.5
+  angular_velocity: 2.0
+
+# ROS2 bridge.
+ros:
+  use_sim_time: false
+  control_rate_hz: 10.0
+  cmd_vel_timeout_s: 0.25

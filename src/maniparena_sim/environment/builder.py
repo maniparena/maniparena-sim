@@ -16,11 +16,11 @@ from maniparena_sim.environment.render_settings import (
 from maniparena_sim.environment.scene_builder import build_scene
 from maniparena_sim.task.builders.buttons_contact_builder import ButtonsContactBuilder
 from maniparena_sim.task.builders.fruits_to_basket_builder import FruitsToBasketBuilder
-from maniparena_sim.task.builders.sandbox_builder import SandboxBuilder
+from maniparena_sim.task.builders.dummy_task_builder import DummyTaskBuilder
 from maniparena_sim.task.builders.sort_blocks_builder import SortBlocksBuilder
 from maniparena_sim.task.buttons_contact import ButtonsContactTaskCFG
 from maniparena_sim.task.fruits_to_basket import FruitsToBasketTaskCFG
-from maniparena_sim.task.sandbox import SandboxTaskCFG
+from maniparena_sim.task.dummy_task import DummyTaskCFG
 from maniparena_sim.task.sort_blocks import SortBlocksTaskCFG
 
 
@@ -51,7 +51,7 @@ SUPPORTED_TASKS = {
     "sort_blocks": (SortBlocksTaskCFG, SortBlocksBuilder),
     "fruits_to_basket": (FruitsToBasketTaskCFG, FruitsToBasketBuilder),
     "buttons_contact": (ButtonsContactTaskCFG, ButtonsContactBuilder),
-    "sandbox": (SandboxTaskCFG, SandboxBuilder),
+    "dummy_task": (DummyTaskCFG, DummyTaskBuilder),
 }
 
 
@@ -494,7 +494,7 @@ def build_eval_gym_env(
     )
 
 
-EX001_SUPPORTED_TASKS = ("sort_blocks", "fruits_to_basket", "buttons_contact")
+EX001_SUPPORTED_TASKS = ("sort_blocks", "fruits_to_basket", "buttons_contact", "dummy_task")
 
 
 def build_ex001_collect_gym_env(
@@ -614,3 +614,55 @@ def build_ex001_collect_gym_env(
         env_name=env_name, output_dir=output_dir, embodiment=embodiment,
         exported_paths=[output_dir], is_direct_lerobot=False, prefix=prefix,
     )
+
+
+def build_ex001_nav_gym_env(
+    payload: dict,
+    headless: bool = False,
+    device: str = 'cuda:0',
+):
+    """Build an ex001 gym env for ROS2 navigation (no recorder, dummy_task scene).
+
+    Returns ``(gym_env, embodiment)``. Navigation does not record data, so this
+    intentionally skips the RecorderManager streaming stack used by collection.
+    """
+    import gymnasium as gym
+    from isaaclab_arena.cli.isaaclab_arena_cli import get_isaaclab_arena_cli_parser
+    from isaaclab_arena.environments.arena_env_builder import ArenaEnvBuilder
+    from isaaclab_arena.environments.isaaclab_arena_environment import IsaacLabArenaEnvironment
+
+    from maniparena_sim.embodiment.robots.ex001 import EX001Embodiment
+
+    enable_cameras = True
+    scene = build_scene('dummy_task', robot='ex001')
+    embodiment = EX001Embodiment(enable_cameras=enable_cameras)
+    # Nav spawns on the floor: drop the tabletop z-offset so the base sits at z=0.
+    _p = embodiment.scene_config.robot.init_state.pos
+    embodiment.scene_config.robot.init_state.pos = (_p[0], _p[1], 0.0)
+    # Joint-position hold over non-wheel joints; chassis driven directly to sim.
+    embodiment.action_config = embodiment.ActionsCfgNav()
+    task = build_task_runtime('dummy_task', scene)
+
+    env_name = 'ex001_nav'
+    arena_env = IsaacLabArenaEnvironment(
+        name=env_name, embodiment=embodiment, scene=scene, task=task, teleop_device=None,
+    )
+    cli_args = get_isaaclab_arena_cli_parser().parse_args([])
+    cli_args.headless = headless
+    cli_args.device = device
+    cli_args.enable_cameras = enable_cameras
+    reg_name, env_cfg = ArenaEnvBuilder(arena_env, cli_args).build_registered()
+    patch_env_cfg_render(
+        env_cfg, getattr(scene, 'render_cfg_dict', None) or {},
+        sim_fps=getattr(scene, 'sim_fps', 120), render_interval=getattr(scene, 'render_decremental', 2),
+    )
+    # No recorder for navigation.
+    env_cfg.recorders = None
+    if hasattr(env_cfg, 'terminations'):
+        env_cfg.terminations.time_out = None
+    if hasattr(env_cfg, 'observations') and hasattr(env_cfg.observations, 'policy'):
+        env_cfg.observations.policy.concatenate_terms = False
+
+    gym_env = gym.make(reg_name, cfg=env_cfg).unwrapped
+    apply_carb_settings(getattr(scene, 'render_carb_dict', None) or {})
+    return gym_env, embodiment
