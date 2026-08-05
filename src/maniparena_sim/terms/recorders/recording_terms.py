@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import torch
 from isaaclab.managers.recorder_manager import RecorderTerm, RecorderTermCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 
 class PreStepCameraObservationsRecorder(RecorderTerm):

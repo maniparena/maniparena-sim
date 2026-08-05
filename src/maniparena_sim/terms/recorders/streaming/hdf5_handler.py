@@ -130,8 +130,14 @@ class PlainHDF5DatasetFileHandler:
         self,
         episode: EpisodeLike,
         demo_id: int | None = None,
+        dataset_compression: bool = False,
     ) -> None:
-        """Add one episode to the dataset without gzip compression."""
+        """Add one episode to the dataset.
+
+        Matches Lab 3 ``HDF5DatasetFileHandler.write_episode`` signature.
+        Default keeps this handler's historical "plain"/uncompressed behaviour;
+        pass ``dataset_compression=True`` to enable gzip like upstream.
+        """
         self._raise_if_not_initialized()
         if episode.is_empty():
             return
@@ -145,7 +151,11 @@ class PlainHDF5DatasetFileHandler:
             episode_group_name,
         )
         self._write_metadata(h5_episode_group, episode)
-        self._write_episode_data(h5_episode_group, episode.data)
+        self._write_episode_data(
+            h5_episode_group,
+            episode.data,
+            dataset_compression=dataset_compression,
+        )
 
         self._hdf5_data_group.attrs["total"] += h5_episode_group.attrs["num_samples"]
         if demo_id is None:
@@ -198,21 +208,46 @@ class PlainHDF5DatasetFileHandler:
         self,
         h5_episode_group: Any,
         episode_data: dict[str, Any],
+        *,
+        dataset_compression: bool = False,
     ) -> None:
         for key, value in episode_data.items():
             # Per-frame planner phase codes are collapsed into the
             # ``phase_segments`` attr at export; never write the raw leaf.
             if key == "planner_phase":
                 continue
-            self._write_dataset_value(h5_episode_group, key, value)
+            self._write_dataset_value(
+                h5_episode_group,
+                key,
+                value,
+                dataset_compression=dataset_compression,
+            )
 
-    def _write_dataset_value(self, group: Any, key: str, value: Any) -> None:
+    def _write_dataset_value(
+        self,
+        group: Any,
+        key: str,
+        value: Any,
+        *,
+        dataset_compression: bool = False,
+    ) -> None:
         if isinstance(value, dict):
             key_group = group.create_group(key)
             for sub_key, sub_value in value.items():
-                self._write_dataset_value(key_group, sub_key, sub_value)
+                self._write_dataset_value(
+                    key_group,
+                    sub_key,
+                    sub_value,
+                    dataset_compression=dataset_compression,
+                )
             return
-        group.create_dataset(key, data=self._to_numpy(value))
+        data = self._to_numpy(value)
+        if dataset_compression:
+            group.create_dataset(
+                key, data=data, compression="gzip", compression_opts=2,
+            )
+        else:
+            group.create_dataset(key, data=data)
 
     @staticmethod
     def _to_numpy(value: Any) -> Any:

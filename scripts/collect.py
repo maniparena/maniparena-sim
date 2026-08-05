@@ -2,25 +2,26 @@
 """Teleop data collection for Bimanual and ex001.
 
 Usage:
+    # Lab/Sim 6.0 defaults to headless; pass --viz kit for the Kit viewport.
     python scripts/collect.py \
         --robot bimanual --task sort_blocks --control-mode keyboard \
-        --config configs/collect/keyboard.yaml
+        --config configs/collect/keyboard.yaml --viz kit
 
     python scripts/collect.py \
         --robot ex001 --task sort_blocks --control-mode keyboard \
-        --config configs/collect/keyboard.yaml
+        --config configs/collect/keyboard.yaml --viz kit
 
     python scripts/collect.py \
         --robot ex001 --task sort_blocks --control-mode vuer \
-        --config configs/collect/vuer.yaml
+        --config configs/collect/vuer.yaml --viz kit
 
     python scripts/collect.py \
         --task sort_blocks --control-mode vr \
-        --config configs/collect/vr.yaml
+        --config configs/collect/vr.yaml --viz kit
 
     python scripts/collect.py \
         --task sort_blocks --control-mode master_slave \
-        --config configs/collect/master_slave.yaml
+        --config configs/collect/master_slave.yaml --viz kit
 """
 
 from __future__ import annotations

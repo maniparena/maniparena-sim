@@ -59,10 +59,10 @@ class MessageBuilder:
             z=float(position[2]),
         )
         msg.pose.pose.orientation = Quaternion(
-            w=float(orientation[0]),
-            x=float(orientation[1]),
-            y=float(orientation[2]),
-            z=float(orientation[3]),
+            x=float(orientation[0]),
+            y=float(orientation[1]),
+            z=float(orientation[2]),
+            w=float(orientation[3]),
         )
         msg.twist.twist.linear = Vector3(
             x=float(lin_vel[0]),
@@ -111,10 +111,10 @@ class MessageBuilder:
         msg.linear_acceleration.y = float(lin_acc[1] / STANDARD_GRAVITY)
         msg.linear_acceleration.z = float(lin_acc[2] / STANDARD_GRAVITY)
 
-        msg.orientation.w = float(quat_w[0])
-        msg.orientation.x = float(quat_w[1])
-        msg.orientation.y = float(quat_w[2])
-        msg.orientation.z = float(quat_w[3])
+        msg.orientation.x = float(quat_w[0])
+        msg.orientation.y = float(quat_w[1])
+        msg.orientation.z = float(quat_w[2])
+        msg.orientation.w = float(quat_w[3])
         msg.orientation_covariance = imu_cfg["zero_covariance"]
         msg.angular_velocity_covariance = imu_cfg["zero_covariance"]
         msg.linear_acceleration_covariance = imu_cfg["zero_covariance"]
@@ -220,10 +220,10 @@ class MessageBuilder:
             z=float(root_pos[2]),
         )
         msg.pose.orientation = Quaternion(
-            w=float(root_quat[0]),
-            x=float(root_quat[1]),
-            y=float(root_quat[2]),
-            z=float(root_quat[3]),
+            x=float(root_quat[0]),
+            y=float(root_quat[1]),
+            z=float(root_quat[2]),
+            w=float(root_quat[3]),
         )
         return msg
 
@@ -249,10 +249,10 @@ class MessageBuilder:
                 pose.position.x = float(p[0])
                 pose.position.y = float(p[1])
                 pose.position.z = float(p[2])
-                pose.orientation.w = float(q[0])
-                pose.orientation.x = float(q[1])
-                pose.orientation.y = float(q[2])
-                pose.orientation.z = float(q[3])
+                pose.orientation.x = float(q[0])
+                pose.orientation.y = float(q[1])
+                pose.orientation.z = float(q[2])
+                pose.orientation.w = float(q[3])
                 msg.poses.append(pose)
         return msg
 
@@ -277,10 +277,10 @@ class MessageBuilder:
             z=float(pose_data[2]),
         )
         msg.pose.orientation = Quaternion(
-            w=float(pose_data[3]),
-            x=float(pose_data[4]),
-            y=float(pose_data[5]),
-            z=float(pose_data[6]),
+            x=float(pose_data[3]),
+            y=float(pose_data[4]),
+            z=float(pose_data[5]),
+            w=float(pose_data[6]),
         )
         return msg
 

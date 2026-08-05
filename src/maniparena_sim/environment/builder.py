@@ -11,6 +11,7 @@ from maniparena_sim.embodiment.robots.bimanual import BimanualEmbodiment
 from maniparena_sim.environment.assembled_environment import AssembledEnvironment
 from maniparena_sim.environment.render_settings import (
     apply_carb_settings,
+    ensure_kit_viewport_color_render,
     patch_env_cfg_render,
 )
 from maniparena_sim.environment.scene_builder import build_scene
@@ -22,6 +23,42 @@ from maniparena_sim.task.buttons_contact import ButtonsContactTaskCFG
 from maniparena_sim.task.fruits_to_basket import FruitsToBasketTaskCFG
 from maniparena_sim.task.dummy_task import DummyTaskCFG
 from maniparena_sim.task.sort_blocks import SortBlocksTaskCFG
+
+
+def _arena_builder_cfg(
+    *,
+    device: str = "cuda:0",
+    num_envs: int = 1,
+    language_instruction: str | None = None,
+):
+    """Build typed ArenaEnvBuilderCfg for the installed IsaacLab-Arena API."""
+    from isaaclab_arena.environments.arena_env_builder_cfg import ArenaEnvBuilderCfg
+
+    return ArenaEnvBuilderCfg(
+        num_envs=num_envs,
+        device=device,
+        language_instruction=language_instruction,
+    )
+
+
+def _make_unwrapped_gym_env(reg_name: str, env_cfg: Any, env_kwargs: dict):
+    """``gym.make`` then re-apply Arena viewer eye/lookat for Lab 6 KitVisualizer.
+
+    ``ViewportCameraController`` sets the camera before ``KitVisualizer.initialize()``,
+    which ignores early ``set_camera_view`` calls. Arena's ``ArenaEnvBuilder.make``
+    re-applies after init; our builders call ``gym.make`` directly and must do the same
+    or the viewport stays at a bad/default pose (often reads as a black screen).
+
+    Also clear Sim6 ``disableColorRender`` after sensors spawn: depth-only cameras
+    (EX001 chassis) otherwise black the Kit viewport under ``--viz kit``.
+    """
+    import gymnasium as gym
+    from isaaclab_arena.utils.isaaclab_utils.simulation_app import reapply_viewer_cfg
+
+    env = gym.make(reg_name, cfg=env_cfg, **env_kwargs)
+    reapply_viewer_cfg(env)
+    ensure_kit_viewport_color_render()
+    return env.unwrapped
 
 
 @dataclass
@@ -89,11 +126,9 @@ def build_collect_gym_env(
     device: str = 'cuda:0',
 ) -> CollectEnv:
     """Build a gym env fully configured for teleop data collection."""
-    import gymnasium as gym
     import torch
     from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
     from isaaclab.managers import DatasetExportMode
-    from isaaclab_arena.cli.isaaclab_arena_cli import get_isaaclab_arena_cli_parser
     from isaaclab_arena.environments.arena_env_builder import ArenaEnvBuilder
     from isaaclab_arena.environments.isaaclab_arena_environment import IsaacLabArenaEnvironment
 
@@ -106,7 +141,7 @@ def build_collect_gym_env(
 
     enable_cameras = bool(payload.get('enable_cameras', True))
 
-    scene = build_scene(task_name)
+    scene = build_scene(task_name, robot='bimanual')
     embodiment = BimanualEmbodiment(enable_cameras=enable_cameras)
     if not enable_cameras:
         embodiment.camera_config = None
@@ -118,11 +153,13 @@ def build_collect_gym_env(
         task=task, teleop_device=None,
     )
 
-    cli_args = get_isaaclab_arena_cli_parser().parse_args([])
-    cli_args.headless = headless
-    cli_args.device = device
-    cli_args.enable_cameras = enable_cameras
-    reg_name, env_cfg = ArenaEnvBuilder(arena_env, cli_args).build_registered()
+    reg_name, env_cfg, env_kwargs = ArenaEnvBuilder(
+        arena_env,
+        _arena_builder_cfg(
+            device=device,
+            num_envs=int(payload.get('num_envs', 1)),
+        ),
+    ).build_registered()
     patch_env_cfg_render(
         env_cfg,
         getattr(scene, 'render_cfg_dict', None) or {},
@@ -203,7 +240,7 @@ def build_collect_gym_env(
     if hasattr(env_cfg, 'observations') and hasattr(env_cfg.observations, 'policy'):
         env_cfg.observations.policy.concatenate_terms = False
 
-    gym_env = gym.make(reg_name, cfg=env_cfg).unwrapped
+    gym_env = _make_unwrapped_gym_env(reg_name, env_cfg, env_kwargs)
     apply_carb_settings(
         getattr(scene, 'render_carb_dict', None) or {},
     )
@@ -266,11 +303,9 @@ def build_replay_gym_env(
     device: str = 'cuda:0',
 ) -> ReplayEnv:
     """Build a gym env configured for replay with LeRobot export."""
-    import gymnasium as gym
     from isaaclab.envs.mdp.actions.actions_cfg import JointPositionActionCfg
     from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
     from isaaclab.managers import DatasetExportMode
-    from isaaclab_arena.cli.isaaclab_arena_cli import get_isaaclab_arena_cli_parser
     from isaaclab_arena.environments.arena_env_builder import ArenaEnvBuilder
     from isaaclab_arena.environments.isaaclab_arena_environment import IsaacLabArenaEnvironment
 
@@ -320,12 +355,12 @@ def build_replay_gym_env(
         name=env_name, embodiment=embodiment, scene=scene,
         task=task, teleop_device=None,
     )
-    cli_args = get_isaaclab_arena_cli_parser().parse_args([])
-    cli_args.headless = headless
-    cli_args.device = device
-    cli_args.enable_cameras = enable_cameras
-    reg_name, env_cfg = ArenaEnvBuilder(
-        arena_env, cli_args,
+    reg_name, env_cfg, env_kwargs = ArenaEnvBuilder(
+        arena_env,
+        _arena_builder_cfg(
+            device=device,
+            num_envs=int(payload.get('num_envs', 1)),
+        ),
     ).build_registered()
     patch_env_cfg_render(
         env_cfg,
@@ -392,7 +427,7 @@ def build_replay_gym_env(
     ):
         env_cfg.observations.policy.concatenate_terms = False
 
-    gym_env = gym.make(reg_name, cfg=env_cfg).unwrapped
+    gym_env = _make_unwrapped_gym_env(reg_name, env_cfg, env_kwargs)
     apply_carb_settings(
         getattr(scene, 'render_carb_dict', None) or {},
     )
@@ -427,14 +462,14 @@ def build_eval_gym_env(
     device: str = 'cuda:0',
 ) -> EvalEnv:
     """Build a gym env configured for policy evaluation."""
-    import gymnasium as gym
-    from isaaclab_arena.cli.isaaclab_arena_cli import get_isaaclab_arena_cli_parser
     from isaaclab_arena.environments.arena_env_builder import ArenaEnvBuilder
     from isaaclab_arena.environments.isaaclab_arena_environment import IsaacLabArenaEnvironment
 
     from maniparena_sim.utils.camera_utils import deactivate_robot_camera_prims
 
     enable_cameras = bool(payload.get('enable_cameras', True))
+    policy_cfg = payload.get('policy_config') or {}
+    instruction = policy_cfg.get('instruction')
 
     scene = build_scene(task_name)
     embodiment = BimanualEmbodiment(enable_cameras=enable_cameras)
@@ -447,12 +482,15 @@ def build_eval_gym_env(
         name=env_name, embodiment=embodiment, scene=scene,
         task=task, teleop_device=None,
     )
-    cli_args = get_isaaclab_arena_cli_parser().parse_args([])
-    cli_args.headless = headless
-    cli_args.device = device
-    cli_args.enable_cameras = enable_cameras
-    reg_name, env_cfg = ArenaEnvBuilder(
-        arena_env, cli_args,
+    reg_name, env_cfg, env_kwargs = ArenaEnvBuilder(
+        arena_env,
+        _arena_builder_cfg(
+            device=device,
+            num_envs=int(payload.get('num_envs', 1)),
+            language_instruction=(
+                str(instruction) if instruction else None
+            ),
+        ),
     ).build_registered()
     patch_env_cfg_render(
         env_cfg,
@@ -467,7 +505,7 @@ def build_eval_gym_env(
     ):
         env_cfg.observations.policy.concatenate_terms = False
 
-    gym_env = gym.make(reg_name, cfg=env_cfg).unwrapped
+    gym_env = _make_unwrapped_gym_env(reg_name, env_cfg, env_kwargs)
     apply_carb_settings(
         getattr(scene, 'render_carb_dict', None) or {},
     )
@@ -510,11 +548,9 @@ def build_ex001_collect_gym_env(
             f"Unsupported ex001 task '{task_name}'. "
             f"Supported: {list(EX001_SUPPORTED_TASKS)}"
         )
-    import gymnasium as gym
     import torch
     from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
     from isaaclab.managers import DatasetExportMode
-    from isaaclab_arena.cli.isaaclab_arena_cli import get_isaaclab_arena_cli_parser
     from isaaclab_arena.environments.arena_env_builder import ArenaEnvBuilder
     from isaaclab_arena.environments.isaaclab_arena_environment import IsaacLabArenaEnvironment
 
@@ -524,6 +560,7 @@ def build_ex001_collect_gym_env(
     from maniparena_sim.terms.recorders.streaming.install import (
         install_async_writer, install_staging, install_sync_export_sidecar_finalize,
     )
+    from maniparena_sim.utils.camera_utils import deactivate_robot_camera_prims
 
     enable_cameras = bool(payload.get('enable_cameras', True))
 
@@ -542,11 +579,13 @@ def build_ex001_collect_gym_env(
     arena_env = IsaacLabArenaEnvironment(
         name=env_name, embodiment=embodiment, scene=scene, task=task, teleop_device=None,
     )
-    cli_args = get_isaaclab_arena_cli_parser().parse_args([])
-    cli_args.headless = headless
-    cli_args.device = device
-    cli_args.enable_cameras = enable_cameras
-    reg_name, env_cfg = ArenaEnvBuilder(arena_env, cli_args).build_registered()
+    reg_name, env_cfg, env_kwargs = ArenaEnvBuilder(
+        arena_env,
+        _arena_builder_cfg(
+            device=device,
+            num_envs=int(payload.get('num_envs', 1)),
+        ),
+    ).build_registered()
     patch_env_cfg_render(
         env_cfg, getattr(scene, 'render_cfg_dict', None) or {},
         sim_fps=getattr(scene, 'sim_fps', 120), render_interval=getattr(scene, 'render_decremental', 2),
@@ -576,8 +615,12 @@ def build_ex001_collect_gym_env(
     if hasattr(env_cfg, 'observations') and hasattr(env_cfg.observations, 'policy'):
         env_cfg.observations.policy.concatenate_terms = False
 
-    gym_env = gym.make(reg_name, cfg=env_cfg).unwrapped
+    gym_env = _make_unwrapped_gym_env(reg_name, env_cfg, env_kwargs)
     apply_carb_settings(getattr(scene, 'render_carb_dict', None) or {})
+    if not enable_cameras:
+        n_disabled = deactivate_robot_camera_prims(logger=print)
+        if n_disabled:
+            print(f'deactivated {n_disabled} USD camera prim(s)')
 
     # Streaming recorder: dump obs GPU->CPU per step, stream camera frames to MP4.
     rm = gym_env.recorder_manager
@@ -626,8 +669,6 @@ def build_ex001_nav_gym_env(
     Returns ``(gym_env, embodiment)``. Navigation does not record data, so this
     intentionally skips the RecorderManager streaming stack used by collection.
     """
-    import gymnasium as gym
-    from isaaclab_arena.cli.isaaclab_arena_cli import get_isaaclab_arena_cli_parser
     from isaaclab_arena.environments.arena_env_builder import ArenaEnvBuilder
     from isaaclab_arena.environments.isaaclab_arena_environment import IsaacLabArenaEnvironment
 
@@ -647,11 +688,9 @@ def build_ex001_nav_gym_env(
     arena_env = IsaacLabArenaEnvironment(
         name=env_name, embodiment=embodiment, scene=scene, task=task, teleop_device=None,
     )
-    cli_args = get_isaaclab_arena_cli_parser().parse_args([])
-    cli_args.headless = headless
-    cli_args.device = device
-    cli_args.enable_cameras = enable_cameras
-    reg_name, env_cfg = ArenaEnvBuilder(arena_env, cli_args).build_registered()
+    reg_name, env_cfg, env_kwargs = ArenaEnvBuilder(
+        arena_env, _arena_builder_cfg(device=device),
+    ).build_registered()
     patch_env_cfg_render(
         env_cfg, getattr(scene, 'render_cfg_dict', None) or {},
         sim_fps=getattr(scene, 'sim_fps', 120), render_interval=getattr(scene, 'render_decremental', 2),
@@ -663,6 +702,6 @@ def build_ex001_nav_gym_env(
     if hasattr(env_cfg, 'observations') and hasattr(env_cfg.observations, 'policy'):
         env_cfg.observations.policy.concatenate_terms = False
 
-    gym_env = gym.make(reg_name, cfg=env_cfg).unwrapped
+    gym_env = _make_unwrapped_gym_env(reg_name, env_cfg, env_kwargs)
     apply_carb_settings(getattr(scene, 'render_carb_dict', None) or {})
     return gym_env, embodiment

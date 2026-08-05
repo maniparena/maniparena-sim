@@ -287,7 +287,15 @@ class BimanualLeRobotDatasetFileHandler(DatasetFileHandlerBase):
     def get_env_name(self) -> str | None:
         return self._env_name
 
-    def write_episode(self, episode: EpisodeData, demo_id: int | None = None):
+    def write_episode(
+        self,
+        episode: EpisodeData,
+        demo_id: int | None = None,
+        dataset_compression: bool = False,
+    ):
+        # dataset_compression: Lab 3 RecorderManager always passes this; Lerobot
+        # path ignores it (parquet/mp4, not HDF5 gzip).
+        del dataset_compression
         self._raise_if_not_initialized()
         if episode.is_empty() or episode.get_action(0) is None:
             return

@@ -34,43 +34,52 @@ ManipArena-Sim is the simulation environment for [**ManipArena**](https://manipa
 ## Prerequisites
 
 - **OS**: Ubuntu 22.04 / 24.04 with NVIDIA GPU
-- **Python**: 3.11
+- **Python**: 3.12 (Arena / Lab 3 requirement)
 - **CUDA**: 12.8 (recommended)
 - **NVIDIA Driver**: 570+ (recommended)
-- Isaac Sim, Isaac Lab, and IsaacLab-Arena (not included; see their respective installation guides)
+- **[uv](https://docs.astral.sh/uv/)** (installed automatically by `install.sh` if missing)
+- Stack pulled by the installer:
+  - [IsaacLab-Arena](https://github.com/isaac-sim/IsaacLab-Arena) `main`
+  - Arena-pinned [Isaac Lab](https://github.com/isaac-sim/IsaacLab)
+  - Isaac Sim 6.x binary wheels
 
 ## Installation
 
-```bash
-git clone https://github.com/maniparena/maniparena_sim.git
-cd maniparena_sim
-pip install -e .
-```
-
-USD assets under `assets/` are tracked via [Git LFS](https://git-lfs.github.com/). Make sure LFS is installed before cloning:
+One-click host install (recommended):
 
 ```bash
 git lfs install
-git clone https://github.com/maniparena/maniparena_sim.git
+git clone --recurse-submodules https://github.com/maniparena/maniparena-sim.git
+cd maniparena-sim
+source ./install.sh
 ```
+
+Activate later sessions with:
+
+```bash
+source 3rd/isaaclabarena/.venv/bin/activate
+export OMNI_KIT_ACCEPT_EULA=YES ACCEPT_EULA=Y
+```
+
+See [docs/install.md](docs/install.md) for installer details and optional modes.
 
 ## Project Structure
 
 ```text
-maniparena_sim/
-├── assets/           # USD scene & object assets (Git LFS)
-├── configs/          # YAML configurations (collect, eval, replay, tasks)
-├── scripts/          # Entry-point scripts (collect, eval, replay)
-└── src/maniparena_sim/     # Python package
-    ├── assets/       # Asset registration (environments, objects)
-    ├── embodiment/    # Robot, actions, sensors, teleop devices
-    ├── environment/   # Environment assembly & scene building
-    ├── task/          # Task definitions & builders
-    ├── terms/         # Recorders, replay, terminations, metrics
-    ├── planners/      # Teleoperation planners
-    ├── loops/         # Collection, replay loops
-    ├── policy/        # Policy inference client
-    └── utils/         # Math & camera utilities
+maniparena-sim/
+├── install.sh              # Lab 3 + Sim 6 + Arena environment installer
+├── 3rd/isaaclabarena/      # IsaacLab-Arena submodule
+├── assets/                 # USD scene and object assets (Git LFS)
+├── configs/                # Collection, evaluation, replay and task configs
+├── scripts/                # Collection, evaluation and replay entry points
+└── src/maniparena_sim/     # Simulation package
+    ├── embodiment/         # Bimanual robot, actions and sensors
+    ├── environment/        # Environment and scene assembly
+    ├── task/               # Task definitions and builders
+    ├── terms/              # Recorders, replay, termination and metrics
+    ├── planners/           # Teleoperation planners
+    ├── loops/              # Collection and replay loops
+    └── policy/             # Policy inference client
 ```
 
 ## Usage
@@ -80,24 +89,32 @@ maniparena_sim/
 Collect teleoperation demonstrations with keyboard, VR, or master-slave control:
 
 ```bash
-# Keyboard
+# Keyboard (Kit viewport required)
 python scripts/collect.py \
+    --robot bimanual \
     --task sort_blocks \
     --control-mode keyboard \
-    --config configs/collect/keyboard.yaml
+    --config configs/collect/keyboard.yaml \
+    --viz kit
 
 # VR (OpenXR)
 python scripts/collect.py \
+    --robot bimanual \
     --task sort_blocks \
     --control-mode vr \
-    --config configs/collect/vr.yaml
+    --config configs/collect/vr.yaml \
+    --viz kit
 
 # Master-slave arm
 python scripts/collect.py \
+    --robot bimanual \
     --task sort_blocks \
     --control-mode master_slave \
-    --config configs/collect/master_slave.yaml
+    --config configs/collect/master_slave.yaml \
+    --viz kit
 ```
+
+Isaac Lab / Sim 6 defaults to headless. Pass `--viz kit` when using keyboard input.
 
 #### Keyboard Controls
 

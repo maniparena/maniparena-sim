@@ -50,10 +50,10 @@ def quat_xyzw_to_euler_xyz(
     return euler[0] if squeeze else euler
 
 
-def euler_xyz_to_quat_wxyz(
+def euler_xyz_to_quat_xyzw(
     euler_xyz: np.ndarray,
 ) -> np.ndarray:
-    """Convert XYZ Euler angles (radians) to WXYZ quaternion."""
+    """Convert XYZ Euler angles (radians) to XYZW quaternion (Lab 3 convention)."""
     euler = np.asarray(euler_xyz, dtype=np.float32)
     squeeze = euler.ndim == 1
     if squeeze:
@@ -71,13 +71,21 @@ def euler_xyz_to_quat_wxyz(
     sy = np.sin(half[:, 1])
     sz = np.sin(half[:, 2])
 
+    # x, y, z, w
     quat = np.stack([
-        cx * cy * cz + sx * sy * sz,
         sx * cy * cz - cx * sy * sz,
         cx * sy * cz + sx * cy * sz,
         cx * cy * sz - sx * sy * cz,
+        cx * cy * cz + sx * sy * sz,
     ], axis=1).astype(np.float32)
     return quat[0] if squeeze else quat
+
+
+def euler_xyz_to_quat_wxyz(
+    euler_xyz: np.ndarray,
+) -> np.ndarray:
+    """Convert XYZ Euler angles (radians) to WXYZ quaternion."""
+    return quat_xyzw_to_wxyz(euler_xyz_to_quat_xyzw(euler_xyz))
 
 
 def to_numpy_keep_shape(value):

@@ -83,9 +83,9 @@ class VRTeleopDevice:
     ) -> Se3AbsRetargeterCfg | ControllerSe3AbsRetargeterCfg:
         if self.cfg.use_motion_controller_pose:
             controller_target = self._controller_target(side)
-            # ``motion_controller_quat_offset_wxyz`` defaults to (0.5, -0.5,
-            # 0.5, 0.5) on the retargeter cfg itself; callers needing a
-            # different offset should construct the retargeter cfg directly.
+            # ``motion_controller_quat_offset_xyzw`` defaults to
+            # (-0.5, 0.5, 0.5, 0.5) on the retargeter cfg itself; callers needing
+            # a different offset should construct the retargeter cfg directly.
             return ControllerSe3AbsRetargeterCfg(
                 bound_controller=controller_target,
                 zero_out_xy_rotation=self.cfg.zero_out_xy_rotation,

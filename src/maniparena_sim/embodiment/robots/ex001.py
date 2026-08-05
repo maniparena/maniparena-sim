@@ -35,11 +35,14 @@ from isaaclab.sensors import CameraCfg
 from isaaclab.sensors.contact_sensor import ContactSensorCfg
 from isaaclab.sensors.imu import ImuCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import FrameTransformerCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.backend_utils import get_default_renderer_cfg
+from isaaclab.utils.configclass import configclass
 from isaaclab_arena.assets.register import register_asset
 from isaaclab_arena.embodiments.embodiment_base import EmbodimentBase
+from isaaclab_arena.utils.cameras import ArenaCameraCfg
 from isaaclab_arena.utils.configclass import combine_configclass_instances
 from isaaclab_arena.utils.pose import Pose
+from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
 from maniparena_sim.assets import ASSETS_DIR
 from maniparena_sim.embodiment.sensors.update_camera import (
@@ -49,6 +52,10 @@ from maniparena_sim.embodiment.sensors.update_camera import (
 from maniparena_sim.embodiment.teleop_devices.differential_drive_keyboard_controller import (
     EX001_DIFF_DRIVE_KEYBOARD_CFG,
 )
+
+# Depth RenderProduct + Kit viewport: Lab default clipping is "none" (returns inf),
+# which blacks the main viewport on Sim6. Clip to far plane like manaenv EX001.
+_EX001_DEPTH_RENDERER_CFG = IsaacRtxRendererCfg(depth_clipping_behavior="max")
 
 _EX001_GRIPPER_OPEN = 1.89
 _EX001_GRIPPER_CLOSE = 0.0
@@ -105,7 +112,7 @@ class EX001Embodiment(EmbodimentBase):
             prim_path="{ENV_REGEX_NS}/Robot",
             init_state=ArticulationCfg.InitialStateCfg(
                 pos=(-0.72, -0.26, -0.93),
-                rot=(1.0, 0.0, 0.0, 0.0),
+                rot=(0.0, 0.0, 0.0, 1.0),
             ),
             actuators={
                 "wheels": ImplicitActuatorCfg(
@@ -138,26 +145,36 @@ class EX001Embodiment(EmbodimentBase):
         # SCENE_END_MARKER
 
     @configclass
-    class CameraCfg:
+    class CameraCfg(ArenaCameraCfg):
         left_wrist_camera: CameraCfg = CameraCfg(
             prim_path="{ENV_REGEX_NS}/Robot/left_arm_gripper_camera_color_frame/Left_Gripper_Camera",
-            update_period=0.0333, height=1200, width=1600, data_types=["rgb"],
+            update_period=0.0333, height=480, width=640, data_types=["rgb"],
             spawn=OpenCVFisheyeCameraCfg(clipping_range=(0.03, 1.0e5)),
+            renderer_cfg=get_default_renderer_cfg(),
         )
         right_wrist_camera: CameraCfg = CameraCfg(
             prim_path="{ENV_REGEX_NS}/Robot/right_arm_gripper_camera_color_frame/Right_Gripper_Camera",
-            update_period=0.0333, height=1200, width=1600, data_types=["rgb"],
+            update_period=0.0333, height=480, width=640, data_types=["rgb"],
             spawn=OpenCVFisheyeCameraCfg(clipping_range=(0.03, 1.0e5)),
+            renderer_cfg=get_default_renderer_cfg(),
         )
         head_camera: CameraCfg = CameraCfg(
             prim_path="{ENV_REGEX_NS}/Robot/camera_head_front_color_optical_frame/Head_Front_Color_Camera",
-            update_period=0.0333, height=720, width=1280, data_types=["rgb"],
+            update_period=0.0333, height=480, width=640, data_types=["rgb"],
             spawn=OpenCVPinholeCameraCfg(clipping_range=(0.03, 1.0e5)),
+            renderer_cfg=get_default_renderer_cfg(),
         )
         chassis_camera: CameraCfg = CameraCfg(
             prim_path="{ENV_REGEX_NS}/Robot/camera_chassis_front_depth_optical_frame/Chassis_Front_Depth_Camera",
-            update_period=0.0333, height=1200, width=1600, data_types=["depth"],
+            update_period=0.0333,
+            height=480,
+            width=640,
+            data_types=["depth"],
+            # Clip far-plane holes (Lab default "none" -> inf). Kit viewport black
+            # with depth is handled separately via ensure_kit_viewport_color_render.
+            depth_clipping_behavior="max",
             spawn=OpenCVPinholeCameraCfg(clipping_range=(0.03, 1.0e5)),
+            renderer_cfg=_EX001_DEPTH_RENDERER_CFG,
         )
         # CAMERA_END_MARKER
 
@@ -253,7 +270,14 @@ class EX001Embodiment(EmbodimentBase):
             left_wrist_cam = ObsTerm(func=mdp_isaac_lab.image, params={"sensor_cfg": SceneEntityCfg("left_wrist_camera"), "data_type": "rgb", "normalize": False})
             right_wrist_cam = ObsTerm(func=mdp_isaac_lab.image, params={"sensor_cfg": SceneEntityCfg("right_wrist_camera"), "data_type": "rgb", "normalize": False})
             head_cam = ObsTerm(func=mdp_isaac_lab.image, params={"sensor_cfg": SceneEntityCfg("head_camera"), "data_type": "rgb", "normalize": False})
-            chassis_cam = ObsTerm(func=mdp_isaac_lab.image, params={"sensor_cfg": SceneEntityCfg("chassis_camera"), "data_type": "depth", "normalize": False})
+            chassis_cam = ObsTerm(
+                func=mdp_isaac_lab.image,
+                params={
+                    "sensor_cfg": SceneEntityCfg("chassis_camera"),
+                    "data_type": "depth",
+                    "normalize": False,
+                },
+            )
 
             def __post_init__(self):
                 self.enable_corruption = False
@@ -270,7 +294,7 @@ class EX001Embodiment(EmbodimentBase):
         self.observation_config = self.StateObservationsCfg()
         self._camera_observation_config = self.CameraObservationsCfg()
         self.diff_drive_keyboard_controller_cfg = EX001_DIFF_DRIVE_KEYBOARD_CFG
-        self.xr = XrCfg(anchor_pos=(0.0, 0.0, 0.0), anchor_rot=(1.0, 0.0, 0.0, 0.0))
+        self.xr = XrCfg(anchor_pos=(0.0, 0.0, 0.0), anchor_rot=(0.0, 0.0, 0.0, 1.0))
 
     def get_observation_cfg(self):
         if self.enable_cameras:

@@ -58,7 +58,7 @@ class EX001RosConfig:
             "obs_ang_vel_key": "imu_ang_vel",
             "obs_lin_acc_key": "imu_lin_acc",
             "obs_orientation_key": "imu_orientation",
-            "identity_orientation": (1.0, 0.0, 0.0, 0.0),
+            "identity_orientation": (0.0, 0.0, 0.0, 1.0),
             "zero_covariance": [0.0] * 9,
         }
     }

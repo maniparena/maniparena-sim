@@ -6,7 +6,7 @@ from isaaclab.assets import Articulation
 from isaaclab.utils.math import quat_from_euler_xyz, quat_mul
 
 from maniparena_sim.ros.constants import FLOAT_EPS
-from maniparena_sim.ros.math_utils import quat_wxyz_to_yaw, rotate_2d
+from maniparena_sim.ros.math_utils import quat_xyzw_to_yaw, rotate_2d
 
 
 class RosMovementController:
@@ -45,7 +45,7 @@ class RosMovementController:
         current_quat = current_root_state[:, 3:7]
 
         if abs(position_delta).sum() > FLOAT_EPS:
-            yaw = quat_wxyz_to_yaw(current_quat[0].cpu().numpy())
+            yaw = quat_xyzw_to_yaw(current_quat[0].cpu().numpy())
             rotated = rotate_2d(position_delta, yaw)
             position_delta_tensor = torch.tensor(rotated, dtype=torch.float32, device=self._device).unsqueeze(0)
         else:

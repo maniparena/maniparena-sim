@@ -18,7 +18,7 @@ class GreenBoothBackground(LibraryBackground):
     usd_path = os.path.join(ASSETS_DIR, "green_booth", "green_booth.usd")
     initial_pose = Pose(
         position_xyz=(0.0, 0.0, 0.0),
-        rotation_wxyz=(1.0, 0.0, 0.0, 0.0),
+        rotation_xyzw=(0.0, 0.0, 0.0, 1.0),
     )
     object_min_z = -0.4
 

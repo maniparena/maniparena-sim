@@ -84,10 +84,11 @@ class TfPublisher:
         t.transform.translation.x = float(position[0])
         t.transform.translation.y = float(position[1])
         t.transform.translation.z = float(position[2])
-        t.transform.rotation.w = float(orientation[0])
-        t.transform.rotation.x = float(orientation[1])
-        t.transform.rotation.y = float(orientation[2])
-        t.transform.rotation.z = float(orientation[3])
+        # Lab / Arena quats are xyzw.
+        t.transform.rotation.x = float(orientation[0])
+        t.transform.rotation.y = float(orientation[1])
+        t.transform.rotation.z = float(orientation[2])
+        t.transform.rotation.w = float(orientation[3])
         return t
 
     # -- individual publish methods ----------------------------------------

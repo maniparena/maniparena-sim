@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from isaaclab_arena.assets.asset_registry import AssetRegistry
+from isaaclab_arena.assets.registries import AssetRegistry
 from isaaclab_arena.scene.scene import Scene
 from isaaclab_arena.utils.pose import Pose
 
@@ -11,14 +11,14 @@ from maniparena_sim.environment.render_settings import load_render_settings
 
 _BIMANUAL_BG_POSE = Pose(
     position_xyz=(-1.0, -0.562, 0.0),
-    rotation_wxyz=(0.04457, 0.0, 0.0, -0.999),
+    rotation_xyzw=(0.0, 0.0, -0.999, 0.04457),
 )
 _EX001_BG_POSE = Pose(
     position_xyz=(-0.452, -0.271, -0.985),
-    rotation_wxyz=(0.709, 0.0, 0.0, -0.704),
+    rotation_xyzw=(0.0, 0.0, -0.704, 0.709),
 )
-_IDENTITY_ROT = (1.0, 0.0, 0.0, 0.0)
-_PAPER_ROT = (0.70711, 0.0, 0.0, 0.70711)
+_IDENTITY_ROT = (0.0, 0.0, 0.0, 1.0)
+_PAPER_ROT = (0.0, 0.0, 0.70711, 0.70711)
 
 _SORT_BLOCK_POSES = [
     (0.05, -0.15, -0.15),
@@ -49,8 +49,8 @@ def _apply_semantic_tags(asset) -> None:
     asset.semantic_tags = list(tags)
 
 
-def _pose_at(position_xyz: tuple[float, float, float], rotation_wxyz=_IDENTITY_ROT) -> Pose:
-    return Pose(position_xyz=position_xyz, rotation_wxyz=rotation_wxyz)
+def _pose_at(position_xyz: tuple[float, float, float], rotation_xyzw=_IDENTITY_ROT) -> Pose:
+    return Pose(position_xyz=position_xyz, rotation_xyzw=rotation_xyzw)
 
 
 def _spawn_background(registry: AssetRegistry, robot: str):
@@ -64,9 +64,9 @@ def _spawn_background(registry: AssetRegistry, robot: str):
     return background
 
 
-def _place_assets(assets, positions, *, rotation_wxyz=_IDENTITY_ROT) -> None:
+def _place_assets(assets, positions, *, rotation_xyzw=_IDENTITY_ROT) -> None:
     for asset, position in zip(assets, positions):
-        asset.set_initial_pose(_pose_at(position, rotation_wxyz))
+        asset.set_initial_pose(_pose_at(position, rotation_xyzw))
         _apply_semantic_tags(asset)
 
 
@@ -83,7 +83,7 @@ def _build_sort_blocks_scene(registry: AssetRegistry, robot: str) -> Scene:
         registry.get_asset_by_name("pink_paper")(),
     ]
     _place_assets(blocks, _SORT_BLOCK_POSES)
-    _place_assets(destinations, _SORT_DEST_POSES, rotation_wxyz=_PAPER_ROT)
+    _place_assets(destinations, _SORT_DEST_POSES, rotation_xyzw=_PAPER_ROT)
     return Scene(assets=[background, *blocks, *destinations])
 
 

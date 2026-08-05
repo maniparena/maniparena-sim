@@ -1,0 +1,4 @@
+[submodule "3rd/isaaclabarena"]
+	path = 3rd/isaaclabarena
+	url = https://github.com/isaac-sim/IsaacLab-Arena.git
+	branch = main

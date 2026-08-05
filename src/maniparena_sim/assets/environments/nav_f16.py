@@ -18,7 +18,7 @@ class NavF16Background(LibraryBackground):
     usd_path = os.path.join(ASSETS_DIR, "nav_f16", "nav_f16.usd")
     initial_pose = Pose(
         position_xyz=(0.0, 0.0, 0.0),
-        rotation_wxyz=(1.0, 0.0, 0.0, 0.0),
+        rotation_xyzw=(0.0, 0.0, 0.0, 1.0),
     )
     object_min_z = -10.0
 

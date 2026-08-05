@@ -106,13 +106,13 @@ class KeyboardTeleopPlanner(TeleopPlanner):
     def _normalize_quat(self, quat: torch.Tensor) -> torch.Tensor:
         return quat / torch.linalg.norm(quat).clamp_min(1e-8)
 
-    def _rotvec_to_quat_wxyz(self, rotvec: torch.Tensor) -> torch.Tensor:
+    def _rotvec_to_quat_xyzw(self, rotvec: torch.Tensor) -> torch.Tensor:
         import isaaclab.utils.math as math_utils
 
         angle = torch.linalg.norm(rotvec)
         if float(angle) < _MOTION_EPS:
             device = rotvec.device
-            return torch.tensor([1.0, 0.0, 0.0, 0.0], device=device, dtype=torch.float32)
+            return torch.tensor([0.0, 0.0, 0.0, 1.0], device=device, dtype=torch.float32)
         axis = rotvec / angle
         return math_utils.quat_from_angle_axis(angle, axis).reshape(4)
 
@@ -167,7 +167,7 @@ class KeyboardTeleopPlanner(TeleopPlanner):
         if float(dpos.abs().max()) > _MOTION_EPS:
             hold[pos_slice] = hold[pos_slice] + dpos
         if float(drot.abs().max()) > _MOTION_EPS:
-            delta_q = self._rotvec_to_quat_wxyz(drot)
+            delta_q = self._rotvec_to_quat_xyzw(drot)
             current_q = hold[quat_slice]
             hold[quat_slice] = self._normalize_quat(
                 math_utils.quat_mul(delta_q.unsqueeze(0), current_q.unsqueeze(0)).squeeze(0)

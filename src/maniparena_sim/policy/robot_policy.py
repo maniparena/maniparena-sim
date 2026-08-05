@@ -18,7 +18,7 @@ from isaaclab.utils.math import subtract_frame_transforms
 from scipy.spatial.transform import Rotation
 
 from maniparena_sim.policy.server_client import PolicyServerClient
-from maniparena_sim.utils.math_utils import euler_xyz_to_quat_wxyz
+from maniparena_sim.utils.math_utils import euler_xyz_to_quat_xyzw
 
 
 @dataclass
@@ -470,13 +470,13 @@ class RobotClosedloopPolicy:
                 + origin
             )
             tgt_lq = torch.as_tensor(
-                euler_xyz_to_quat_wxyz(
+                euler_xyz_to_quat_xyzw(
                     np.asarray([f1[i, 3:6]], dtype=np.float32),
                 )[0],
                 dtype=torch.float32, device=device,
             )
             tgt_rq = torch.as_tensor(
-                euler_xyz_to_quat_wxyz(
+                euler_xyz_to_quat_xyzw(
                     np.asarray([f2[i, 3:6]], dtype=np.float32),
                 )[0],
                 dtype=torch.float32, device=device,

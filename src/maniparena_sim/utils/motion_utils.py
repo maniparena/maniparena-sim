@@ -17,7 +17,7 @@ def squeeze_if_single(t: torch.Tensor) -> torch.Tensor:
 
 
 def as_quat_tensor(q, device=None) -> torch.Tensor:
-    """Coerce quaternion (np / tensor) to float32 tensor (…, 4) WXYZ. 1-D -> (1,4)."""
+    """Coerce quaternion (np / tensor) to float32 tensor (…, 4) XYZW. 1-D -> (1,4)."""
     if isinstance(q, torch.Tensor):
         t = q
     else:

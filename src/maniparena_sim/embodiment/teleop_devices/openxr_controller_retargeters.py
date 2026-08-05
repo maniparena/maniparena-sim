@@ -10,12 +10,12 @@ from isaaclab.devices.device_base import DeviceBase
 from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
 from scipy.spatial.transform import Rotation
 
-from maniparena_sim.utils.math_utils import quat_wxyz_normalize, quat_wxyz_to_xyzw, quat_xyzw_to_wxyz
+from maniparena_sim.utils.math_utils import quat_wxyz_normalize
 
 
-def _quat_wxyz_to_rotation(quat_wxyz: tuple[float, float, float, float] | list[float]) -> Rotation:
-    quat = quat_wxyz_normalize(np.asarray(quat_wxyz, dtype=np.float32))
-    return Rotation.from_quat(quat_wxyz_to_xyzw(quat))
+def _quat_xyzw_to_rotation(quat_xyzw: tuple[float, float, float, float] | list[float]) -> Rotation:
+    quat = quat_wxyz_normalize(np.asarray(quat_xyzw, dtype=np.float32))
+    return Rotation.from_quat(quat)
 
 
 def _get_controller_inputs(data: dict, bound_controller: DeviceBase.TrackingTarget) -> np.ndarray:
@@ -35,7 +35,7 @@ class ControllerSe3AbsRetargeter(RetargeterBase):
         super().__init__(cfg)
         self.bound_controller = cfg.bound_controller
         self._zero_out_xy_rotation = cfg.zero_out_xy_rotation
-        self._quat_offset = _quat_wxyz_to_rotation(cfg.motion_controller_quat_offset_wxyz)
+        self._quat_offset = _quat_xyzw_to_rotation(cfg.motion_controller_quat_offset_xyzw)
         self._previous_pose: np.ndarray | None = None
 
     def get_requirements(self) -> list[RetargeterBase.Requirement]:
@@ -44,17 +44,17 @@ class ControllerSe3AbsRetargeter(RetargeterBase):
     def retarget(self, data: dict) -> torch.Tensor:
         pose = self._get_pose(data)
         position = pose[:3]
-        quat_wxyz = pose[3:7]
-        rotation = Rotation.from_quat(quat_wxyz_to_xyzw(quat_wxyz_normalize(quat_wxyz)))
+        quat_xyzw = pose[3:7]
+        rotation = Rotation.from_quat(quat_wxyz_normalize(quat_xyzw))
         rotation = rotation * self._quat_offset
         if self._zero_out_xy_rotation:
             z, y, x = rotation.as_euler("ZYX")
             rotation = Rotation.from_euler("ZYX", [z, 0.0, 0.0])
-        quat_wxyz = quat_xyzw_to_wxyz(rotation.as_quat())
+        quat_xyzw = rotation.as_quat().astype(np.float32)
         command = np.concatenate(
             [
                 position,
-                quat_wxyz,
+                quat_xyzw,
             ]
         )
         return torch.tensor(command, dtype=torch.float32, device=self._sim_device)
@@ -64,7 +64,8 @@ class ControllerSe3AbsRetargeter(RetargeterBase):
         if ctrl is None or np.size(ctrl) == 0:
             if self._previous_pose is not None:
                 return self._previous_pose.copy()
-            return np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0], dtype=np.float32)
+            # Identity pose: position + xyzw quaternion.
+            return np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0], dtype=np.float32)
         pose = np.asarray(
             ctrl[DeviceBase.MotionControllerDataRowIndex.POSE.value],
             dtype=np.float32,
@@ -106,10 +107,11 @@ class ControllerSe3AbsRetargeterCfg(RetargeterCfg):
     """Configuration for absolute motion-controller pose retargeting."""
 
     zero_out_xy_rotation: bool = False
-    # Unit WXYZ offset that maps OpenXR controller orientation into the robot EE frame.
-    motion_controller_quat_offset_wxyz: tuple[float, float, float, float] = (
-        0.5,
+    # Unit XYZW offset that maps OpenXR controller orientation into the robot EE frame.
+    # Converted from legacy WXYZ (0.5, -0.5, 0.5, 0.5).
+    motion_controller_quat_offset_xyzw: tuple[float, float, float, float] = (
         -0.5,
+        0.5,
         0.5,
         0.5,
     )

@@ -99,11 +99,15 @@ class StagedEpisodeDataRegistry:
                 self._stager_keys: set[str] = set()
                 self._video_keys: set[str] = set()
 
-            def _to_cpu(self, value):
+            def _to_cpu(self, value, *, clone: bool = True):
                 if not isinstance(value, torch.Tensor):
                     return value
                 if value.device.type == "cpu":
-                    return value.detach().clone().contiguous()
+                    # Lab recorder_manager may clone the batch once and pass
+                    # clone=False; avoid a redundant host clone in that case.
+                    if clone:
+                        return value.detach().clone().contiguous()
+                    return value.detach().contiguous()
                 if self._pinned:
                     try:
                         host = torch.empty(value.shape, dtype=value.dtype, pin_memory=True)
@@ -111,6 +115,7 @@ class StagedEpisodeDataRegistry:
                         return host
                     except RuntimeError:
                         pass
+                # Device→host always materializes a new tensor.
                 return value.detach().to(device="cpu", copy=True).contiguous()
 
             def _set_at_path(self, key: str, value) -> None:
@@ -124,10 +129,11 @@ class StagedEpisodeDataRegistry:
                         cursor[sub] = dict()
                     cursor = cursor[sub]
 
-            def add(self, key: str, value):  # type: ignore[override]
+            def add(self, key: str, value, clone: bool = True):  # type: ignore[override]
+                """Match Lab ``EpisodeData.add(..., clone=)`` (Lab 3 recorder API)."""
                 if isinstance(value, dict):
                     for sub_key, sub_value in value.items():
-                        self.add(f"{key}/{sub_key}", sub_value)
+                        self.add(f"{key}/{sub_key}", sub_value, clone=clone)
                     return
 
                 if key.startswith("camera_obs/"):
@@ -138,7 +144,7 @@ class StagedEpisodeDataRegistry:
                             if self._stager is not None and isinstance(value, torch.Tensor) and value.device.type == "cuda":
                                 self._stager.add_video(key, value, env_id=env_id)
                             else:
-                                staged = self._to_cpu(value)
+                                staged = self._to_cpu(value, clone=clone)
                                 frames = to_numpy_keep_shape(staged)
                                 self._video_sink.append_chunk(env_id=env_id, key=key, frames=frames[None, ...])
                         return
@@ -148,7 +154,7 @@ class StagedEpisodeDataRegistry:
                         if self._stager is not None and isinstance(value, torch.Tensor) and value.device.type == "cuda":
                             self._stager.add_video(key, value, env_id=env_id)
                         else:
-                            staged = self._to_cpu(value)
+                            staged = self._to_cpu(value, clone=clone)
                             frames = to_numpy_keep_shape(staged)
                             self._video_sink.append_chunk(env_id=env_id, key=key, frames=frames[None, ...])
                         return
@@ -162,7 +168,7 @@ class StagedEpisodeDataRegistry:
                 cursor = self._data
                 for idx, sub in enumerate(sub_keys):
                     if idx == len(sub_keys) - 1:
-                        staged = self._to_cpu(value)
+                        staged = self._to_cpu(value, clone=clone)
                         if sub not in cursor:
                             cursor[sub] = [staged]
                         else:

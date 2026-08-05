@@ -27,9 +27,11 @@ from isaaclab.sensors import CameraCfg
 from isaaclab.sensors.contact_sensor import ContactSensorCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import FrameTransformerCfg
 from isaaclab.sim import PinholeCameraCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.backend_utils import get_default_renderer_cfg
+from isaaclab.utils.configclass import configclass
 from isaaclab_arena.assets.register import register_asset
 from isaaclab_arena.embodiments.embodiment_base import EmbodimentBase
+from isaaclab_arena.utils.cameras import ArenaCameraCfg
 from isaaclab_arena.utils.configclass import combine_configclass_instances
 from isaaclab_arena.utils.pose import Pose
 
@@ -102,7 +104,7 @@ def bimanual_left_eef_delta_pos(env, ee_frame_cfg=SceneEntityCfg("left_ee_frame"
 def bimanual_left_eef_delta_quat(env, ee_frame_cfg=SceneEntityCfg("left_ee_frame")) -> torch.Tensor:
     pos, quat = _get_ee_world(env, ee_frame_cfg)
     _, ref_quat = _get_or_init_ee_ref(env, "_left_ee_ref", pos, quat)
-    return math_utils.quat_mul(quat, math_utils.quat_conjugate(ref_quat))[:, [1, 2, 3, 0]]
+    return math_utils.quat_mul(quat, math_utils.quat_conjugate(ref_quat))
 
 
 def bimanual_right_eef_delta_pos(env, ee_frame_cfg=SceneEntityCfg("right_ee_frame")) -> torch.Tensor:
@@ -114,7 +116,7 @@ def bimanual_right_eef_delta_pos(env, ee_frame_cfg=SceneEntityCfg("right_ee_fram
 def bimanual_right_eef_delta_quat(env, ee_frame_cfg=SceneEntityCfg("right_ee_frame")) -> torch.Tensor:
     pos, quat = _get_ee_world(env, ee_frame_cfg)
     _, ref_quat = _get_or_init_ee_ref(env, "_right_ee_ref", pos, quat)
-    return math_utils.quat_mul(quat, math_utils.quat_conjugate(ref_quat))[:, [1, 2, 3, 0]]
+    return math_utils.quat_mul(quat, math_utils.quat_conjugate(ref_quat))
 
 
 _GRIPPER_JOINT_IDX: dict[str, int] = {}
@@ -159,7 +161,7 @@ class BimanualEmbodiment(EmbodimentBase):
             prim_path="{ENV_REGEX_NS}/Robot",
             init_state=ArticulationCfg.InitialStateCfg(
                 pos=(-0.32165, -0.25918, -0.23),
-                rot=(1.0, 0.0, 0.0, 0.0),
+                rot=(0.0, 0.0, 0.0, 1.0),
             ),
             actuators={
                 "left_arm_acts": ImplicitActuatorCfg(joint_names_expr=["left_arm_joint[1-6]"], effort_limit_sim=200.0, stiffness=1500.0, damping=150.0),
@@ -192,7 +194,7 @@ class BimanualEmbodiment(EmbodimentBase):
         )
 
     @configclass
-    class CameraCfg:
+    class CameraCfg(ArenaCameraCfg):
         left_wrist_camera: CameraCfg = CameraCfg(
             prim_path="{ENV_REGEX_NS}/Robot/left_arm_gripper_camera_color_frame/Left_Gripper_Camera",
             update_period=0.0333,
@@ -200,6 +202,7 @@ class BimanualEmbodiment(EmbodimentBase):
             width=640,
             data_types=["rgb"],
             spawn=OpenCVFisheyeCameraCfg(clipping_range=(0.03, 1.0e5)),
+            renderer_cfg=get_default_renderer_cfg(),
         )
         right_wrist_camera: CameraCfg = CameraCfg(
             prim_path="{ENV_REGEX_NS}/Robot/right_arm_gripper_camera_color_frame/Right_Gripper_Camera",
@@ -208,6 +211,7 @@ class BimanualEmbodiment(EmbodimentBase):
             width=640,
             data_types=["rgb"],
             spawn=OpenCVFisheyeCameraCfg(clipping_range=(0.03, 1.0e5)),
+            renderer_cfg=get_default_renderer_cfg(),
         )
         head_camera: CameraCfg = CameraCfg(
             prim_path="{ENV_REGEX_NS}/Robot/Head_Camera",
@@ -223,9 +227,11 @@ class BimanualEmbodiment(EmbodimentBase):
             ),
             offset=CameraCfg.OffsetCfg(
                 pos=(0.084, 0.0, 0.517),
-                rot=(0.67438, 0.21263, -0.21263, -0.67438),
+                # Lab 3 OffsetCfg.rot is xyzw (converted from legacy wxyz).
+                rot=(0.21263, -0.21263, -0.67438, 0.67438),
                 convention="opengl",
             ),
+            renderer_cfg=get_default_renderer_cfg(),
         )
 
     @configclass
@@ -326,7 +332,7 @@ class BimanualEmbodiment(EmbodimentBase):
         env_rot = _parse_env_tuple(os.environ.get("ISAACLAB_ARENA_BIMANUAL_XR_ANCHOR_ROT"), 4)
         self.xr = XrCfg(
             anchor_pos=xr_anchor_pos or env_pos or (0.0, 0.0, 0.0),
-            anchor_rot=xr_anchor_rot or env_rot or (1.0, 0.0, 0.0, 0.0),
+            anchor_rot=xr_anchor_rot or env_rot or (0.0, 0.0, 0.0, 1.0),
         )
 
     def get_observation_cfg(self):

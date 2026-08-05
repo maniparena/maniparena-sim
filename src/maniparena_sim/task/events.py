@@ -31,12 +31,13 @@ def _sync_pose_to_usd(asset, env_ids: torch.Tensor, local_pose: torch.Tensor) ->
                     op.Set(Gf.Vec3d(*pos))
                     translate_set = True
                 elif op.GetOpType() == UsdGeom.XformOp.TypeOrient:
-                    op.Set(Gf.Quatd(quat[0], quat[1], quat[2], quat[3]))
+                    # Lab / Arena Pose quats are xyzw; Gf.Quatd is (w, x, y, z).
+                    op.Set(Gf.Quatd(quat[3], quat[0], quat[1], quat[2]))
                     orient_set = True
             if not translate_set or not orient_set:
                 xformable.ClearXformOpOrder()
                 xformable.AddTranslateOp().Set(Gf.Vec3d(*pos))
-                xformable.AddOrientOp().Set(Gf.Quatd(quat[0], quat[1], quat[2], quat[3]))
+                xformable.AddOrientOp().Set(Gf.Quatd(quat[3], quat[0], quat[1], quat[2]))
     except Exception:
         pass
 

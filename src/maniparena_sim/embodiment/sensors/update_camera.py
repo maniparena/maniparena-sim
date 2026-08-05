@@ -6,7 +6,7 @@ import re
 from typing import Callable
 
 from isaaclab.sim import PinholeCameraCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 from pxr import Gf, Usd, UsdGeom
 
 

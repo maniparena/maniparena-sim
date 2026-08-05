@@ -20,8 +20,8 @@ from dataclasses import dataclass
 
 import numpy as np
 import torch
+from isaaclab_arena.assets.device_library import TeleopDeviceBase
 from isaaclab_arena.assets.register import register_device
-from isaaclab_arena.teleop_devices.teleop_device_base import TeleopDeviceBase
 from scipy.spatial.transform import Rotation
 
 from maniparena_sim.embodiment.teleop_devices.differential_drive_keyboard_controller import (
@@ -284,7 +284,8 @@ def _map_action_dim(action: torch.Tensor, expected_dim: int) -> torch.Tensor:
 class BimanualKeyboardTeleopDevice(TeleopDeviceBase):
     """Shared keyboard teleop device registered with the Arena DeviceRegistry."""
 
-    name = "keyboard"
+    # Distinct from Arena's stock KeyboardCfg (also name="keyboard").
+    name = "bimanual_keyboard"
 
     def __init__(
         self,
@@ -299,7 +300,13 @@ class BimanualKeyboardTeleopDevice(TeleopDeviceBase):
         self.enable_base_target = enable_base_target
         self._keyboard: BimanualSe3Keyboard | None = None
 
-    def get_teleop_device_cfg(self, embodiment: object | None = None):
+    def get_device_cfg(
+        self,
+        pipeline_builder=None,
+        embodiment: object | None = None,
+    ) -> BimanualSe3KeyboardCfg:
+        """Arena DeviceRegistry API (Lab3/Arena main)."""
+        del pipeline_builder  # unused for keyboard; OpenXR retargeters need it
         differential_cfg = None
         if self.enable_base_target and embodiment is not None:
             differential_cfg = getattr(
@@ -314,13 +321,17 @@ class BimanualKeyboardTeleopDevice(TeleopDeviceBase):
             differential_cfg=differential_cfg,
         )
 
+    # Back-compat alias for older call sites / docs.
+    def get_teleop_device_cfg(self, embodiment: object | None = None):
+        return self.get_device_cfg(embodiment=embodiment)
+
     def create_controller(
         self,
         device: str | None = None,
         embodiment: object | None = None,
     ) -> BimanualSe3Keyboard:
         """Create the actual keyboard controller."""
-        cfg = self.get_teleop_device_cfg(embodiment=embodiment)
+        cfg = self.get_device_cfg(embodiment=embodiment)
         cfg.sim_device = device or self.sim_device
         self._keyboard = BimanualSe3Keyboard(cfg)
         return self._keyboard

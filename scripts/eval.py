@@ -4,7 +4,8 @@
 Usage:
     python scripts/eval.py \
         --task sort_blocks \
-        --config configs/eval/robot.yaml
+        --config configs/eval/robot.yaml \
+        --viz kit
 """
 
 from __future__ import annotations

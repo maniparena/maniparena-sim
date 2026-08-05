@@ -66,7 +66,7 @@ class Ex001VRTeleopSettings(TeleopSettings):
     motion_controller_left_y_marks_success: bool = True
 
     # ── absolute-target quat offset (identity unless embodiment overrides) ──
-    motion_controller_quat_offset_wxyz: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
+    motion_controller_quat_offset_xyzw: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
     xr_target_base_pos_offset: tuple[float, float, float] = (0.0, 0.0, 0.0)
 
     # ── vuer backend ──
@@ -82,7 +82,7 @@ class Ex001VRTeleopSettings(TeleopSettings):
     zero_out_xy_rotation: bool = False
 
 
-# Raw device slot layout (interleaved per-arm pose+grip, quats are WXYZ).
+# Raw device slot layout (interleaved per-arm pose+grip, quats are XYZW).
 _RAW_L_POS = slice(0, 3)
 _RAW_L_QUAT = slice(3, 7)
 _RAW_L_GRIP = slice(7, 8)
@@ -219,13 +219,13 @@ class Ex001VRTeleopPlanner(TeleopPlanner):
         if callable(getter):
             quat = getter()
         else:
-            quat = self.settings.motion_controller_quat_offset_wxyz
+            quat = self.settings.motion_controller_quat_offset_xyzw
         return self._normalize_quat(torch.tensor(quat, dtype=torch.float32, device=device))
 
     def _anchor_pose(self):
         import numpy as np
         if self._gym_env is None:
-            return np.zeros(3, dtype=np.float32), np.array([1, 0, 0, 0], dtype=np.float32)
+            return np.zeros(3, dtype=np.float32), np.array([0, 0, 0, 1], dtype=np.float32)
         robot = self._gym_env.scene["robot"]
         pos = robot.data.root_pos_w[0].detach().cpu().numpy().astype("float32")
         quat = robot.data.root_quat_w[0].detach().cpu().numpy().astype("float32")
@@ -253,7 +253,7 @@ class Ex001VRTeleopPlanner(TeleopPlanner):
         ids, _ = robot.find_joints(name)
         return float(robot.data.joint_pos[0, ids[0]].item())
 
-    # ── raw-pose accessors (WXYZ controller quats in world frame) ─────────
+    # ── raw-pose accessors (XYZW controller quats in world frame) ─────────
     def _raw_side_position(self, raw: torch.Tensor, *, side: str) -> torch.Tensor:
         return raw[_RAW_L_POS] if side == "left" else raw[_RAW_R_POS]
 

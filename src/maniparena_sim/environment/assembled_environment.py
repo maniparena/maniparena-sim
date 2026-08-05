@@ -6,7 +6,11 @@ import argparse
 from typing import Any
 
 import numpy as np
-from maniparena_sim.environment.render_settings import apply_carb_settings, patch_env_cfg_render
+from maniparena_sim.environment.render_settings import (
+    apply_carb_settings,
+    ensure_kit_viewport_color_render,
+    patch_env_cfg_render,
+)
 from maniparena_sim.terms.recorders.recording_terms import PreStepCameraObservationsRecorderCfg
 
 
@@ -72,9 +76,9 @@ class AssembledEnvironment:
         from isaaclab_arena.environments.arena_env_builder import ArenaEnvBuilder
         import gymnasium as gym
 
-        args = args or self._create_default_args()
-        self._env_builder = ArenaEnvBuilder(self._arena_env, args)
-        env_name, env_cfg = self._env_builder.build_registered()
+        builder_cfg = self._to_builder_cfg(args)
+        self._env_builder = ArenaEnvBuilder(self._arena_env, builder_cfg)
+        env_name, env_cfg, env_kwargs = self._env_builder.build_registered()
 
         render_cfg_dict = getattr(self.scene, "render_cfg_dict", None) or {}
         patch_env_cfg_render(
@@ -96,10 +100,11 @@ class AssembledEnvironment:
             )
         elif mode == "evaluate":
             self._apply_evaluation_overrides(env_cfg, output_dir, output_file_name)
-        self._gym_env = gym.make(env_name, cfg=env_cfg).unwrapped
+        self._gym_env = gym.make(env_name, cfg=env_cfg, **env_kwargs).unwrapped
         self._run_post_spawn_hooks()
 
         apply_carb_settings(getattr(self.scene, "render_carb_dict", None) or {})
+        ensure_kit_viewport_color_render()
         self.is_built = True
         return self._gym_env
 
@@ -153,6 +158,20 @@ class AssembledEnvironment:
         args.xr = False
         args.enable_cameras = getattr(self.embodiment, "enable_cameras", False)
         return args
+
+    def _to_builder_cfg(self, args: argparse.Namespace | None = None):
+        from isaaclab_arena.environments.arena_env_builder_cfg import ArenaEnvBuilderCfg
+
+        args = args or self._create_default_args()
+        seed = getattr(args, "seed", None)
+        return ArenaEnvBuilderCfg(
+            num_envs=int(getattr(args, "num_envs", self.num_envs) or self.num_envs),
+            device=str(getattr(args, "device", "cuda:0")),
+            seed=42 if seed is None else int(seed),
+            disable_fabric=bool(getattr(args, "disable_fabric", False)),
+            mimic=bool(getattr(args, "mimic", False)),
+            language_instruction=getattr(args, "language_instruction", None),
+        )
 
     def _resolve_task_seed(self) -> int | None:
         task_cfg = getattr(self.task, "config", None)

@@ -18,7 +18,7 @@ from isaaclab.devices.device_base import DeviceBase, DeviceCfg
 from scipy.spatial.transform import Rotation
 
 from maniparena_sim.utils.debug_print import manaprint
-from maniparena_sim.utils.math_utils import quat_wxyz_normalize, quat_wxyz_to_xyzw
+from maniparena_sim.utils.math_utils import quat_wxyz_normalize
 
 
 def _matrix_from_vuer(value: Any) -> np.ndarray | None:
@@ -163,13 +163,14 @@ class VuerControllerDevice(DeviceBase):
         position = matrix[:3, 3].astype(np.float32)
         rotation = Rotation.from_matrix(matrix[:3, :3])
         if self.cfg.apply_xr_anchor and self.cfg.anchor_pose_provider is not None:
-            anchor_pos, anchor_quat_wxyz = self.cfg.anchor_pose_provider()
-            anchor_rot = Rotation.from_quat(quat_wxyz_to_xyzw(quat_wxyz_normalize(anchor_quat_wxyz)))
+            anchor_pos, anchor_quat_xyzw = self.cfg.anchor_pose_provider()
+            anchor_rot = Rotation.from_quat(quat_wxyz_normalize(anchor_quat_xyzw))
             position = (anchor_pos + anchor_rot.apply(position)).astype(np.float32)
             rotation = anchor_rot * rotation
         quat_xyzw = rotation.as_quat()
+        # Device pose row matches Lab OpenXR: [x, y, z, qx, qy, qz, qw].
         pose_row = np.array(
-            [position[0], position[1], position[2], quat_xyzw[3], quat_xyzw[0], quat_xyzw[1], quat_xyzw[2]],
+            [position[0], position[1], position[2], quat_xyzw[0], quat_xyzw[1], quat_xyzw[2], quat_xyzw[3]],
             dtype=np.float32,
         )
         return np.stack([pose_row, inputs], axis=0)
@@ -178,7 +179,7 @@ class VuerControllerDevice(DeviceBase):
     def _split_controller_array(controller: np.ndarray | None) -> tuple[np.ndarray, np.ndarray]:
         if controller is None:
             return (
-                np.asarray([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0], dtype=np.float32),
+                np.asarray([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0], dtype=np.float32),
                 np.zeros(7, dtype=np.float32),
             )
         return (

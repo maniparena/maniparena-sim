@@ -13,7 +13,7 @@ from isaaclab.utils.math import (
 )
 
 from maniparena_sim.terms.replay.reader import ReplayData
-from maniparena_sim.utils.math_utils import euler_xyz_to_quat_wxyz
+from maniparena_sim.utils.math_utils import euler_xyz_to_quat_xyzw
 
 
 def warmup_rtx_cameras(env: Any, extra_renders: int = 2):
@@ -190,13 +190,13 @@ def run_ee_replay(
     ) = get_ee_poses(env)
 
     l_rel_q = torch.tensor(
-        euler_xyz_to_quat_wxyz(
+        euler_xyz_to_quat_xyzw(
             np.asarray(ee_sequence[:, 3:6]),
         ),
         dtype=torch.float32, device=env.device,
     )
     r_rel_q = torch.tensor(
-        euler_xyz_to_quat_wxyz(
+        euler_xyz_to_quat_xyzw(
             np.asarray(ee_sequence[:, 10:13]),
         ),
         dtype=torch.float32, device=env.device,

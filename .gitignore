@@ -14,6 +14,10 @@ dist/
 .venv/
 venv/
 env/
+3rd/isaaclabarena/.venv/
+
+# Local Isaac Sim path hint written by installers (optional)
+.isaacsim_path
 
 # IDE
 .idea/

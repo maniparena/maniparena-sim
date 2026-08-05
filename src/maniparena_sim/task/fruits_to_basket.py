@@ -8,7 +8,7 @@ from typing import Any
 import isaaclab.envs.mdp as mdp_isaac_lab
 from isaaclab.envs.common import ViewerCfg
 from isaaclab.managers import TerminationTermCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 from isaaclab_arena.assets.asset import Asset
 from isaaclab_arena.assets.object_base import ObjectBase
 from isaaclab_arena.metrics.metric_base import MetricBase
