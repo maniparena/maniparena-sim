@@ -1,0 +1,57 @@
+################################################################################
+# put_bottle_on_woodshelf reset anchors (teleop / eval sampling).
+# Scene entity names are hard-coded in the task reset event.
+################################################################################
+
+support_frames:
+  pick_support:
+    center: [1.5, -0.95, 0.75]
+    x_axis: [0.0, 1.0, 0.0]
+    y_axis: [-1.0, 0.0, 0.0]
+    object_root_z: 0.8833
+
+robot_start_anchors:
+  "1":
+    position: [-0.31154, -0.30644, 0.0]
+    yaw_deg: 0.0
+    radius_m: 0.10
+    yaw_jitter_deg: 5.0
+  "2":
+    position: [-0.51572, -0.17531, 0.0]
+    yaw_deg: -35.0
+    radius_m: 0.10
+    yaw_jitter_deg: 5.0
+  "3":
+    position: [-0.53617, -1.4449, 0.0]
+    yaw_deg: 0.0
+    radius_m: 0.10
+    yaw_jitter_deg: 5.0
+  "4":
+    position: [1.27561, 0.27714, 0.0]
+    yaw_deg: -85.0
+    radius_m: 0.10
+    yaw_jitter_deg: 5.0
+
+object_anchors:
+  center: {local_xy: [0.00, 0.025], yaw_deg: 0.0, radius_m: 0.03}
+  left: {local_xy: [0.45, 0.025], yaw_deg: 0.0, radius_m: 0.03}
+  right: {local_xy: [-0.45, 0.025], yaw_deg: 0.0, radius_m: 0.03}
+  bottom: {local_xy: [0.00, 0.17], yaw_deg: 0.0, radius_m: 0.03}
+  top: {local_xy: [0.00, -0.12], yaw_deg: 0.0, radius_m: 0.03}
+  bottom_left: {local_xy: [0.45, 0.17], yaw_deg: 0.0, radius_m: 0.03}
+  top_left: {local_xy: [0.45, -0.12], yaw_deg: 0.0, radius_m: 0.03}
+  bottom_right: {local_xy: [-0.45, 0.17], yaw_deg: 0.0, radius_m: 0.03}
+  top_right: {local_xy: [-0.45, -0.12], yaw_deg: 0.0, radius_m: 0.03}
+
+case_axes:
+  robot_start_ids: ["1", "2", "3", "4"]
+  object_position_ids:
+    - center
+    - top
+    - bottom
+    - left
+    - right
+    - top_left
+    - top_right
+    - bottom_left
+    - bottom_right

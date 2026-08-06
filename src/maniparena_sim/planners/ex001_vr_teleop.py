@@ -382,11 +382,17 @@ class Ex001VRTeleopPlanner(TeleopPlanner):
             z = joystick.new_tensor(0.0)
             thumb_x = torch.where(torch.abs(thumb_x) < db, z, thumb_x)
             thumb_y = torch.where(torch.abs(thumb_y) < db, z, thumb_y)
+        from maniparena_sim.embodiment.robots.ex001 import twist_to_wheel_vel
+
         lin = -thumb_y * float(cfg.linear_velocity) * float(self.settings.motion_controller_base_linear_scale)
         ang = -thumb_x * float(cfg.angular_velocity) * float(self.settings.motion_controller_base_angular_scale)
-        lw = (lin - 0.5 * ang * float(cfg.wheel_track_width)) / float(cfg.wheel_radius)
-        rw = (lin + 0.5 * ang * float(cfg.wheel_track_width)) / float(cfg.wheel_radius)
-        return torch.stack([lw, rw])
+        lw, rw = twist_to_wheel_vel(
+            float(lin),
+            float(ang),
+            wheel_radius=float(cfg.wheel_radius),
+            wheel_track_width=float(cfg.wheel_track_width),
+        )
+        return joystick.new_tensor([lw, rw])
 
     # ── lift (RIGHT joystick) ─────────────────────────────────────────────
     def _read_lift_position(self) -> float:

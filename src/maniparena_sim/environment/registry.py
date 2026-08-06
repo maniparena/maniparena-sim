@@ -22,6 +22,7 @@ def bootstrap_arena_registry(extra_asset_modules: list[str] | None = None) -> No
     import maniparena_sim.assets.environments.green_booth  # noqa: F401
     import maniparena_sim.assets.environments.green_booth_mesh_ground  # noqa: F401
     import maniparena_sim.assets.objects.tabletop_objects  # noqa: F401
+    import maniparena_sim.assets.objects.put_bottle_on_woodshelf  # noqa: F401
     import maniparena_sim.assets.environments.nav_f16  # noqa: F401
     import maniparena_sim.embodiment.robots.bimanual  # noqa: F401
     import maniparena_sim.embodiment.robots.ex001  # noqa: F401

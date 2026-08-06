@@ -18,10 +18,12 @@ from maniparena_sim.environment.scene_builder import build_scene
 from maniparena_sim.task.builders.buttons_contact_builder import ButtonsContactBuilder
 from maniparena_sim.task.builders.fruits_to_basket_builder import FruitsToBasketBuilder
 from maniparena_sim.task.builders.dummy_task_builder import DummyTaskBuilder
+from maniparena_sim.task.builders.put_bottle_on_woodshelf_builder import PutBottleOnWoodshelfBuilder
 from maniparena_sim.task.builders.sort_blocks_builder import SortBlocksBuilder
 from maniparena_sim.task.buttons_contact import ButtonsContactTaskCFG
 from maniparena_sim.task.fruits_to_basket import FruitsToBasketTaskCFG
 from maniparena_sim.task.dummy_task import DummyTaskCFG
+from maniparena_sim.task.put_bottle_on_woodshelf import PutBottleOnWoodshelfTaskCFG
 from maniparena_sim.task.sort_blocks import SortBlocksTaskCFG
 
 
@@ -89,6 +91,7 @@ SUPPORTED_TASKS = {
     "fruits_to_basket": (FruitsToBasketTaskCFG, FruitsToBasketBuilder),
     "buttons_contact": (ButtonsContactTaskCFG, ButtonsContactBuilder),
     "dummy_task": (DummyTaskCFG, DummyTaskBuilder),
+    "put_bottle_on_woodshelf": (PutBottleOnWoodshelfTaskCFG, PutBottleOnWoodshelfBuilder),
 }
 
 
@@ -532,7 +535,39 @@ def build_eval_gym_env(
     )
 
 
-EX001_SUPPORTED_TASKS = ("sort_blocks", "fruits_to_basket", "buttons_contact", "dummy_task")
+EX001_SUPPORTED_TASKS = (
+    "sort_blocks",
+    "fruits_to_basket",
+    "buttons_contact",
+    "dummy_task",
+    "put_bottle_on_woodshelf",
+)
+
+
+def _apply_ex001_task_spawn(embodiment, task_name: str) -> None:
+    """Override EX001 root spawn for task-specific layouts.
+
+    Must set ``embodiment.initial_pose`` (not only ``init_state``): Arena builds
+    a reset-mode event from ``initial_pose``. Without it, keyboard ``R`` /
+    ``gym_env.reset()`` restores joints but leaves the mobile base where it was.
+    """
+    if task_name != "put_bottle_on_woodshelf":
+        return
+    from isaaclab_arena.utils.pose import Pose
+
+    from maniparena_sim.environment.scene_builder import (
+        PUT_BOTTLE_EX001_INIT_POS,
+        PUT_BOTTLE_EX001_INIT_QUAT_XYZW,
+    )
+
+    pose = Pose(
+        position_xyz=PUT_BOTTLE_EX001_INIT_POS,
+        rotation_xyzw=PUT_BOTTLE_EX001_INIT_QUAT_XYZW,
+    )
+    # Construction spawn only; episode reset samples robot/bottle in the task.
+    embodiment.set_initial_pose(pose, create_reset_event=False)
+    embodiment.scene_config.robot.init_state.pos = PUT_BOTTLE_EX001_INIT_POS
+    embodiment.scene_config.robot.init_state.rot = PUT_BOTTLE_EX001_INIT_QUAT_XYZW
 
 
 def build_ex001_collect_gym_env(
@@ -573,6 +608,7 @@ def build_ex001_collect_gym_env(
         embodiment.action_config = embodiment.ActionsCfgAbsIK()
     else:
         embodiment.action_config = embodiment.ActionsCfgAbsIK()
+    _apply_ex001_task_spawn(embodiment, task_name)
     task = build_task_runtime(task_name, scene)
 
     env_name = f'ex001_{task_name}_collect'
@@ -705,3 +741,89 @@ def build_ex001_nav_gym_env(
     gym_env = _make_unwrapped_gym_env(reg_name, env_cfg, env_kwargs)
     apply_carb_settings(getattr(scene, 'render_carb_dict', None) or {})
     return gym_env, embodiment
+
+
+def build_ex001_eval_gym_env(
+    task_name: str,
+    payload: dict,
+    headless: bool = False,
+    device: str = 'cuda:0',
+) -> EvalEnv:
+    """Build an EX001 gym env for Wall-X whole-body (21D) policy evaluation."""
+    if task_name not in EX001_SUPPORTED_TASKS:
+        raise ValueError(
+            f"Unsupported ex001 task '{task_name}'. "
+            f"Supported: {list(EX001_SUPPORTED_TASKS)}"
+        )
+    from isaaclab_arena.environments.arena_env_builder import ArenaEnvBuilder
+    from isaaclab_arena.environments.isaaclab_arena_environment import IsaacLabArenaEnvironment
+
+    from maniparena_sim.embodiment.robots.ex001 import EX001Embodiment
+    from maniparena_sim.utils.camera_utils import deactivate_robot_camera_prims
+
+    enable_cameras = bool(payload.get('enable_cameras', True))
+    policy_cfg = payload.get('policy_config') or {}
+    instruction = policy_cfg.get('instruction')
+
+    scene = build_scene(task_name, robot='ex001')
+    embodiment = EX001Embodiment(enable_cameras=enable_cameras)
+    if not enable_cameras:
+        embodiment.camera_config = None
+    embodiment.action_config = embodiment.ActionsCfgWallxWholebody()
+    _apply_ex001_task_spawn(embodiment, task_name)
+    task = build_task_runtime(task_name, scene)
+
+    env_name = f'ex001_{task_name}_eval'
+    arena_env = IsaacLabArenaEnvironment(
+        name=env_name, embodiment=embodiment, scene=scene,
+        task=task, teleop_device=None,
+    )
+    reg_name, env_cfg, env_kwargs = ArenaEnvBuilder(
+        arena_env,
+        _arena_builder_cfg(
+            device=device,
+            num_envs=int(payload.get('num_envs', 1)),
+            language_instruction=(
+                str(instruction) if instruction else None
+            ),
+        ),
+    ).build_registered()
+    patch_env_cfg_render(
+        env_cfg,
+        getattr(scene, 'render_cfg_dict', None) or {},
+        sim_fps=getattr(scene, 'sim_fps', 120),
+        render_interval=getattr(scene, 'render_decremental', 2),
+    )
+    env_cfg.recorders = None
+    if hasattr(env_cfg, 'terminations'):
+        env_cfg.terminations.time_out = None
+    if (
+        hasattr(env_cfg, 'observations')
+        and hasattr(env_cfg.observations, 'policy')
+    ):
+        env_cfg.observations.policy.concatenate_terms = False
+
+    gym_env = _make_unwrapped_gym_env(reg_name, env_cfg, env_kwargs)
+    apply_carb_settings(
+        getattr(scene, 'render_carb_dict', None) or {},
+    )
+    if not enable_cameras:
+        n = deactivate_robot_camera_prims(logger=print)
+        if n:
+            print(f'deactivated {n} USD camera prim(s)')
+
+    working_path = str(
+        payload.get(
+            'working_path',
+            '~/maniparena_output/eval/',
+        )
+    )
+    output_dir = str(
+        Path(os.path.expanduser(working_path)) / env_name
+    )
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
+
+    return EvalEnv(
+        gym_env=gym_env, task=task,
+        env_name=env_name, output_dir=output_dir,
+    )

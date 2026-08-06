@@ -84,8 +84,9 @@ class EX001RosConfig:
     CHASSIS_CONTROL_CONFIG = {
         "control_mode": "differential",
         "wheel_joint_names": ("left_wheel_joint", "right_wheel_joint"),
-        "wheel_radius": 0.078,
-        "wheel_track_width": 0.48,
+        # Sim-effective EX001 geometry (older nominal 0.078 / 0.48 over-drives).
+        "wheel_radius": 0.084,
+        "wheel_track_width": 0.458,
     }
 
     KEYBOARD_MOVEMENT_CONFIG = {

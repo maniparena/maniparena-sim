@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
-"""Robot closed-loop policy evaluation for Bimanual.
+"""Closed-loop policy evaluation for Bimanual and EX001.
 
 Usage:
+    # Bimanual (16D EE)
     python scripts/eval.py \
-        --task sort_blocks \
-        --config configs/eval/robot.yaml \
-        --viz kit
+        --robot bimanual --task sort_blocks \
+        --config configs/eval/robot.yaml --viz kit
+
+    # EX001 Wall-X whole-body (21D)
+    python scripts/eval.py \
+        --robot ex001 --task put_bottle_on_woodshelf \
+        --config configs/eval/ex001_put_bottle.yaml --viz kit
 """
 
 from __future__ import annotations
@@ -25,18 +30,49 @@ def load_yaml(path: str) -> dict:
 def parse_args():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
-        description='Evaluate Robot policy on Bimanual.',
+        description='Evaluate remote policy on maniparena robots.',
     )
     AppLauncher.add_app_launcher_args(parser)
+    parser.add_argument(
+        '--robot', default='bimanual',
+        choices=['bimanual', 'ex001'],
+    )
     parser.add_argument(
         '--task', required=True,
         choices=[
             'sort_blocks', 'fruits_to_basket',
-            'buttons_contact',
+            'buttons_contact', 'put_bottle_on_woodshelf',
         ],
     )
     parser.add_argument('--config', required=True)
+    parser.add_argument(
+        '--server-address', default=None,
+        help='Override policy_config.model_address (host only, or host:port).',
+    )
+    parser.add_argument(
+        '--server-port', type=int, default=None,
+        help='Override policy_config.model_port.',
+    )
     return parser.parse_args()
+
+
+def _apply_server_overrides(pc: dict, args) -> dict:
+    """Apply CLI server address/port onto policy_config."""
+    out = dict(pc or {})
+    address = getattr(args, 'server_address', None)
+    port = getattr(args, 'server_port', None)
+    if address:
+        host = str(address).strip()
+        if ':' in host and port is None:
+            # Allow --server-address host:port when --server-port omitted.
+            host, port_s = host.rsplit(':', 1)
+            out['model_address'] = host
+            out['model_port'] = int(port_s)
+        else:
+            out['model_address'] = host.split(':')[0]
+    if port is not None:
+        out['model_port'] = int(port)
+    return out
 
 
 def main() -> int:
@@ -52,57 +88,97 @@ def main() -> int:
 
     import torch
 
-    from maniparena_sim.environment.builder import build_eval_gym_env
     from maniparena_sim.environment.registry import (
         bootstrap_arena_registry,
     )
-    from maniparena_sim.policy.robot_policy import (
-        RobotClosedloopPolicy,
-        RobotPolicyConfig,
-    )
 
     bootstrap_arena_registry()
-
-    ctx = build_eval_gym_env(
-        args.task, payload,
-        headless=bool(getattr(args, 'headless', False)),
-        device=getattr(args, 'device', 'cuda:0'),
+    pc = _apply_server_overrides(payload.get('policy_config', {}), args)
+    print(
+        f"[eval] policy server "
+        f"{pc.get('model_address', 'localhost')}:{pc.get('model_port', 8000)}"
     )
+
+    if args.robot == 'ex001':
+        from maniparena_sim.environment.builder import (
+            EX001_SUPPORTED_TASKS,
+            build_ex001_eval_gym_env,
+        )
+        from maniparena_sim.policy.ex001_wallx_policy import (
+            Ex001WallxPolicy,
+            Ex001WallxPolicyConfig,
+        )
+
+        if args.task not in EX001_SUPPORTED_TASKS:
+            raise SystemExit(
+                f'ex001 unsupported task: {args.task}; '
+                f'supported={list(EX001_SUPPORTED_TASKS)}'
+            )
+        ctx = build_ex001_eval_gym_env(
+            args.task, payload,
+            headless=bool(getattr(args, 'headless', False)),
+            device=getattr(args, 'device', 'cuda:0'),
+        )
+        policy = Ex001WallxPolicy(
+            Ex001WallxPolicyConfig(
+                model_address=str(pc.get('model_address', 'localhost')),
+                model_port=int(pc.get('model_port', 8000)),
+                instruction=str(
+                    pc.get(
+                        'instruction',
+                        'pick the bottle from the table and place it on the wooden shelf',
+                    ),
+                ),
+                action_horizon=int(pc.get('action_horizon', 32)),
+                action_chunk_length=int(pc.get('action_chunk_length', 32)),
+                interpolation_multiplier=int(
+                    pc.get('interpolation_multiplier', 2),
+                ),
+                ee_pose_normalize=bool(pc.get('ee_pose_normalize', False)),
+                pos_gain=float(pc.get('pos_gain', 1.0)),
+                rot_gain=float(pc.get('rot_gain', 1.0)),
+                wheel_radius=float(pc.get('wheel_radius', 0.084)),
+                wheel_track_width=float(pc.get('wheel_track_width', 0.458)),
+            ),
+        )
+        policy_name = 'Ex001WallxPolicy'
+    else:
+        from maniparena_sim.environment.builder import build_eval_gym_env
+        from maniparena_sim.policy.robot_policy import (
+            RobotClosedloopPolicy,
+            RobotPolicyConfig,
+        )
+
+        ctx = build_eval_gym_env(
+            args.task, payload,
+            headless=bool(getattr(args, 'headless', False)),
+            device=getattr(args, 'device', 'cuda:0'),
+        )
+        policy = RobotClosedloopPolicy(
+            RobotPolicyConfig(
+                model_address=str(pc.get('model_address', 'localhost')),
+                model_port=int(pc.get('model_port', 8000)),  # CLI may override
+                instruction=str(pc.get('instruction', 'pick up the object')),
+                action_horizon=int(pc.get('action_horizon', 32)),
+                action_chunk_length=int(pc.get('action_chunk_length', 32)),
+                interpolation_multiplier=int(
+                    pc.get('interpolation_multiplier', 2),
+                ),
+                ee_pose_normalize=bool(pc.get('ee_pose_normalize', True)),
+                pos_gain=float(pc.get('pos_gain', 1.0)),
+                rot_gain=float(pc.get('rot_gain', 1.0)),
+            ),
+        )
+        policy_name = 'RobotClosedloopPolicy'
+
     gym_env = ctx.gym_env
-
-    pc = payload.get('policy_config', {})
-    policy = RobotClosedloopPolicy(
-        RobotPolicyConfig(
-            model_address=str(
-                pc.get('model_address', 'localhost'),
-            ),
-            model_port=int(pc.get('model_port', 8000)),
-            instruction=str(
-                pc.get('instruction', 'pick up the object'),
-            ),
-            action_horizon=int(
-                pc.get('action_horizon', 32),
-            ),
-            action_chunk_length=int(
-                pc.get('action_chunk_length', 32),
-            ),
-            interpolation_multiplier=int(
-                pc.get('interpolation_multiplier', 2),
-            ),
-            ee_pose_normalize=bool(
-                pc.get('ee_pose_normalize', True),
-            ),
-            pos_gain=float(pc.get('pos_gain', 1.0)),
-            rot_gain=float(pc.get('rot_gain', 1.0)),
-        ),
-    )
-
     num_episodes = int(payload.get('num_episodes', 10))
     max_steps = int(payload.get('max_steps', 800))
 
     print('=' * 60)
+    print(f'  Robot:      {args.robot}')
     print(f'  Task:       {args.task}')
-    print('  Policy:     RobotClosedloopPolicy')
+    print(f'  Policy:     {policy_name}')
     print(f'  Server:     {policy.cfg.model_address}'
           f':{policy.cfg.model_port}')
     print(f'  Episodes:   {num_episodes}')

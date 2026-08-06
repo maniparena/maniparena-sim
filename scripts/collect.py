@@ -53,6 +53,7 @@ def parse_args():
         choices=[
             'sort_blocks', 'fruits_to_basket',
             'buttons_contact', 'dummy_task',
+            'put_bottle_on_woodshelf',
         ],
     )
     parser.add_argument(

@@ -43,6 +43,24 @@ _BUTTON_POSES = [
     (0.05, 0.15, -0.17),
 ]
 
+# Arena Pose / Lab 3 ArticulationCfg.init_state.rot use XYZW.
+#
+# Raise table root so tabletop plane is world z=0.75 (was ~0.7067, Δz=0.0433).
+_PUT_BOTTLE_TABLETOP_Z = 0.75
+_PUT_BOTTLE_TABLE_ROOT_Z = 0.0433
+_PUT_BOTTLE_BOTTLE_ROOT_Z = 0.8833  # keep prior clearance above the plane
+_PUT_BOTTLE_TABLE_POSE = (
+    (1.5, -0.95, _PUT_BOTTLE_TABLE_ROOT_Z),
+    (0.0, 0.0, 0.707107, 0.707107),
+)
+_PUT_BOTTLE_SHELF_POSE = ((0.63, -1.7907, 0.0), (0.0, 0.0, 1.0, 0.0))  # z-180
+_PUT_BOTTLE_BOTTLE_POSE = (
+    (1.505, -0.95, _PUT_BOTTLE_BOTTLE_ROOT_Z),
+    (-0.01837, 0.007908, 0.000433, 0.9998),
+)
+PUT_BOTTLE_EX001_INIT_POS = (-0.31154, -0.30644, 0.0)
+PUT_BOTTLE_EX001_INIT_QUAT_XYZW = (0.0, 0.0, 0.0, 1.0)  # yaw=0
+
 
 def _apply_semantic_tags(asset) -> None:
     tags = getattr(asset, "tags", None) or []
@@ -119,6 +137,22 @@ def _build_dummy_task_scene(registry: AssetRegistry) -> Scene:
     return Scene(assets=[background])
 
 
+def _build_put_bottle_on_woodshelf_scene(registry: AssetRegistry) -> Scene:
+    """Assemble the woodshelf mobile-manip scene (static poses, no planner)."""
+    background = registry.get_asset_by_name("put_bottle_on_woodshelf_green_booth")()
+    background.set_initial_pose(_pose_at((0.0, 0.0, 0.0)))
+    table = registry.get_asset_by_name("put_bottle_on_woodshelf_table")()
+    shelf = registry.get_asset_by_name("put_bottle_on_woodshelf_shelf")()
+    bottle = registry.get_asset_by_name("put_bottle_on_woodshelf_bottle_s")()
+    table.set_initial_pose(_pose_at(*_PUT_BOTTLE_TABLE_POSE))
+    shelf.set_initial_pose(_pose_at(*_PUT_BOTTLE_SHELF_POSE))
+    # Smoke-load pose for construction only; episode resets sample from case_bank.
+    bottle.set_initial_pose(_pose_at(*_PUT_BOTTLE_BOTTLE_POSE), create_reset_event=False)
+    for asset in (table, shelf, bottle):
+        _apply_semantic_tags(asset)
+    return Scene(assets=[background, table, shelf, bottle])
+
+
 def _attach_render_settings(
     scene: Scene,
     settings_name: str = "green_booth",
@@ -154,6 +188,8 @@ def build_scene(task_name: str, *, robot: str = "bimanual"):
         scene = _build_buttons_contact_scene(registry, robot)
     elif task_name == "dummy_task":
         scene = _build_dummy_task_scene(registry)
+    elif task_name == "put_bottle_on_woodshelf":
+        scene = _build_put_bottle_on_woodshelf_scene(registry)
     else:
         raise ValueError(f"Unsupported task '{task_name}' for scene assembly.")
     settings_name = "nav_f16" if task_name == "dummy_task" else "green_booth"

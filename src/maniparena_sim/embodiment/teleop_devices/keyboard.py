@@ -198,13 +198,15 @@ class BimanualSe3Keyboard:
         """Convert desired base linear/angular velocity into wheel velocities."""
         if self._differential_cfg is None:
             return np.zeros(2, dtype=float)
+        from maniparena_sim.embodiment.robots.ex001 import twist_to_wheel_vel
+
         linear_velocity, angular_velocity = self._base_delta
-        left_wheel_velocity = (
-            linear_velocity - 0.5 * angular_velocity * self._differential_cfg.wheel_track_width
-        ) / self._differential_cfg.wheel_radius
-        right_wheel_velocity = (
-            linear_velocity + 0.5 * angular_velocity * self._differential_cfg.wheel_track_width
-        ) / self._differential_cfg.wheel_radius
+        left_wheel_velocity, right_wheel_velocity = twist_to_wheel_vel(
+            float(linear_velocity),
+            float(angular_velocity),
+            wheel_radius=float(self._differential_cfg.wheel_radius),
+            wheel_track_width=float(self._differential_cfg.wheel_track_width),
+        )
         return np.asarray([left_wheel_velocity, right_wheel_velocity], dtype=float)
     def _apply_motion_key(self, target: str, key: str, is_press: bool) -> None:
         sign = 1.0 if is_press else -1.0

@@ -25,6 +25,8 @@ from maniparena_sim.utils.motion_utils import world_to_base_frame
 
 _MOTION_EPS = 1e-8
 _BASE_DIM = 2
+_LIFT_DIM = 1
+_ABS_IK_DIM = 19  # arms+grips+wheels+lift
 
 
 @dataclass
@@ -45,6 +47,8 @@ class KeyboardTeleopPlanner(TeleopPlanner):
         self._hold_action: torch.Tensor | None = None
         self._ee_frame_names: tuple[str, str] = ("left_ee_frame", "right_ee_frame")
         self._gripper_joint_names: tuple[str, str] = ("left_arm_gripper", "right_arm_gripper")
+        self._lift_joint_name: str = "lift_joint"
+        self._lift_enabled: bool = False
 
     def prepare_episode(self, gym_env: Any, obs: Dict[str, Any]) -> None:
         super().prepare_episode(gym_env, obs)
@@ -65,8 +69,20 @@ class KeyboardTeleopPlanner(TeleopPlanner):
         self._gripper_targets = self._resolve_gripper_targets(embodiment)
         self._ee_frame_names = self._resolve_ee_frame_names(embodiment)
         self._gripper_joint_names = self._resolve_gripper_joint_names(embodiment)
+        self._lift_joint_name = self._resolve_lift_joint_name(embodiment)
+        self._lift_enabled = (
+            self._expected_action_dim is not None
+            and self._expected_action_dim >= _ABS_IK_DIM
+            and callable(getattr(embodiment, "get_vr_lift_joint_name", None))
+        )
         self._keyboard_controller.add_callback("R", lambda: self.signal_done(success=False))
         self._keyboard_controller.add_callback("H", lambda: self.signal_done(success=True))
+
+    def _resolve_lift_joint_name(self, embodiment: Any) -> str:
+        getter = getattr(embodiment, "get_vr_lift_joint_name", None)
+        if callable(getter):
+            return getter()
+        return "lift_joint"
 
     def _resolve_ee_frame_names(self, embodiment: Any) -> tuple[str, str]:
         getter = getattr(embodiment, "get_vr_ee_frame_names", None)
@@ -130,6 +146,10 @@ class KeyboardTeleopPlanner(TeleopPlanner):
         ids, _ = robot.find_joints(name)
         return float(robot.data.joint_pos[0, ids[0]].item())
 
+    def _read_lift(self, robot) -> float:
+        ids, _ = robot.find_joints(self._lift_joint_name)
+        return float(robot.data.joint_pos[0, ids[0]].item())
+
     def _capture_hold_action(self) -> None:
         if self._gym_env is None:
             return
@@ -152,6 +172,12 @@ class KeyboardTeleopPlanner(TeleopPlanner):
         ]
         if self._expected_action_dim is not None and self._expected_action_dim > 16:
             parts.append(torch.zeros(_BASE_DIM, dtype=torch.float32, device=device))
+        if self._lift_enabled or (
+            self._expected_action_dim is not None and self._expected_action_dim >= _ABS_IK_DIM
+        ):
+            parts.append(
+                torch.tensor([self._read_lift(robot)], dtype=torch.float32, device=device)
+            )
         self._hold_action = torch.cat(parts)
 
     def _integrate_arm_delta(
@@ -187,6 +213,7 @@ class KeyboardTeleopPlanner(TeleopPlanner):
             hold[16:18] = raw[14:16]
         elif hold.shape[-1] > 16:
             hold[16:18] = 0.0
+        # Lift (index 18) stays at the held absolute target; keyboard has no lift axis yet.
         self._hold_action = hold
         return hold
 

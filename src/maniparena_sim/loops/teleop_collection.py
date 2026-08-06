@@ -87,12 +87,12 @@ def run_planner_collection(
 
     def _reset_env():
         rm.reset([0])
-        gym_env.sim.reset()
+        # Prefer env.reset() only: sim.reset() after Fabric is up triggers
+        # "Fabric Kinematics already initialized" and can skip root pose writes.
         gym_env.reset()
         _clear_task_state()
         planner.reset()
 
-    gym_env.sim.reset()
     gym_env.reset()
     _clear_task_state()
     planner.prepare_episode(gym_env, {})
