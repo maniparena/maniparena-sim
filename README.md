@@ -1,35 +1,37 @@
-# ManipArena-Sim
+# EX001-sim
 
-ManipArena-Sim is the simulation environment for [**ManipArena**](https://maniparena.x2robot.com), a real-robot benchmark for bimanual manipulation. It provides data collection, replay, and policy evaluation for the bimanual robot, built on [Isaac Lab](https://github.com/isaac-sim/IsaacLab) and [IsaacLab-Arena](https://github.com/isaac-sim/IsaacLab-Arena).
+Isaac Sim simulation for the **EX001** whole-body mobile manipulator: mobile base, dual 6-DOF arms, lift platform, and four onboard cameras. Built on [Isaac Lab](https://github.com/isaac-sim/IsaacLab) and [IsaacLab-Arena](https://github.com/isaac-sim/IsaacLab-Arena).
 
-> **Related repo:** [ManipArena](https://github.com/maniparena/maniparena-repo) — model server template for submitting your policy.
+Two workflows:
+
+- **Teleop collection** — keyboard or Vuer (Pico WebXR) teleoperation with HDF5 + MP4 recording
+- **ROS2 navigation** — publish sensor topics and accept external chassis / joint commands
+
+Detailed guide (Chinese): [docs/ex001.md](docs/ex001.md)
 
 ## Demos
 
-### Robot Overview
+### Teleop (`fruits_to_basket`, Vuer)
 
-![Robot Overview](docs/bimanual_robot_overview.gif)
+![EX001 Vuer teleop](docs/ex001_vuer_fruits_to_basket.gif)
 
-### Sort Blocks
+### ROS2 navigation (`nav_f16`)
 
-![Sort Blocks](docs/sort_blocks_demo.gif)
+Isaac Sim:
 
-### Buttons Contact
+![EX001 ROS2 nav sim](docs/ex001_ros2_nav_sim.png)
 
-![Buttons Contact](docs/buttons_contact_demo.gif)
+RViz (point cloud, `/scan`, TF):
 
-### Fruits to Basket
-
-![Fruits to Basket](docs/fruits_to_basket_demo.gif)
+![EX001 ROS2 nav RViz](docs/ex001_ros2_nav_rviz.png)
 
 ## Features
 
-- **Bimanual** robot with SE(3) differential-IK and joint-position action spaces
-- **3 tabletop tasks**: `sort_blocks`, `fruits_to_basket`, `buttons_contact`
-- **3 teleoperation modes**: keyboard, VR (OpenXR), master-slave
-- **Trajectory replay**: state / joint / end-effector modes from HDF5 or LeRobot datasets
-- **Policy evaluation**: closed-loop inference via WebSocket server-client architecture
-- **Data export**: `bimanual_lerobot` (Parquet + video) and `hdf5` formats
+- **EX001 embodiment** — differential-drive base, prismatic lift, dual arms + grippers, head IMU, four cameras
+- **3 manipulation tasks** on the green-booth tabletop: `sort_blocks`, `fruits_to_basket`, `buttons_contact`
+- **Teleop modes** — keyboard (arm / base switching) and Vuer WebXR (Pico browser)
+- **ROS2 bridge** — joint state, odometry, IMU, laser scan, depth point cloud, compressed images; subscribes to joint commands and `cmd_vel`
+- **Data export** — HDF5 episodes with sidecar MP4 (wrist ×2, head, chassis cameras) at 20 Hz
 
 ## Prerequisites
 
@@ -38,14 +40,15 @@ ManipArena-Sim is the simulation environment for [**ManipArena**](https://manipa
 - **CUDA**: 12.8 (recommended)
 - **NVIDIA Driver**: 570+ (recommended)
 - **[uv](https://docs.astral.sh/uv/)** (installed automatically by `install.sh` if missing)
-- Stack pulled by the installer:
-  - [IsaacLab-Arena](https://github.com/isaac-sim/IsaacLab-Arena) `main`
-  - Arena-pinned [Isaac Lab](https://github.com/isaac-sim/IsaacLab)
-  - Isaac Sim 6.x binary wheels
+- Stack pulled by the installer (GitHub):
+  - [IsaacLab-Arena](https://github.com/isaac-sim/IsaacLab-Arena) `main` (Lab 3 + Sim 6)
+  - [Isaac Lab](https://github.com/isaac-sim/IsaacLab) Arena-pinned SHA (Lab 3.0; nested under Arena)
+  - **Isaac Sim 6.x binary wheels** via Arena `uv sync` (no Sim source build)
+- **ROS2 navigation only**: a supported ROS2 distro (e.g. Humble) with `isaacsim.ros2.bridge` — see [Isaac Sim ROS install guide](https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_ros.html)
 
 ## Installation
 
-One-click host install (recommended):
+One-click host install (recommended). Requires Git LFS for USD assets under `assets/`.
 
 ```bash
 git lfs install
@@ -54,6 +57,18 @@ cd maniparena-sim
 source ./install.sh
 ```
 
+This will:
+
+1. Ensure submodule `3rd/isaaclabarena` (Arena `main`)
+2. Init nested Lab only (skips GR00T) and pin it to Arena's recorded Lab SHA (Lab 3.0)
+3. Install a **lean sim stack** into `3rd/isaaclabarena/.venv`:
+   - `isaaclab[isaacsim]` → Isaac Lab + **Isaac Sim 6 wheels**
+   - Lab companions required by ArenaEnvBuilder: `assets` / `physx` / `newton` / `ov` / `ovphysx` / `tasks` / `teleop`
+   - `isaaclab_arena` editable with thin deps (`vuer`, `pydantic`, …) — **not** Arena's full `uv sync`
+   - `maniparena_sim` editable
+
+**Excluded by default** (not needed for teleop / ROS2 nav): `openpi`, GR00T, `isaaclab_mimic`, `isaaclab_rl`, newton/rerun/viser visualizers、tasks-experimental、contrib、experimental、ppisp, Arena analysis extras (`openai` / `sbi` / `onnxruntime` / …). Kit viewport support (`isaaclab_visualizers[kit]`) is included for `--viz kit`.
+
 Activate later sessions with:
 
 ```bash
@@ -61,159 +76,89 @@ source 3rd/isaaclabarena/.venv/bin/activate
 export OMNI_KIT_ACCEPT_EULA=YES ACCEPT_EULA=Y
 ```
 
-See [docs/install.md](docs/install.md) for installer details and optional modes.
+Optional:
+
+- `source ./install.sh --skip-stack` — only refresh git sources
+- `source ./install.sh --full-arena-stack` — Arena upstream fat `uv sync` (heavy; not recommended)
+- More detail: [docs/install.md](docs/install.md)
+
+If you cloned without `--recurse-submodules`, `install.sh` initializes them.
 
 ## Project Structure
 
 ```text
-maniparena-sim/
-├── install.sh              # Lab 3 + Sim 6 + Arena environment installer
-├── 3rd/isaaclabarena/      # IsaacLab-Arena submodule
-├── assets/                 # USD scene and object assets (Git LFS)
-├── configs/                # Collection, evaluation, replay and task configs
-├── scripts/                # Collection, evaluation and replay entry points
-└── src/maniparena_sim/     # Simulation package
-    ├── embodiment/         # Bimanual robot, actions and sensors
-    ├── environment/        # Environment and scene assembly
-    ├── task/               # Task definitions and builders
-    ├── terms/              # Recorders, replay, termination and metrics
-    ├── planners/           # Teleoperation planners
-    ├── loops/              # Collection and replay loops
-    └── policy/             # Policy inference client
+EX001-sim/
+├── install.sh           # one-click Lab3 + Sim6(wheels) + Arena + this package
+├── 3rd/isaaclabarena/   # git submodule → IsaacLab-Arena (main)
+│   └── submodules/IsaacLab/  # nested; installer pins to Arena submodule SHA
+├── assets/              # USD robot & scene assets (Git LFS)
+├── configs/
+│   ├── collect/         # keyboard.yaml, vuer.yaml
+│   ├── navigate/        # ex001_nav.yaml
+│   └── tasks/           # per-task parameters
+├── docs/
+│   ├── ex001.md         # full usage guide
+│   └── install.md       # install design / details
+├── scripts/
+│   ├── collect.py       # teleop data collection
+│   └── navigate_ros2.py # ROS2 navigation bridge
+└── src/maniparena_sim/
+    ├── embodiment/robots/ex001.py
+    ├── ros/             # ROS2 pub/sub bridge
+    ├── planners/        # EX001 teleop planners
+    └── terms/recorders/ # streaming HDF5 + MP4 export
 ```
 
 ## Usage
 
-### Data Collection
+### Teleop collection
 
-Collect teleoperation demonstrations with keyboard, VR, or master-slave control:
-
-```bash
-# Keyboard (Kit viewport required)
-python scripts/collect.py \
-    --robot bimanual \
-    --task sort_blocks \
-    --control-mode keyboard \
-    --config configs/collect/keyboard.yaml \
-    --viz kit
-
-# VR (OpenXR)
-python scripts/collect.py \
-    --robot bimanual \
-    --task sort_blocks \
-    --control-mode vr \
-    --config configs/collect/vr.yaml \
-    --viz kit
-
-# Master-slave arm
-python scripts/collect.py \
-    --robot bimanual \
-    --task sort_blocks \
-    --control-mode master_slave \
-    --config configs/collect/master_slave.yaml \
-    --viz kit
-```
-
-Isaac Lab / Sim 6 defaults to headless. Pass `--viz kit` when using keyboard input.
-
-#### Keyboard Controls
-
-The keyboard controller drives the **active arm** (left by default) in SE(3) space.
-
-**Translation:**
-
-| Key | Axis | Direction |
-|-----|------|-----------|
-| `W` | X    | +X (forward) |
-| `S` | X    | −X (backward) |
-| `A` | Y    | +Y (left) |
-| `D` | Y    | −Y (right) |
-| `Q` | Z    | +Z (up) |
-| `E` | Z    | −Z (down) |
-
-**Rotation:**
-
-| Key | Axis | Direction |
-|-----|------|-----------|
-| `Z` | Roll  | +Roll (around X) |
-| `X` | Roll  | −Roll (around X) |
-| `T` | Pitch | +Pitch (around Y) |
-| `G` | Pitch | −Pitch (around Y) |
-| `C` | Yaw   | +Yaw (around Z) |
-| `V` | Yaw   | −Yaw (around Z) |
-
-**Function keys:**
-
-| Key | Action |
-|-----|--------|
-| `B` | Switch active arm (left ↔ right) |
-| `K` | Toggle gripper (open / close) |
-| `H` | Save current episode as success |
-| `R` | Reset / skip current episode |
-
-#### VR Control
-
-VR teleoperation supports Apple Vision Pro (dual-hand tracking) and PICO / Quest (vr-controller, vr-hand). For configuration and setup, refer to the Isaac Sim documentation:
-
-<https://isaac-sim.github.io/IsaacLab/main/source/how-to/cloudxr_teleoperation.html#cloudxr-teleoperation>
-
-Controller quick guide (PICO / Quest):
-- **Trigger**: open / close gripper
-- **Joystick**: move the base
-- **Grip button**: toggle base movement mode (rotate in place or translate)
-- By default, the right controller operates the robot. For dual-arm control, use the left controller's trigger or joystick for the second arm.
-
-### Trajectory Replay
-
-Replay collected demonstrations for verification or LeRobot format export:
+Isaac Lab / Sim **6.0** defaults to headless. Pass `--viz kit` to open the Kit viewport (required for keyboard teleop).
 
 ```bash
-# HDF5 replay (state / joint / ee)
-python scripts/replay.py \
-    --task sort_blocks \
-    --config configs/replay/hdf5.yaml
+# Keyboard (needs Kit UI)
+python scripts/collect.py \
+  --robot ex001 \
+  --task fruits_to_basket \
+  --control-mode keyboard \
+  --config configs/collect/keyboard.yaml \
+  --viz kit
 
-# LeRobot replay (joint / ee)
-python scripts/replay.py \
-    --task sort_blocks \
-    --config configs/replay/lerobot.yaml
+# Vuer (Pico WebXR) — open https://<host-ip>:8012 in the Pico browser
+python scripts/collect.py \
+  --robot ex001 \
+  --task fruits_to_basket \
+  --control-mode vuer \
+  --config configs/collect/vuer.yaml \
+  --viz kit
 ```
 
-Set `export_lerobot: true` in `configs/replay/hdf5.yaml` to export LeRobot format during HDF5 replay.
+Swap `fruits_to_basket` for `sort_blocks` or `buttons_contact`. Recordings go to `~/maniparena_output/recordings/ex001_<task>_collect/`.
 
-### Policy Evaluation
+Click the Isaac Sim viewport before using keyboard input. Omit `--viz` (or use `--viz none`) for headless runs.
 
-Evaluate a remote policy via WebSocket server-client architecture:
+### ROS2 navigation
+
+Source your ROS2 environment, then:
 
 ```bash
-python scripts/eval.py \
-    --task sort_blocks \
-    --config configs/eval/robot.yaml
+python scripts/navigate_ros2.py \
+  --config configs/navigate/ex001_nav.yaml \
+  --enable_cameras \
+  --viz kit
 ```
 
-Configure the policy server address in `configs/eval/robot.yaml`:
+Keyboard: `W`/`S` drive, `A`/`D` or `Q`/`E` turn, `R` reset. External `/chassis/cmd_vel` is summed with keyboard velocity.
 
-```yaml
-policy_config:
-  model_address: "localhost"
-  model_port: 8000
-  instruction: "sort the blocks"
-```
-
-The policy server must be running and accessible before launching evaluation.
+See [docs/ex001.md](docs/ex001.md) for control mappings, topic list, and ROS setup.
 
 ## Configuration
 
-All runtime parameters are driven by YAML files under `configs/`:
-
 | Config | Description |
 |--------|-------------|
-| `configs/collect/keyboard.yaml` | Keyboard collection settings |
-| `configs/collect/vr.yaml` | VR collection settings |
-| `configs/collect/master_slave.yaml` | Master-slave collection settings |
-| `configs/replay/hdf5.yaml` | HDF5 replay (with optional LeRobot export) |
-| `configs/replay/lerobot.yaml` | LeRobot replay |
-| `configs/eval/robot.yaml` | Robot policy evaluation |
+| `configs/collect/keyboard.yaml` | Keyboard teleop scales and recorder settings |
+| `configs/collect/vuer.yaml` | Vuer port and teleop settings |
+| `configs/navigate/ex001_nav.yaml` | ROS2 navigation scene and bridge settings |
 | `configs/tasks/*.yaml` | Task-specific parameters |
 
 ## Supported Tasks
