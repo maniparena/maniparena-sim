@@ -4,7 +4,8 @@
 Usage:
     python scripts/replay.py \
         --task sort_blocks \
-        --config configs/replay/hdf5.yaml
+        --config configs/replay/hdf5.yaml \
+        --viz kit
 """
 
 from __future__ import annotations

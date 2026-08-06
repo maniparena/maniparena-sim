@@ -165,18 +165,21 @@ Controller quick guide (PICO / Quest):
 
 ### Trajectory Replay
 
-Replay collected demonstrations for verification or LeRobot format export:
+Replay collected demonstrations for verification or LeRobot format export.
+Isaac Lab / Sim 6 defaults to headless; pass `--viz kit` to open the Kit viewport.
 
 ```bash
 # HDF5 replay (state / joint / ee)
 python scripts/replay.py \
     --task sort_blocks \
-    --config configs/replay/hdf5.yaml
+    --config configs/replay/hdf5.yaml \
+    --viz kit
 
 # LeRobot replay (joint / ee)
 python scripts/replay.py \
     --task sort_blocks \
-    --config configs/replay/lerobot.yaml
+    --config configs/replay/lerobot.yaml \
+    --viz kit
 ```
 
 Set `export_lerobot: true` in `configs/replay/hdf5.yaml` to export LeRobot format during HDF5 replay.
@@ -187,8 +190,10 @@ Evaluate a remote policy via WebSocket server-client architecture:
 
 ```bash
 python scripts/eval.py \
+    --robot bimanual \
     --task sort_blocks \
-    --config configs/eval/robot.yaml
+    --config configs/eval/robot.yaml \
+    --viz kit
 ```
 
 Configure the policy server address in `configs/eval/robot.yaml`:
