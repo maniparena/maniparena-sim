@@ -1,12 +1,14 @@
-"""EX001 whole-body embodiment (mobile base + dual 6-DOF arms + grippers + lift).
+"""EX001 whole-body embodiment (mobile base + dual 6-DOF arms + grippers + lift + head).
 
 Separate robot from the desktop BimanualEmbodiment. Joint/link names:
 arms ``*_arm_joint[1-6]``, grippers ``*_arm_gripper`` ([0, 1.89]), EE
 links ``*_arm_gripper_base_link``, wheels ``left/right_wheel_joint``, prismatic
-``lift_joint`` ([0, 0.78] m).
+``lift_joint`` ([0, 0.78] m), head ``head_yaw_joint`` / ``head_pitch_joint``.
 
 AbsIK action layout (vuer/openxr teleop): ``[L_pos(3), L_quat(4), L_grip(1),
 R_pos(3), R_quat(4), R_grip(1), L_wheel(1), R_wheel(1), lift(1)]`` (19D).
+
+Wallx whole-body layout (eval): AbsIK + ``head_yaw(1), head_pitch(1)`` (21D).
 """
 
 from __future__ import annotations
@@ -50,11 +52,11 @@ from maniparena_sim.embodiment.sensors.update_camera import (
     OpenCVPinholeCameraCfg,
 )
 from maniparena_sim.embodiment.teleop_devices.differential_drive_keyboard_controller import (
-    EX001_DIFF_DRIVE_KEYBOARD_CFG,
+    DifferentialDriveKeyboardControllerCfg,
 )
 
 # Depth RenderProduct + Kit viewport: Lab default clipping is "none" (returns inf),
-# which blacks the main viewport on Sim6. Clip to far plane like manaenv EX001.
+# which blacks the main viewport on Sim6. Clip to the far plane instead.
 _EX001_DEPTH_RENDERER_CFG = IsaacRtxRendererCfg(depth_clipping_behavior="max")
 
 _EX001_GRIPPER_OPEN = 1.89
@@ -63,6 +65,35 @@ _EX001_GRIPPER_CLOSE = 0.0
 # Prismatic lift joint travel (meters), from the USD joint limits.
 _EX001_LIFT_LOWER = 0.0
 _EX001_LIFT_UPPER = 0.78
+
+# Sim-effective EX001 wheel geometry. Older nominal 0.078 / 0.48 over-drives
+# the simulated base.
+EX001_WHEEL_RADIUS_M = 0.084
+EX001_WHEEL_TRACK_WIDTH_M = 0.458
+
+EX001_DIFF_DRIVE_KEYBOARD_CFG = DifferentialDriveKeyboardControllerCfg(
+    mode_name="ex001_differential",
+    linear_velocity=0.5,
+    angular_velocity=2.0,
+    wheel_joint_names=("left_wheel_joint", "right_wheel_joint"),
+    wheel_radius=EX001_WHEEL_RADIUS_M,
+    wheel_track_width=EX001_WHEEL_TRACK_WIDTH_M,
+)
+
+
+def twist_to_wheel_vel(
+    linear_x: float,
+    angular_z: float,
+    *,
+    wheel_radius: float = EX001_WHEEL_RADIUS_M,
+    wheel_track_width: float = EX001_WHEEL_TRACK_WIDTH_M,
+) -> tuple[float, float]:
+    """Convert planar twist to left/right wheel angular velocities."""
+    radius = max(float(wheel_radius), 1e-6)
+    track = float(wheel_track_width)
+    left = (float(linear_x) - 0.5 * float(angular_z) * track) / radius
+    right = (float(linear_x) + 0.5 * float(angular_z) * track) / radius
+    return left, right
 
 
 class ClampedRawGripperAction(joint_actions.JointPositionAction):
@@ -127,6 +158,10 @@ class EX001Embodiment(EmbodimentBase):
                 "right_arm_acts": ImplicitActuatorCfg(joint_names_expr=["right_arm_joint[1-6]"], effort_limit_sim=200.0, stiffness=1500.0, damping=150.0),
                 "left_gripper_acts": ImplicitActuatorCfg(joint_names_expr=["left_arm_gripper"], effort_limit_sim=200.0, stiffness=200.0, damping=30.0),
                 "right_gripper_acts": ImplicitActuatorCfg(joint_names_expr=["right_arm_gripper"], effort_limit_sim=200.0, stiffness=200.0, damping=30.0),
+                "head_acts": ImplicitActuatorCfg(
+                    joint_names_expr=["head_yaw_joint", "head_pitch_joint"],
+                    effort_limit_sim=200.0, stiffness=1500.0, damping=150.0,
+                ),
             },
         )
         left_ee_frame: FrameTransformerCfg = FrameTransformerCfg(
@@ -199,8 +234,50 @@ class EX001Embodiment(EmbodimentBase):
             controller=DifferentialIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="dls"), scale=1.0,
         )
         right_gripper_action: ActionTermCfg = ClampedRawGripperActionCfg(asset_name="robot", joint_names=["right_arm_gripper"], scale=1.0, offset=0.0, use_default_offset=False)
-        base_action: ActionTermCfg = JointVelocityActionCfg(asset_name="robot", joint_names=["left_wheel_joint", "right_wheel_joint"], scale=1.0, use_default_offset=False)
+        base_action: ActionTermCfg = JointVelocityActionCfg(
+            asset_name="robot",
+            joint_names=["left_wheel_joint", "right_wheel_joint"],
+            scale=1.0,
+            use_default_offset=False,
+            preserve_order=True,
+        )
         lift_action: ActionTermCfg = JointPositionActionCfg(asset_name="robot", joint_names=["lift_joint"], scale=1.0, use_default_offset=False)
+
+    @configclass
+    class ActionsCfgWallxWholebody:
+        """21D Wall-X whole-body inference: AbsIK + head.
+
+        Layout: ``[L_pos(3), L_quat(4), L_grip(1), R_pos(3), R_quat(4), R_grip(1),
+        L_wheel(1), R_wheel(1), lift(1), head_yaw(1), head_pitch(1)]``.
+        """
+
+        arm_action: ActionTermCfg = DifferentialInverseKinematicsActionCfg(
+            asset_name="robot", joint_names=["left_arm_joint[1-6]"], body_name="left_arm_gripper_base_link",
+            controller=DifferentialIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="dls"), scale=1.0,
+        )
+        gripper_action: ActionTermCfg = ClampedRawGripperActionCfg(asset_name="robot", joint_names=["left_arm_gripper"], scale=1.0, offset=0.0, use_default_offset=False)
+        right_arm_action: ActionTermCfg = DifferentialInverseKinematicsActionCfg(
+            asset_name="robot", joint_names=["right_arm_joint[1-6]"], body_name="right_arm_gripper_base_link",
+            controller=DifferentialIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="dls"), scale=1.0,
+        )
+        right_gripper_action: ActionTermCfg = ClampedRawGripperActionCfg(asset_name="robot", joint_names=["right_arm_gripper"], scale=1.0, offset=0.0, use_default_offset=False)
+        base_action: ActionTermCfg = JointVelocityActionCfg(
+            asset_name="robot",
+            joint_names=["left_wheel_joint", "right_wheel_joint"],
+            scale=1.0,
+            use_default_offset=False,
+            preserve_order=True,
+        )
+        lift_action: ActionTermCfg = JointPositionActionCfg(
+            asset_name="robot", joint_names=["lift_joint"], scale=1.0, use_default_offset=False,
+        )
+        head_action: ActionTermCfg = JointPositionActionCfg(
+            asset_name="robot",
+            joint_names=["head_yaw_joint", "head_pitch_joint"],
+            scale=1.0,
+            use_default_offset=False,
+            preserve_order=True,
+        )
 
     @configclass
     class ActionsCfgNav:
@@ -225,6 +302,7 @@ class EX001Embodiment(EmbodimentBase):
             joint_names=["left_wheel_joint", "right_wheel_joint"],
             scale=1.0,
             use_default_offset=False,
+            preserve_order=True,
         )
 
     @configclass
@@ -246,7 +324,13 @@ class EX001Embodiment(EmbodimentBase):
             controller=DifferentialIKControllerCfg(command_type="pose", use_relative_mode=True, ik_method="dls"), scale=1.0,
         )
         right_gripper_action: ActionTermCfg = ClampedRawGripperActionCfg(asset_name="robot", joint_names=["right_arm_gripper"], scale=1.0, offset=0.0, use_default_offset=False)
-        base_action: ActionTermCfg = JointVelocityActionCfg(asset_name="robot", joint_names=["left_wheel_joint", "right_wheel_joint"], scale=1.0, use_default_offset=False)
+        base_action: ActionTermCfg = JointVelocityActionCfg(
+            asset_name="robot",
+            joint_names=["left_wheel_joint", "right_wheel_joint"],
+            scale=1.0,
+            use_default_offset=False,
+            preserve_order=True,
+        )
 
     @configclass
     class StateObservationsCfg:

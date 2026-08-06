@@ -1,0 +1,3 @@
+task_name: put_bottle_on_woodshelf
+enable_cameras: true
+num_envs: 1

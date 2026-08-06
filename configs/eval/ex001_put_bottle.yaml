@@ -1,0 +1,19 @@
+enable_cameras: true
+num_envs: 1
+num_episodes: 10
+max_steps: 2000
+working_path: "~/maniparena_output/eval/"
+policy_config:
+  model_address: "localhost"
+  model_port: 8000
+  instruction: "pick the bottle from the table and place it on the wooden shelf"
+  action_horizon: 32
+  action_chunk_length: 16
+  interpolation_multiplier: 2
+  # follow* is already init-relative on the Wall-X wire; keep false.
+  ee_pose_normalize: false
+  # Sim-effective EX001 wheel geometry
+  wheel_radius: 0.084
+  wheel_track_width: 0.458
+  pos_gain: 1.0
+  rot_gain: 1.0

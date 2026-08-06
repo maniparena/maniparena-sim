@@ -5,7 +5,7 @@ max_steps: 800
 working_path: "~/maniparena_output/eval/"
 policy_config:
   model_address: "localhost"
-  model_port: 33030
+  model_port: 8000
   instruction: "sort the blocks"
   action_horizon: 32
   action_chunk_length: 16

@@ -16,8 +16,8 @@ class DifferentialDriveKeyboardControllerCfg:
         "left_wheel_joint",
         "right_wheel_joint",
     )
-    wheel_radius: float = 0.078
-    wheel_track_width: float = 0.48
+    wheel_radius: float = 0.084
+    wheel_track_width: float = 0.458
     forward_key: str = "W"
     backward_key: str = "S"
     left_key: str = "A"
@@ -26,14 +26,3 @@ class DifferentialDriveKeyboardControllerCfg:
     cw_key: str = "E"
     reset_key: str = "R"
     randomize_key: str = "T"
-
-
-# ex001 wheel geometry.
-EX001_DIFF_DRIVE_KEYBOARD_CFG = DifferentialDriveKeyboardControllerCfg(
-    mode_name="ex001_differential",
-    linear_velocity=0.5,
-    angular_velocity=2.0,
-    wheel_joint_names=("left_wheel_joint", "right_wheel_joint"),
-    wheel_radius=0.078,
-    wheel_track_width=0.48,
-)
