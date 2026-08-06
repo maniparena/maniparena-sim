@@ -124,57 +124,35 @@ class MessageBuilder:
     # ── LaserScan ─────────────────────────────────────────────────────────────
 
     @staticmethod
-    def laserscan(lidar, stamp, lidar_cfg):
-        """Build LaserScan message from RTX LiDAR.
-
-        Args:
-            lidar_cfg: Single-entry config dict, e.g.
-                ``EX001RosConfig.LIDAR_CONFIG["chassis_lidar"]``.
-        """
+    def laserscan(
+        template,
+        *,
+        stamp_ns,
+        frame_id,
+        scan_rate_hz,
+        range_min,
+        range_max,
+        ranges,
+        intensities,
+    ):
+        """Build a complete LaserScan from assembled RTX lidar beams."""
         from sensor_msgs.msg import LaserScan
 
-        data = lidar.get_flat_scan_data()
-        if not data:
-            return None
-
-        ranges_raw = data.get("linearDepthData")
-        ranges = np.array(ranges_raw, dtype=np.float32)
-        num_points = len(ranges)
-        ranges[ranges < 0] = lidar_cfg["invalid_range_value"]
-
-        intensities_raw = data.get("intensitiesData")
-        intensities = np.array(intensities_raw, dtype=np.float32)
-
-        depth_range = data.get("depthRange")
-        range_min = float(depth_range[0])
-        range_max = float(depth_range[1])
-
-        # Reorder: [-180,180] → [0,360]
-        half = num_points // 2
-        ranges = np.concatenate([ranges[half:], ranges[:half]])
-        intensities = np.concatenate([intensities[half:], intensities[:half]])
-
-        angle_min = 0.0
-        angle_max = 2 * np.pi
-        angle_increment = (angle_max - angle_min) / max(num_points - 1, 1)
-
-        rotation_rate = data.get("rotationRate")
-        scan_time = 0.0 if rotation_rate == 0 else 1.0 / rotation_rate
-        time_increment = scan_time / max(num_points, 1)
-
+        num_beams = len(ranges)
+        scan_time = 1.0 / scan_rate_hz
         msg = LaserScan()
-        copy_stamp(msg.header.stamp, stamp)
-        msg.header.frame_id = lidar_cfg["frame_id"]
-        msg.angle_min = float(angle_min)
-        msg.angle_max = float(angle_max)
-        msg.angle_increment = float(angle_increment)
-        msg.time_increment = float(time_increment)
-        msg.scan_time = float(scan_time)
-        msg.range_min = float(range_min)
-        msg.range_max = float(range_max)
-        msg.ranges = ranges.tolist()
-        msg.intensities = intensities.tolist()
-
+        msg.header.stamp.sec = stamp_ns // 1_000_000_000
+        msg.header.stamp.nanosec = stamp_ns % 1_000_000_000
+        msg.header.frame_id = frame_id
+        msg.angle_min = template.angle_min
+        msg.angle_max = template.angle_max
+        msg.angle_increment = template.angle_increment
+        msg.time_increment = scan_time / max(num_beams, 1)
+        msg.scan_time = scan_time
+        msg.range_min = range_min
+        msg.range_max = range_max
+        msg.ranges = list(ranges)
+        msg.intensities = list(intensities)
         return msg
 
     # ── JointState ────────────────────────────────────────────────────────────

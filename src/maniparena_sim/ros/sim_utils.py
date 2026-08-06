@@ -9,8 +9,8 @@ from __future__ import annotations
 import numpy as np
 import torch
 
-from maniparena_sim.utils.debug_print import manaprint
 from maniparena_sim.ros.math_utils import to_numpy
+from maniparena_sim.utils.debug_print import manaprint
 
 # ── Camera Intrinsics Cache ──────────────────────────────────────────────────
 
@@ -94,7 +94,12 @@ def build_robot_state_snapshot(env, robot, imu_sensor=None) -> dict:
     if imu_sensor is not None:
         policy["imu_ang_vel"] = imu_sensor.data.ang_vel_b
         policy["imu_lin_acc"] = imu_sensor.data.lin_acc_b
-        policy["imu_orientation"] = imu_sensor.data.quat_w
+        body_names = list(robot.data.body_names)
+        if "imu_link" in body_names:
+            imu_body = body_names.index("imu_link")
+            policy["imu_orientation"] = robot.data.body_quat_w[:, imu_body]
+        else:
+            policy["imu_orientation"] = policy["root_quat_w"]
 
     return {"policy": policy}
 

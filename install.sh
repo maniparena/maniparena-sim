@@ -14,10 +14,10 @@
 # Default install (sim / teleop / ROS2 nav):
 #   IN:  isaaclab(+isaacsim wheels), isaaclab_assets/physx/newton/ov/ovphysx,
 #        isaaclab_tasks, isaaclab_teleop, isaaclab_visualizers[kit] (--viz kit),
-#        isaaclab_arena (no-deps + thin runtime deps), maniparena_sim
-#   OUT: openpi, GR00T, mimic, rl, newton/rerun/viser visualizers,
-#        tasks-experimental, contrib, experimental, ppisp,
-#        Arena analysis extras (openai/sbi/onnxruntime/...)
+#        isaaclab_rl[rsl-rl], isaaclab_arena with upstream runtime dependencies,
+#        maniparena_sim
+#   OUT: openpi, GR00T, mimic, newton/rerun/viser visualizers,
+#        tasks-experimental, contrib, experimental, ppisp
 #
 # Optional env:
 #   ISAACSIM_PATH   Existing Isaac Sim 6 install (recorded; primary path is wheels)
@@ -187,116 +187,6 @@ _prepare_submodules() {
     _log "Isaac Lab VERSION=$(tr -d '\n' <"${_LAB_DIR}/VERSION") @ $(git -C "${_LAB_DIR}" rev-parse --short HEAD)"
   fi
 
-  _patch_arena_lean_imports
-}
-
-_patch_arena_lean_imports() {
-  # Soften upstream Arena eager imports so EX001 teleop/nav does not require
-  # the fat RL / multi-robot stack (rsl-rl, onnxruntime/G1, ...).
-  local emb_init="${_ARENA_DIR}/isaaclab_arena/embodiments/__init__.py"
-  local policy_init="${_ARENA_DIR}/isaaclab_arena/policy/__init__.py"
-  local registries="${_ARENA_DIR}/isaaclab_arena/assets/registries.py"
-  [[ -f "${emb_init}" ]] || _die "missing ${emb_init}"
-  [[ -f "${policy_init}" ]] || _die "missing ${policy_init}"
-  [[ -f "${registries}" ]] || _die "missing ${registries}"
-
-  _log "patching Arena embodiments/__init__.py for lean EX001 imports"
-  cat >"${emb_init}" <<'EOF'
-# Copyright (c) 2025-2026, The Isaac Lab Arena Project Developers.
-# SPDX-License-Identifier: Apache-2.0
-#
-# ManipArena lean-stack override (applied by install.sh):
-# Upstream eagerly imports agibot/droid/franka/g1/... here. That forces
-# optional deps (e.g. onnxruntime for G1 WBC) even when only EX001 is used.
-# Explicit submodule imports remain available, e.g.:
-#   from isaaclab_arena.embodiments.embodiment_base import EmbodimentBase
-EOF
-
-  _log "patching Arena policy/__init__.py to skip optional RSL-RL policy"
-  cat >"${policy_init}" <<'EOF'
-# Copyright (c) 2025-2026, The Isaac Lab Arena Project Developers.
-# SPDX-License-Identifier: Apache-2.0
-#
-# ManipArena lean-stack override (applied by install.sh):
-# Keep zero/replay policies; RSL-RL is optional and needs rsl-rl-lib + isaaclab_rl.
-from .replay_action_policy import *
-from .zero_action_policy import *
-
-try:
-    from .rsl_rl_action_policy import *
-except ImportError:
-    pass
-EOF
-
-  # ensure_assets_registered() imports every Arena library; soft-fail optionals.
-  if ! grep -q "ManipArena lean-stack override" "${registries}"; then
-    _log "patching Arena assets/registries.py ensure_assets_registered for soft imports"
-    python3 - "${registries}" <<'PY'
-from pathlib import Path
-import sys
-path = Path(sys.argv[1])
-text = path.read_text()
-old = '''def ensure_assets_registered():
-    """Ensure all assets are registered. Call this before accessing the registry."""
-    global _assets_registered, _registration_in_progress
-    if _assets_registered or _registration_in_progress:
-        return
-    _registration_in_progress = True
-    try:
-        # Import modules to trigger asset registration via decorators
-        import isaaclab_arena.assets.background_library  # noqa: F401
-        import isaaclab_arena.assets.device_library  # noqa: F401
-        import isaaclab_arena.assets.hdr_image_library  # noqa: F401
-        import isaaclab_arena.assets.object_library  # noqa: F401
-        import isaaclab_arena.assets.retargeter_library  # noqa: F401
-        import isaaclab_arena.assets.simready_object_library  # noqa: F401
-        import isaaclab_arena.embodiments  # noqa: F401
-        import isaaclab_arena.policy  # noqa: F401
-        import isaaclab_arena.relations.relations  # noqa: F401
-        import isaaclab_arena.tasks.task_library  # noqa: F401
-
-        _assets_registered = True
-    finally:
-        _registration_in_progress = False
-'''
-new = '''def ensure_assets_registered():
-    """Ensure all assets are registered. Call this before accessing the registry."""
-    # ManipArena lean-stack override (applied by install.sh): soft-import optional
-    # Arena libraries so missing RL/robot extras do not block EX001 teleop/nav.
-    global _assets_registered, _registration_in_progress
-    if _assets_registered or _registration_in_progress:
-        return
-    _registration_in_progress = True
-    try:
-        import importlib
-
-        for _mod in (
-            "isaaclab_arena.assets.background_library",
-            "isaaclab_arena.assets.device_library",
-            "isaaclab_arena.assets.hdr_image_library",
-            "isaaclab_arena.assets.object_library",
-            "isaaclab_arena.assets.retargeter_library",
-            "isaaclab_arena.assets.simready_object_library",
-            "isaaclab_arena.embodiments",
-            "isaaclab_arena.policy",
-            "isaaclab_arena.relations.relations",
-            "isaaclab_arena.tasks.task_library",
-        ):
-            try:
-                importlib.import_module(_mod)
-            except Exception:
-                # Optional for ManipArena lean stack; maniparena_sim registers its own assets.
-                pass
-
-        _assets_registered = True
-    finally:
-        _registration_in_progress = False
-'''
-if old not in text:
-    raise SystemExit(f"ensure_assets_registered block not found in {path}")
-path.write_text(text.replace(old, new, 1))
-PY
-  fi
 }
 
 _venv_python() {
@@ -327,7 +217,8 @@ _pip() {
 
 _install_lean_stack() {
   # Minimal packages required to import ArenaEnvBuilder + run maniparena teleop/nav.
-  # Explicitly avoids Arena's fat `isaaclab-from-source` group (mimic/rl/openpi/...).
+  # Avoid Arena's fat uv group while preserving dependencies required by its
+  # unmodified eager imports.
   local lab_pkgs=(
     "isaaclab_assets"
     "isaaclab_physx"
@@ -360,6 +251,10 @@ _install_lean_stack() {
     _pip -e "${_LAB_SRC}/${pkg}"
   done
 
+  # Arena imports its RSL-RL policy at package import time.
+  _log "lean stack: editable isaaclab_rl[rsl-rl]"
+  _pip -e "${_LAB_SRC}/isaaclab_rl[rsl-rl]"
+
   # Lab 6 --viz kit requires isaaclab_visualizers.kit (KitVisualizerCfg).
   # Extra [kit] has no extra wheels; skip newton/rerun/viser backends.
   _log "lean stack: editable isaaclab_visualizers[kit] (for --viz kit)"
@@ -387,19 +282,18 @@ _install_lean_stack() {
     "pillow" \
     "pyarrow>=14"
 
-  _log "lean stack: isaaclab_arena editable (--no-deps; skip openai/sbi/onnxruntime/pytest/...)"
-  _pip -e "${_ARENA_DIR}" --no-deps
-  # Re-apply lean import patches after editable install (source tree is used as-is).
-  _patch_arena_lean_imports
-  # Thin deps actually needed for maniparena teleop (vuer) + Arena config types.
-  # Note: current vuer release has no `all` extra.
-  _pip \
-    typing_extensions \
-    "pydantic>=2.0" \
-    vuer \
-    scipy \
-    decorator \
-    "pandas==2.2.3"
+  _log "lean stack: isaaclab_arena editable with upstream runtime dependencies"
+  _pip -e "${_ARENA_DIR}"
+
+  # Kit prepends cmeel's Python path while starting. Preload EigenPy before Kit
+  # so Arena's eager G1/Pinocchio import uses an initialized NumPy C-API.
+  local site_packages python_version cmeel_prefix cmeel_site_packages
+  site_packages="$("$(_venv_python)" -c 'import site; print(site.getsitepackages()[0])')"
+  python_version="$("$(_venv_python)" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
+  cmeel_prefix="${site_packages}/cmeel.prefix"
+  cmeel_site_packages="${cmeel_prefix}/lib/python${python_version}/site-packages"
+  printf "import ctypes, sys; ctypes.CDLL(r'%s/lib/libeigenpy.so', mode=ctypes.RTLD_GLOBAL); sys.path.insert(0, r'%s'); import eigenpy\n" \
+    "${cmeel_prefix}" "${cmeel_site_packages}" >"${site_packages}/maniparena_eigenpy_bootstrap.pth"
 }
 
 _install_full_arena_stack() {

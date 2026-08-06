@@ -18,6 +18,8 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import os
+import sys
 from pathlib import Path
 
 import yaml
@@ -36,6 +38,19 @@ def parse_args():
     return parser.parse_args()
 
 
+def _ensure_isaac_ros2_runtime() -> None:
+    """Restart once with Isaac Sim's matching ROS2 shared libraries first."""
+    python_version = f"python{sys.version_info.major}.{sys.version_info.minor}"
+    site_packages = Path(sys.executable).parent.parent / "lib" / python_version / "site-packages"
+    ros2_lib = site_packages / "isaacsim" / "exts" / "isaacsim.ros2.core" / "jazzy" / "lib"
+    entries = os.environ.get("LD_LIBRARY_PATH", "").split(":")
+    if entries and entries[0] == str(ros2_lib):
+        return
+    env = os.environ.copy()
+    env["LD_LIBRARY_PATH"] = ":".join([str(ros2_lib), *filter(None, entries)])
+    os.execvpe(sys.executable, [sys.executable, *sys.argv], env)
+
+
 class _KeyboardTwist:
     """Subscribe to carb keyboard and expose a (linear_x, angular_z) twist."""
 
@@ -52,9 +67,7 @@ class _KeyboardTwist:
         self._app_window = omni.appwindow.get_default_app_window()
         self._input = carb.input.acquire_input_interface()
         self._keyboard = self._app_window.get_keyboard()
-        self._sub = self._input.subscribe_to_keyboard_events(
-            self._keyboard, self._on_event
-        )
+        self._sub = self._input.subscribe_to_keyboard_events(self._keyboard, self._on_event)
 
     @staticmethod
     def _key_name(event) -> str | None:
@@ -100,8 +113,8 @@ class _KeyboardTwist:
             pass
 
 
-def main() -> int:
-    args = parse_args()
+def main(args: argparse.Namespace | None = None) -> int:
+    args = args if args is not None else parse_args()
     payload = load_yaml(args.config)
 
     import torch
@@ -144,7 +157,12 @@ def main() -> int:
     right_wheel_slot = slot_map.get("right_wheel_joint")
 
     ros_ext = RosBridgeExtension(ros_cfg)
-    ros_ext.setup(gym_env, robot, action_buffer=actions)
+    try:
+        ros_ext.setup(gym_env, robot, action_buffer=actions)
+    except Exception:
+        ros_ext.shutdown()
+        gym_env.close()
+        raise
 
     cc = EX001RosConfig.CHASSIS_CONTROL_CONFIG
     wheel_radius = float(cc["wheel_radius"])
@@ -203,7 +221,10 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    _app_launcher = AppLauncher(parse_args())
+    _ensure_isaac_ros2_runtime()
+    _args = parse_args()
+    sys.argv += ["--enable", "isaacsim.ros2.bridge"]
+    _app_launcher = AppLauncher(_args)
     _APP = _app_launcher.app
-    main()
+    main(_args)
     _APP.close()

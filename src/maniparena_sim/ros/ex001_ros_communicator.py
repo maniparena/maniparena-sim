@@ -1,9 +1,5 @@
 """ROS2 publisher for the EX001 navigation robot using the Isaac Sim ROS2 bridge."""
 
-from isaacsim.core.utils.extensions import enable_extension
-
-enable_extension("isaacsim.ros2.bridge")
-
 from geometry_msgs.msg import PoseStamped, Twist
 from nav_msgs.msg import Odometry
 from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
@@ -56,6 +52,8 @@ class EX001RosCommunicator(RosCommunicator):
         "/odom": Odometry,
     }
 
+    DEDICATED_PUBLISHERS = frozenset({"/scan"})
+
     SUBSCRIBERS = {
         "/mock_robot_interface/command": JointState,
         "/head_position_controller/commands": Float64MultiArray,
@@ -78,6 +76,8 @@ class EX001RosCommunicator(RosCommunicator):
 
     def _initRobotPublisher(self):
         for topic, msg_type in self.PUBLISHERS.items():
+            if topic in self.DEDICATED_PUBLISHERS:
+                continue
             self._ros_publishers[topic] = self.create_publisher(
                 msg_type, topic, ROS_QOS_CONFIG["default_publisher_depth"]
             )

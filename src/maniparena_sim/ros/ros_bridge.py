@@ -11,6 +11,7 @@ Lifecycle matches the other extensions::
 
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -18,9 +19,8 @@ from typing import Any
 import numpy as np
 import yaml
 
-from maniparena_sim.utils.debug_print import manaprint
 from maniparena_sim.ros.sim_utils import build_robot_state_snapshot
-
+from maniparena_sim.utils.debug_print import manaprint
 
 CAMERA_TOPICS: set[str] = {
     "/camera_chassis_front/depth/points",
@@ -65,6 +65,7 @@ class RosBridgeExtension:
         self._robot: Any = None
         self._imu_sensor: Any = None
         self._cmd_vel_buffer: Any = None
+        self._lidar_2d: Any = None
         self._enabled_publishers: set[str] = set()
         self._fast_topics: set[str] = set()
         self._slow_topics: set[str] = set()
@@ -89,16 +90,22 @@ class RosBridgeExtension:
         if not self._cfg.enabled:
             return
 
+        import isaacsim
         import torch
+
+        ros2_python = Path(isaacsim.__file__).resolve().parent / "exts" / "isaacsim.ros2.core" / "jazzy" / "rclpy"
+        if str(ros2_python) not in sys.path:
+            sys.path.insert(0, str(ros2_python))
+
         from tf2_ros import TransformBroadcaster
 
-        from maniparena_sim.ros.prim_paths import EX001_PATHS
-        from maniparena_sim.ros.ros2_config import EX001RosConfig
         from maniparena_sim.ros.ex001_control_callbacks import fill_control_callbacks
         from maniparena_sim.ros.ex001_data_acquirers import fill_data_acquirer
         from maniparena_sim.ros.ex001_joint_mapping import EX001JointIndexMapping
-        from maniparena_sim.ros.sim_utils import get_root_pose, get_ros_time, init_camera_cache
         from maniparena_sim.ros.ex001_ros_communicator import EX001RosCommunicator
+        from maniparena_sim.ros.prim_paths import EX001_PATHS
+        from maniparena_sim.ros.ros2_config import EX001RosConfig
+        from maniparena_sim.ros.sim_utils import get_root_pose, get_ros_time, init_camera_cache
         from maniparena_sim.ros.tf_publisher import OdomOrigin, TfPublisher
 
         self._get_ros_time = get_ros_time
@@ -113,8 +120,17 @@ class RosBridgeExtension:
             raise NotImplementedError(f"Only ros.nav_mode='2d' is supported, got {nav_mode!r}.")
         from maniparena_sim.ros.ex001_rtx_lidar import create_ex001_lidar
 
-        lidar_2d = create_ex001_lidar(prim_path=EX001_PATHS.lidar)
-        lidar_2d.initialize(env.scene)
+        lidar_cfg = EX001RosConfig.LIDAR_CONFIG["chassis_lidar"]
+        self._lidar_2d = create_ex001_lidar(
+            prim_path=EX001_PATHS.lidar,
+            frame_id=lidar_cfg["frame_id"],
+            topic_name="scan",
+            scan_rate_hz=10.0,
+            num_beams=314,
+            use_sim_time=self._cfg.use_sim_time,
+        )
+        if not self._lidar_2d.initialize(env.scene):
+            raise RuntimeError("Failed to initialize EX001 ROS2 RTX lidar publisher")
 
         # -- ROS chassis controller (differential drive) ------------------
         ros_chassis_ctrl = None
@@ -148,7 +164,6 @@ class RosBridgeExtension:
             joint_mapping,
             self._stamp_holder,
             odom_origin,
-            lidar_2d,
             env,
         )
         shared_action_buffer = action_buffer
@@ -172,6 +187,7 @@ class RosBridgeExtension:
             use_sim_time=self._cfg.use_sim_time,
             enabled_publishers=enabled_publishers,
         )
+        self._lidar_2d.start_ros_assembler()
         self._enabled_publishers = set(enabled_publishers)
         self._fast_topics = EX001RosCommunicator.FAST_TOPICS & self._enabled_publishers
         self._slow_topics = EX001RosCommunicator.LOW_RATE_TOPICS & self._enabled_publishers
@@ -220,6 +236,9 @@ class RosBridgeExtension:
             self._communicator.publish_topics(due_slow, slow_obs, {})
 
     def shutdown(self) -> None:
+        if self._lidar_2d is not None:
+            self._lidar_2d.shutdown()
+            self._lidar_2d = None
         if self._communicator is not None:
             self._communicator.shutdown()
             self._communicator = None
@@ -239,6 +258,7 @@ class RosBridgeExtension:
         from maniparena_sim.ros.ex001_ros_communicator import EX001RosCommunicator
 
         publishers = set(EX001RosCommunicator.PUBLISHERS.keys())
+        publishers.difference_update(EX001RosCommunicator.DEDICATED_PUBLISHERS)
         if not has_camera_obs:
             publishers.difference_update(CAMERA_TOPICS)
         return publishers

@@ -13,7 +13,6 @@ from maniparena_sim.ros.sim_utils import camera_cache
 
 _ODOM_CFG = EX001RosConfig.ODOM_CONFIG["chassis_odom"]
 _IMU_CFG = EX001RosConfig.IMU_CONFIG["chassis_imu"]
-_LIDAR_CFG = EX001RosConfig.LIDAR_CONFIG["chassis_lidar"]
 _CAMERA_CONFIG = EX001RosConfig.CAMERA_CONFIG
 
 
@@ -56,10 +55,6 @@ def acquirer_chassis_imu(obs, extras, stamp):
     return MessageBuilder.imu(obs, stamp, _IMU_CFG)
 
 
-def acquirer_scan(obs, extras, lidar, stamp):
-    return MessageBuilder.laserscan(lidar, stamp, _LIDAR_CFG)
-
-
 def acquirer_tracked_pose(obs, extras, stamp):
     return MessageBuilder.pose_stamped_from_root(obs, stamp)
 
@@ -92,7 +87,6 @@ def fill_data_acquirer(
     joint_mapping,
     stamp_holder,
     odom_origin,
-    lidar_2d,
     env,
 ):
     """Register all data acquirer callbacks into *data_acquirer* dict (2D nav)."""
@@ -102,7 +96,6 @@ def fill_data_acquirer(
     data_acquirer["/head/joint_states"] = bind_with_dynamic_stamp(acquirer_head_joint_states, s, joint_mapping)
     data_acquirer["/chassis/odom"] = bind_with_dynamic_stamp(acquirer_chassis_odom, s, odom_origin)
     data_acquirer["/hal/chassis/imu"] = bind_with_dynamic_stamp(acquirer_chassis_imu, s)
-    data_acquirer["/scan"] = bind_with_dynamic_stamp(acquirer_scan, s, lidar_2d)
     data_acquirer["/tracked_pose"] = bind_with_dynamic_stamp(acquirer_tracked_pose, s)
     data_acquirer["/odom"] = bind_with_dynamic_stamp(acquirer_odom, s, odom_origin)
 
