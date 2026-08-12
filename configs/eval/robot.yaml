@@ -1,4 +1,6 @@
 enable_cameras: true
+enable_recording: true
+format: "bimanual_lerobot"
 num_envs: 1
 num_episodes: 10
 max_steps: 800
