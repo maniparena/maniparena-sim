@@ -20,8 +20,10 @@ class PutBottleOnWoodshelfBuilder:
         task = PutBottleOnWoodshelfTask(background_scene=bg)
         task.termination_cfg = PutBottleOnWoodshelfTerminationsCfg()
         task.events_cfg = build_put_bottle_events_cfg()
+        # Front-left third-person: elevated and pulled back (table, robot, shelf).
         task.viewer_cfg = ViewerCfg(
-            eye=(2.8, -0.2, 1.6),
-            lookat=(1.1, -1.2, 0.7),
+            eye=(-1.0, 1.8, 1.5),
+            lookat=(0.55, -0.85, 0.55),
+            origin_type='world',
         )
         return task

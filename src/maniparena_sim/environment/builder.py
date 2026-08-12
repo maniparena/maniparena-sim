@@ -43,7 +43,46 @@ def _arena_builder_cfg(
     )
 
 
-def _make_unwrapped_gym_env(reg_name: str, env_cfg: Any, env_kwargs: dict):
+def _apply_viewer_cfg_override(task: Any, payload: dict) -> None:
+    """Override task viewer eye/lookat from eval YAML ``viewer_cfg``."""
+    viewer = payload.get('viewer_cfg')
+    if not viewer:
+        return
+    eye = viewer.get('eye')
+    lookat = viewer.get('lookat')
+    if eye is None or lookat is None:
+        return
+    from isaaclab.envs.common import ViewerCfg
+
+    task.viewer_cfg = ViewerCfg(
+        eye=tuple(float(x) for x in eye),
+        lookat=tuple(float(x) for x in lookat),
+        origin_type=str(viewer.get('origin_type', 'world')),
+    )
+
+
+def _apply_video_recorder_cfg(env_cfg: Any, payload: dict) -> None:
+    """Tune Isaac Lab perspective recorder from eval YAML ``video_recorder``."""
+    video_cfg = payload.get('video_recorder') or {}
+    recorder = getattr(env_cfg, 'video_recorder', None)
+    if recorder is None:
+        return
+    backend = video_cfg.get('backend_source')
+    if backend:
+        recorder.backend_source = backend
+    if 'window_width' in video_cfg:
+        recorder.window_width = int(video_cfg['window_width'])
+    if 'window_height' in video_cfg:
+        recorder.window_height = int(video_cfg['window_height'])
+
+
+def _make_unwrapped_gym_env(
+    reg_name: str,
+    env_cfg: Any,
+    env_kwargs: dict,
+    *,
+    render_mode: str | None = None,
+):
     """``gym.make`` then re-apply Arena viewer eye/lookat for Lab 6 KitVisualizer.
 
     ``ViewportCameraController`` sets the camera before ``KitVisualizer.initialize()``,
@@ -57,7 +96,9 @@ def _make_unwrapped_gym_env(reg_name: str, env_cfg: Any, env_kwargs: dict):
     import gymnasium as gym
     from isaaclab_arena.utils.isaaclab_utils.simulation_app import reapply_viewer_cfg
 
-    env = gym.make(reg_name, cfg=env_cfg, **env_kwargs)
+    env = gym.make(
+        reg_name, cfg=env_cfg, render_mode=render_mode, **env_kwargs,
+    )
     reapply_viewer_cfg(env)
     ensure_kit_viewport_color_render()
     return env.unwrapped
@@ -464,6 +505,8 @@ def build_eval_gym_env(
     payload: dict,
     headless: bool = False,
     device: str = 'cuda:0',
+    *,
+    render_mode: str | None = None,
 ) -> EvalEnv:
     """Build a gym env configured for policy evaluation."""
     from isaaclab_arena.environments.arena_env_builder import ArenaEnvBuilder
@@ -481,6 +524,7 @@ def build_eval_gym_env(
     if not enable_cameras:
         embodiment.camera_config = None
     task = build_task_runtime(task_name, scene)
+    _apply_viewer_cfg_override(task, payload)
 
     env_name = f'bimanual_{task_name}_eval'
     arena_env = IsaacLabArenaEnvironment(
@@ -503,6 +547,7 @@ def build_eval_gym_env(
         sim_fps=getattr(scene, 'sim_fps', 120),
         render_interval=getattr(scene, 'render_decremental', 2),
     )
+    _apply_video_recorder_cfg(env_cfg, payload)
 
     if (
         hasattr(env_cfg, 'observations')
@@ -540,7 +585,9 @@ def build_eval_gym_env(
             env_cfg, recording, enable_cameras=enable_cameras,
         )
 
-    gym_env = _make_unwrapped_gym_env(reg_name, env_cfg, env_kwargs)
+    gym_env = _make_unwrapped_gym_env(
+        reg_name, env_cfg, env_kwargs, render_mode=render_mode,
+    )
     apply_carb_settings(
         getattr(scene, 'render_carb_dict', None) or {},
     )
@@ -783,6 +830,8 @@ def build_ex001_eval_gym_env(
     payload: dict,
     headless: bool = False,
     device: str = 'cuda:0',
+    *,
+    render_mode: str | None = None,
 ) -> EvalEnv:
     """Build an EX001 gym env for Wall-X whole-body (21D) policy evaluation."""
     if task_name not in EX001_SUPPORTED_TASKS:
@@ -808,6 +857,7 @@ def build_ex001_eval_gym_env(
     embodiment.action_config = embodiment.ActionsCfgWallxWholebody()
     _apply_ex001_task_spawn(embodiment, task_name)
     task = build_task_runtime(task_name, scene)
+    _apply_viewer_cfg_override(task, payload)
 
     env_name = f'ex001_{task_name}_eval'
     arena_env = IsaacLabArenaEnvironment(
@@ -830,6 +880,7 @@ def build_ex001_eval_gym_env(
         sim_fps=getattr(scene, 'sim_fps', 120),
         render_interval=getattr(scene, 'render_decremental', 2),
     )
+    _apply_video_recorder_cfg(env_cfg, payload)
     if hasattr(env_cfg, 'terminations'):
         env_cfg.terminations.time_out = None
     if (
@@ -873,7 +924,9 @@ def build_ex001_eval_gym_env(
             handler_type=PlainHDF5DatasetFileHandler,
         )
 
-    gym_env = _make_unwrapped_gym_env(reg_name, env_cfg, env_kwargs)
+    gym_env = _make_unwrapped_gym_env(
+        reg_name, env_cfg, env_kwargs, render_mode=render_mode,
+    )
     apply_carb_settings(
         getattr(scene, 'render_carb_dict', None) or {},
     )
