@@ -1,6 +1,7 @@
 enable_cameras: true
 num_envs: 1
 num_episodes: 10
+# Per-episode hard limit in eval.py (timeout -> reset + count 1 episode).
 max_steps: 2000
 working_path: "~/maniparena_output/eval/"
 policy_config:
