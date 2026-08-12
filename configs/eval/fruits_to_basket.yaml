@@ -1,0 +1,15 @@
+enable_cameras: true
+num_envs: 1
+num_episodes: 10
+max_steps: 800
+working_path: "~/maniparena_output/eval/"
+policy_config:
+  model_address: "localhost"
+  model_port: 8000
+  instruction: "pick the fruits and put them into the basket"
+  action_horizon: 32
+  action_chunk_length: 16
+  interpolation_multiplier: 2
+  ee_pose_normalize: true
+  pos_gain: 1.0
+  rot_gain: 1.0
