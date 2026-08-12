@@ -188,12 +188,7 @@ def main() -> int:
     obs, _ = gym_env.reset()
     episode_count = 0
     step_count = 0
-    episode_successes: list[bool] = []
     max_global = num_episodes * max_steps * 2
-    has_success_term = (
-        hasattr(gym_env, 'termination_manager')
-        and 'success' in gym_env.termination_manager.active_terms
-    )
 
     with torch.inference_mode():
         for _ in range(max_global):
@@ -209,58 +204,15 @@ def main() -> int:
                 env_ids = done.nonzero(
                     as_tuple=False,
                 ).squeeze(-1)
-                if env_ids.ndim == 0:
-                    env_ids = env_ids.unsqueeze(0)
-                if has_success_term:
-                    succ = gym_env.termination_manager.get_term(
-                        'success',
-                    )[env_ids]
-                    episode_successes.extend(
-                        bool(x) for x in succ.tolist()
-                    )
-                else:
-                    episode_successes.extend(
-                        [False] * int(env_ids.numel())
-                    )
                 policy.reset(env_ids)
                 episode_count += int(done.sum())
             if episode_count >= num_episodes:
                 break
 
-    # Prefer in-loop termination flags; fall back to Arena metrics HDF5.
-    num_success = sum(episode_successes)
-    num_recorded = len(episode_successes)
-    success_rate = (
-        num_success / num_recorded if num_recorded else 0.0
-    )
-
     print(
         f'\neval finished: {ctx.env_name} '
         f'episodes={episode_count} steps={step_count}'
     )
-    print('=' * 60)
-    print('  Success summary')
-    print(f'  Episodes:     {num_recorded}')
-    print(f'  Successes:    {num_success}')
-    print(f'  Failures:     {num_recorded - num_success}')
-    print(f'  Success rate: {success_rate:.1%} ({num_success}/{num_recorded})')
-    if episode_successes:
-        flags = ' '.join(
-            'S' if ok else 'F' for ok in episode_successes
-        )
-        print(f'  Per-episode:  [{flags}]')
-
-    try:
-        if hasattr(gym_env, 'compute_metrics'):
-            metrics = gym_env.compute_metrics()
-            entries = getattr(metrics, 'metric_data_entries', {}) or {}
-            if entries:
-                print('  Arena metrics:')
-                for name, entry in entries.items():
-                    print(f'    {name}: {entry.metric_value}')
-    except Exception as exc:
-        print(f'  Arena metrics: unavailable ({exc})')
-    print('=' * 60)
 
     policy.cleanup()
     gym_env.close()
