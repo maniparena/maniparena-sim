@@ -5,7 +5,7 @@ arms ``*_arm_joint[1-6]``, grippers ``*_arm_gripper`` ([0, 1.89]), EE
 links ``*_arm_gripper_base_link``, wheels ``left/right_wheel_joint``, prismatic
 ``lift_joint`` ([0, 0.78] m), head ``head_yaw_joint`` / ``head_pitch_joint``.
 
-AbsIK action layout (vuer/openxr teleop): ``[L_pos(3), L_quat(4), L_grip(1),
+AbsIK action layout (vuer teleop): ``[L_pos(3), L_quat(4), L_grip(1),
 R_pos(3), R_quat(4), R_grip(1), L_wheel(1), R_wheel(1), lift(1)]`` (19D).
 
 Wallx whole-body layout (eval): AbsIK + ``head_yaw(1), head_pitch(1)`` (21D).
@@ -21,7 +21,6 @@ import torch
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
-from isaaclab.devices.openxr import XrCfg
 from isaaclab.envs.mdp.actions import joint_actions
 from isaaclab.envs.mdp.actions.actions_cfg import (
     DifferentialInverseKinematicsActionCfg,
@@ -218,7 +217,7 @@ class EX001Embodiment(EmbodimentBase):
         """19D abs-IK + diff-drive base + lift. Term order yields planner diffik slots.
 
         Layout: ``[L_pos(3), L_quat(4), L_grip(1), R_pos(3), R_quat(4), R_grip(1),
-        L_wheel(1), R_wheel(1), lift(1)]``. Used by vuer/openxr teleop: the arms
+        L_wheel(1), R_wheel(1), lift(1)]``. Used by vuer teleop: the arms
         track absolute base-frame pose targets, the base is differential-drive
         wheel velocity, and the prismatic lift joint takes an absolute position
         target (vuer right-joystick).
@@ -378,15 +377,11 @@ class EX001Embodiment(EmbodimentBase):
         self.observation_config = self.StateObservationsCfg()
         self._camera_observation_config = self.CameraObservationsCfg()
         self.diff_drive_keyboard_controller_cfg = EX001_DIFF_DRIVE_KEYBOARD_CFG
-        self.xr = XrCfg(anchor_pos=(0.0, 0.0, 0.0), anchor_rot=(0.0, 0.0, 0.0, 1.0))
 
     def get_observation_cfg(self):
         if self.enable_cameras:
             return combine_configclass_instances("ObservationCfg", self.observation_config, self._camera_observation_config)
         return self.observation_config
-
-    def get_xr_cfg(self):
-        return self.xr
 
     def get_vr_gripper_clamp(self) -> dict[str, tuple[float, float]]:
         return {

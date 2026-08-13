@@ -1,26 +1,20 @@
-"""ex001 VR/vuer teleop planner: DiffIK absolute (gen_method=0) + diff-drive base.
+"""Vuer/Pico WebXR teleop planner for bimanual and ex001.
 
-Two backends, selected by ``input_backend``:
-  * "vuer"   -> vuer web/Pico WebXR (VuerControllerDevice).
-  * "openxr" -> IsaacLab official CloudXR/OpenXR (VRTeleopDevice).
+Uses ``VuerControllerDevice`` only. OpenXR / CloudXR is removed.
 
-Coordinate handling for the ex001_6r-style arm teleoperation:
-  * openxr: the controller-pose quaternion offset is applied inside the
-    OpenXR retargeter (see ``openxr_controller_retargeters.py``); the planner
-    converts world-frame controller poses into base-frame absolute IK targets.
-  * vuer: ``vuer_use_delta_targets`` captures a reference controller+EE pose at
-    teleop-start, then drives the arms by axis-remapped (``-z, -x, y``)
-    controller deltas added to the reference EE pose in base frame. Rotation is
-    a controller-rotation delta mapped through the same axis matrix.
+``vuer_use_delta_targets`` captures a reference controller+EE pose at
+teleop-start, then drives the arms by axis-remapped (``-z, -x, y``)
+controller deltas added to the reference EE pose in base frame. Rotation is
+a controller-rotation delta mapped through the same axis matrix.
 
-Button scheme (vuer / motion controller):
+Button scheme:
   * Left-X  -> start teleop (captures the vuer delta reference)
   * Left-Y  -> manually export the current episode as success
   * Right-A -> reset / skip the current episode
 
-Env action layout (18D abs-IK + base, DiffIK diffik slots):
+Env action layout (16D abs-IK; ex001 adds wheels+lift -> 19D):
   [L_pos(3), L_quat(4), L_grip(1), R_pos(3), R_quat(4), R_grip(1),
-   L_wheel(1), R_wheel(1)]
+   L_wheel(1), R_wheel(1), lift(1)]
 Raw device layout (per arm pose+grip interleaved, then buttons, then joystick):
   [L_pos(3), L_quat(4), L_grip(1), R_pos(3), R_quat(4), R_grip(1),
    buttons(4)=[L_A, L_B, R_A, R_B], joystick(4)=[L_x, L_y, R_x, R_y]]
@@ -39,16 +33,14 @@ from maniparena_sim.utils.motion_utils import world_to_base_frame
 
 
 @dataclass
-class Ex001VRTeleopSettings(TeleopSettings):
-    input_backend: str = "vuer"  # "vuer" | "openxr"
-
+class VuerTeleopSettings(TeleopSettings):
     # ── joystick mapping: LEFT stick drives the base, RIGHT stick drives lift ──
     use_motion_controller_base: bool = True
     motion_controller_base_deadband: float = 0.15
     motion_controller_base_linear_scale: float = 1.0
     motion_controller_base_angular_scale: float = 1.0
     # Lift is driven by the right-stick Y axis and integrated into an absolute
-    # prismatic target. Only the vuer backend wires this up.
+    # prismatic target when the embodiment exposes a lift joint.
     motion_controller_lift_deadband: float = 0.15
     motion_controller_lift_step: float = 0.01  # meters per step at full deflection
 
@@ -72,7 +64,7 @@ class Ex001VRTeleopSettings(TeleopSettings):
     # ── vuer backend ──
     vuer_host: str = "0.0.0.0"
     vuer_port: int | None = None
-    vuer_display_fps: float = 30.0
+    vuer_display_fps: float = 60.0
     vuer_apply_xr_anchor: bool = False
     vuer_use_delta_targets: bool = True
     vuer_delta_position_scale: float = 1.0
@@ -100,9 +92,9 @@ _BASE_DIM = 2
 _LIFT_DIM = 1
 
 
-class Ex001VRTeleopPlanner(TeleopPlanner):
-    Settings = Ex001VRTeleopSettings
-    device_name = "ex001_vr"
+class VuerTeleopPlanner(TeleopPlanner):
+    Settings = VuerTeleopSettings
+    device_name = "vuer"
 
     def __init__(self):
         super().__init__()
@@ -132,7 +124,6 @@ class Ex001VRTeleopPlanner(TeleopPlanner):
     def _init_device(self, env: Any) -> None:
         embodiment = env.embodiment
         self._embodiment = embodiment
-        backend = str(self.settings.input_backend).strip().lower()
         sim_device = str(env.device)
         self._ee_frame_names = embodiment.get_vr_ee_frame_names()
         self._gripper_joint_names = embodiment.get_vr_gripper_joint_names()
@@ -140,12 +131,9 @@ class Ex001VRTeleopPlanner(TeleopPlanner):
         self._base_control_enabled = bool(self.settings.use_motion_controller_base) and (
             getattr(embodiment, "diff_drive_keyboard_controller_cfg", None) is not None
         )
-        # The lift term is always present in the AbsIK action vector (both vuer
-        # and openxr use the 19D config), so it must always be emitted. Only the
-        # vuer right joystick *drives* it; under openxr lift simply holds.
         lift_getter = getattr(embodiment, "get_vr_lift_joint_name", None)
         self._lift_enabled = callable(lift_getter)
-        self._lift_joystick_driven = self._lift_enabled and backend == "vuer"
+        self._lift_joystick_driven = self._lift_enabled
         if self._lift_enabled:
             self._lift_joint_name = lift_getter()
             limits_getter = getattr(embodiment, "get_vr_lift_limits", None)
@@ -153,42 +141,24 @@ class Ex001VRTeleopPlanner(TeleopPlanner):
                 lo, hi = limits_getter()
                 self._lift_limits = (float(lo), float(hi))
         self._abs_quat_offset = self._resolve_abs_quat_offset(env, embodiment)
-        callbacks = {"START": self._start, "STOP": self._stop, "RESET": self._reset_episode}
         # Joysticks emit a fixed [L_x, L_y, R_x, R_y] block: left stick drives the
         # base, right stick drives lift.
         need_joysticks = self._base_control_enabled or self._lift_enabled
-        if backend == "vuer":
-            from maniparena_sim.embodiment.teleop_devices.vuer_controller import (
-                VuerControllerDevice, VuerControllerDeviceCfg,
-            )
-            cfg = VuerControllerDeviceCfg(
-                sim_device=sim_device,
-                host=self.settings.vuer_host,
-                port=self.settings.vuer_port,
-                display_fps=self.settings.vuer_display_fps,
-                apply_xr_anchor=bool(self.settings.vuer_apply_xr_anchor),
-                anchor_pose_provider=self._anchor_pose,
-                gripper_input=self.settings.motion_controller_gripper_input,
-                include_buttons=True,
-                include_joysticks=need_joysticks,
-            )
-            self._controller = VuerControllerDevice(cfg)
-        else:
-            from maniparena_sim.embodiment.teleop_devices.cloudxr_device import (
-                VRTeleopDevice, VRTeleopDeviceCfg,
-            )
-            cfg = VRTeleopDeviceCfg(
-                sim_device=sim_device,
-                zero_out_xy_rotation=self.settings.zero_out_xy_rotation,
-                use_motion_controller_pose=True,
-                use_motion_controller_gripper=True,
-                use_motion_controller_buttons=True,
-                use_motion_controller_joystick=need_joysticks,
-                # Request both sticks so the fixed [L_x, L_y, R_x, R_y] layout holds.
-                motion_controller_linear_joystick_side="left",
-                motion_controller_angular_joystick_side="right",
-            )
-            self._controller = VRTeleopDevice(cfg).create_controller(embodiment=embodiment, callbacks=callbacks)
+        from maniparena_sim.embodiment.teleop_devices.vuer_controller import (
+            VuerControllerDevice, VuerControllerDeviceCfg,
+        )
+        cfg = VuerControllerDeviceCfg(
+            sim_device=sim_device,
+            host=self.settings.vuer_host,
+            port=self.settings.vuer_port,
+            display_fps=self.settings.vuer_display_fps,
+            apply_xr_anchor=bool(self.settings.vuer_apply_xr_anchor),
+            anchor_pose_provider=self._anchor_pose,
+            gripper_input=self.settings.motion_controller_gripper_input,
+            include_buttons=True,
+            include_joysticks=need_joysticks,
+        )
+        self._controller = VuerControllerDevice(cfg)
 
     def prepare_episode(self, gym_env: Any, obs: Dict[str, Any]) -> None:
         super().prepare_episode(gym_env, obs)
@@ -269,10 +239,7 @@ class Ex001VRTeleopPlanner(TeleopPlanner):
 
     # ── vuer delta-target coordinate path ─────────────────────────
     def _vuer_delta_enabled(self) -> bool:
-        return (
-            str(self.settings.input_backend).strip().lower() == "vuer"
-            and bool(self.settings.vuer_use_delta_targets)
-        )
+        return bool(self.settings.vuer_use_delta_targets)
 
     def _vuer_axis_matrix(self, device: torch.device, dtype: torch.dtype) -> torch.Tensor:
         key = (device, dtype)
@@ -405,8 +372,7 @@ class Ex001VRTeleopPlanner(TeleopPlanner):
     def _lift_action(self, joystick: torch.Tensor) -> torch.Tensor:
         """Absolute prismatic lift target.
 
-        Driven by the RIGHT joystick Y under vuer; under openxr it simply holds
-        the captured target so the 19D action vector stays consistent.
+        Driven by the RIGHT joystick Y when the embodiment has a lift joint.
         """
         if self._lift_target is None:
             self._lift_target = self._read_lift_position()
@@ -570,3 +536,8 @@ class Ex001VRTeleopPlanner(TeleopPlanner):
         self._lift_ref = None
         if self._controller is not None and hasattr(self._controller, "reset"):
             self._controller.reset()
+
+
+# Backward-compatible aliases.
+Ex001VRTeleopSettings = VuerTeleopSettings
+Ex001VRTeleopPlanner = VuerTeleopPlanner

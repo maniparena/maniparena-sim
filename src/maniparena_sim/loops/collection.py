@@ -9,10 +9,10 @@ from typing import Any
 
 from isaacsim.core.utils import stage as stage_utils
 
+from maniparena_sim.planners.ex001_vr_teleop import VuerTeleopPlanner
 from maniparena_sim.planners.keyboard_teleop import KeyboardTeleopPlanner
 from maniparena_sim.planners.master_slave_teleop import MasterSlaveTeleopPlanner
 from maniparena_sim.planners.planner_base import PlannerBase
-from maniparena_sim.planners.vr_teleop import VRTeleopPlanner
 from maniparena_sim.loops.result_types import CollectionResult
 from maniparena_sim.loops.teleop_collection import run_teleop_collection_loop
 from maniparena_sim.terms.recorders.dataset_handlers.bimanual_lerobot.helpers import (
@@ -35,7 +35,8 @@ class CollectConfig:
 
 TELEOP_PLANNER_TYPES = {
     "keyboard": KeyboardTeleopPlanner,
-    "vr": VRTeleopPlanner,
+    "vuer": VuerTeleopPlanner,
+    "vr": VuerTeleopPlanner,
     "master_slave": MasterSlaveTeleopPlanner,
 }
 
@@ -145,7 +146,7 @@ def collect(environment, config: CollectConfig) -> CollectionResult:
         working_path.mkdir(parents=True, exist_ok=True)
         hdf5_path = None
 
-    if isinstance(planner, (KeyboardTeleopPlanner, VRTeleopPlanner, MasterSlaveTeleopPlanner)):
+    if isinstance(planner, (KeyboardTeleopPlanner, VuerTeleopPlanner, MasterSlaveTeleopPlanner)):
         num_episodes, num_frames, success_count = run_teleop_collection_loop(
             environment=environment,
             planner=planner,

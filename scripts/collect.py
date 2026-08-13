@@ -16,8 +16,8 @@ Usage:
         --config configs/collect/vuer.yaml --viz kit
 
     python scripts/collect.py \
-        --task sort_blocks --control-mode vr \
-        --config configs/collect/vr.yaml --viz kit
+        --robot bimanual --task sort_blocks --control-mode vuer \
+        --config configs/collect/vuer.yaml --viz kit
 
     python scripts/collect.py \
         --task sort_blocks --control-mode master_slave \
@@ -58,7 +58,7 @@ def parse_args():
     )
     parser.add_argument(
         '--control-mode', required=True,
-        choices=['keyboard', 'vr', 'master_slave', 'vuer'],
+        choices=['keyboard', 'vuer', 'master_slave', 'vr'],
     )
     parser.add_argument('--config', required=True)
     return parser.parse_args()
@@ -88,17 +88,17 @@ def _create_planner(control_mode: str, payload: dict):
         )
         return planner
 
-    if control_mode == 'vr':
-        from maniparena_sim.planners.vr_teleop import (
-            VRTeleopPlanner,
-            VRTeleopSettings,
+    if control_mode in ('vuer', 'vr'):
+        from maniparena_sim.planners.ex001_vr_teleop import (
+            VuerTeleopPlanner,
+            VuerTeleopSettings,
         )
         settings_fields = {
             k: v for k, v in teleop_cfg.items()
-            if k in VRTeleopSettings.__dataclass_fields__
+            if k in VuerTeleopSettings.__dataclass_fields__
         }
-        planner = VRTeleopPlanner()
-        planner.settings = VRTeleopSettings(
+        planner = VuerTeleopPlanner()
+        planner.settings = VuerTeleopSettings(
             step_hz=step_hz, max_steps=max_steps,
             **settings_fields,
         )
@@ -138,15 +138,8 @@ def _create_ex001_planner(control_mode: str, payload: dict):
         # on automatically via the ex001 embodiment's diff-drive cfg.
         return _create_planner('keyboard', payload)
 
-    if control_mode in ('vr', 'vuer'):
-        from maniparena_sim.planners.ex001_vr_teleop import (
-            Ex001VRTeleopPlanner, Ex001VRTeleopSettings,
-        )
-        fields = {k: v for k, v in teleop_cfg.items() if k in Ex001VRTeleopSettings.__dataclass_fields__}
-        fields['input_backend'] = 'vuer' if control_mode == 'vuer' else 'openxr'
-        planner = Ex001VRTeleopPlanner()
-        planner.settings = Ex001VRTeleopSettings(step_hz=step_hz, max_steps=max_steps, **fields)
-        return planner
+    if control_mode in ('vuer', 'vr'):
+        return _create_planner(control_mode, payload)
 
     raise ValueError(f'Unsupported ex001 control mode: {control_mode}')
 
@@ -168,9 +161,6 @@ def main() -> int:
     args.enable_cameras = bool(
         payload.get('enable_cameras', True),
     )
-    if control_mode == 'vr':
-        args.xr = True
-
     app_launcher = AppLauncher(args)
     simulation_app = app_launcher.app
 
@@ -193,10 +183,10 @@ def main() -> int:
                 "ex001 robot supports tasks "
                 f"{list(EX001_SUPPORTED_TASKS)}, got: {args.task}"
             )
-        if control_mode not in ('keyboard', 'vr', 'vuer'):
+        if control_mode not in ('keyboard', 'vuer', 'vr'):
             raise ValueError(
                 "ex001 robot supports control modes "
-                "keyboard/vr/vuer, "
+                "keyboard/vuer, "
                 f"got: {control_mode}"
             )
         from maniparena_sim.environment.builder import (

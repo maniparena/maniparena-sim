@@ -26,7 +26,7 @@ ManipArena-Sim is the simulation environment for [**ManipArena**](https://manipa
 
 - **Bimanual** robot with SE(3) differential-IK and joint-position action spaces
 - **3 tabletop tasks**: `sort_blocks`, `fruits_to_basket`, `buttons_contact`
-- **3 teleoperation modes**: keyboard, VR (OpenXR), master-slave
+- **3 teleoperation modes**: keyboard, Vuer (Pico WebXR), master-slave
 - **Trajectory replay**: state / joint / end-effector modes from HDF5 or LeRobot datasets
 - **Policy evaluation**: closed-loop inference via WebSocket server-client architecture
 - **Data export**: `bimanual_lerobot` (Parquet + video) and `hdf5` formats
@@ -86,7 +86,7 @@ maniparena-sim/
 
 ### Data Collection
 
-Collect teleoperation demonstrations with keyboard, VR, or master-slave control:
+Collect teleoperation demonstrations with keyboard, Vuer, or master-slave control:
 
 ```bash
 # Keyboard (Kit viewport required)
@@ -97,12 +97,20 @@ python scripts/collect.py \
     --config configs/collect/keyboard.yaml \
     --viz kit
 
-# VR (OpenXR)
+# Vuer (Pico WebXR) — adb reverse, then https://vuer.ai?ws=ws://localhost:8012
+python scripts/collect.py \
+    --robot ex001 \
+    --task fruits_to_basket \
+    --control-mode vuer \
+    --config configs/collect/vuer.yaml \
+    --viz kit
+
+# Same Vuer path for the desktop bimanual arm
 python scripts/collect.py \
     --robot bimanual \
     --task sort_blocks \
-    --control-mode vr \
-    --config configs/collect/vr.yaml \
+    --control-mode vuer \
+    --config configs/collect/vuer.yaml \
     --viz kit
 
 # Master-slave arm

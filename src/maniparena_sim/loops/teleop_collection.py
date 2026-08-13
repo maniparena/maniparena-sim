@@ -31,7 +31,7 @@ def run_planner_collection(
 ) -> CollectionResult:
     """Run teleop collection with any TeleopPlanner.
 
-    Works with KeyboardTeleopPlanner, VRTeleopPlanner,
+    Works with KeyboardTeleopPlanner, VuerTeleopPlanner,
     MasterSlaveTeleopPlanner, or any TeleopPlanner subclass.
     """
     gym_env = ctx.gym_env

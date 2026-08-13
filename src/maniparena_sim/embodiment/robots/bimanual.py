@@ -11,7 +11,6 @@ import torch
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
-from isaaclab.devices.openxr import XrCfg
 from isaaclab.envs.mdp.actions import joint_actions
 from isaaclab.envs.mdp.actions.actions_cfg import (
     BinaryJointPositionActionCfg,
@@ -65,15 +64,6 @@ class ClampedRawGripperActionCfg(JointPositionActionCfg):
 
     clamp_min: float = _BIMANUAL_GRIPPER_CLOSE
     clamp_max: float = _BIMANUAL_GRIPPER_OPEN
-
-
-def _parse_env_tuple(value: str | None, count: int) -> tuple[float, ...] | None:
-    if not value:
-        return None
-    parts = [item.strip() for item in value.replace(",", " ").split() if item.strip()]
-    if len(parts) != count:
-        return None
-    return tuple(float(item) for item in parts)
 
 
 def _get_ee_world(env, ee_frame_cfg: SceneEntityCfg):
@@ -319,8 +309,6 @@ class BimanualEmbodiment(EmbodimentBase):
         self,
         enable_cameras: bool = False,
         initial_pose: Pose | None = None,
-        xr_anchor_pos: tuple[float, float, float] | None = None,
-        xr_anchor_rot: tuple[float, float, float, float] | None = None,
     ):
         super().__init__(enable_cameras=enable_cameras, initial_pose=initial_pose)
         self.scene_config = self.SceneCfg()
@@ -328,20 +316,11 @@ class BimanualEmbodiment(EmbodimentBase):
         self.action_config = self.ActionsCfg()
         self.observation_config = self.StateObservationsCfg()
         self._camera_observation_config = self.CameraObservationsCfg()
-        env_pos = _parse_env_tuple(os.environ.get("ISAACLAB_ARENA_BIMANUAL_XR_ANCHOR_POS"), 3)
-        env_rot = _parse_env_tuple(os.environ.get("ISAACLAB_ARENA_BIMANUAL_XR_ANCHOR_ROT"), 4)
-        self.xr = XrCfg(
-            anchor_pos=xr_anchor_pos or env_pos or (0.0, 0.0, 0.0),
-            anchor_rot=xr_anchor_rot or env_rot or (0.0, 0.0, 0.0, 1.0),
-        )
 
     def get_observation_cfg(self):
         if self.enable_cameras:
             return combine_configclass_instances("ObservationCfg", self.observation_config, self._camera_observation_config)
         return self.observation_config
-
-    def get_xr_cfg(self):
-        return self.xr
 
     def get_vr_gripper_clamp(self) -> dict[str, tuple[float, float]]:
         return {
