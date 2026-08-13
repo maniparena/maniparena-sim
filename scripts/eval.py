@@ -64,7 +64,6 @@ def _apply_server_overrides(pc: dict, args) -> dict:
     if address:
         host = str(address).strip()
         if ':' in host and port is None:
-            # Allow --server-address host:port when --server-port omitted.
             host, port_s = host.rsplit(':', 1)
             out['model_address'] = host
             out['model_port'] = int(port_s)
@@ -73,6 +72,36 @@ def _apply_server_overrides(pc: dict, args) -> dict:
     if port is not None:
         out['model_port'] = int(port)
     return out
+
+
+def _export_finished_episodes(
+    gym_env,
+    ctx,
+    env_ids,
+    *,
+    has_success_term: bool,
+) -> list[str]:
+    """Persist finished episodes using the same path as teleop collection."""
+    from maniparena_sim.loops.dataset_export import export_episode
+
+    if ctx.recording is None:
+        return []
+
+    saved: list[str] = []
+    for env_id in env_ids.tolist():
+        env_id = int(env_id)
+        mark_success = False
+        if has_success_term:
+            mark_success = bool(
+                gym_env.termination_manager.get_term('success')[env_id].item()
+            )
+        path = export_episode(
+            gym_env, ctx.recording, env_id, mark_success,
+        )
+        if path:
+            saved.append(path)
+            print(f'[record] episode saved to {path}')
+    return saved
 
 
 def main() -> int:
@@ -157,7 +186,7 @@ def main() -> int:
         policy = RobotClosedloopPolicy(
             RobotPolicyConfig(
                 model_address=str(pc.get('model_address', 'localhost')),
-                model_port=int(pc.get('model_port', 8000)),  # CLI may override
+                model_port=int(pc.get('model_port', 8000)),
                 instruction=str(pc.get('instruction', 'pick up the object')),
                 action_horizon=int(pc.get('action_horizon', 32)),
                 action_chunk_length=int(pc.get('action_chunk_length', 32)),
@@ -183,13 +212,16 @@ def main() -> int:
           f':{policy.cfg.model_port}')
     print(f'  Episodes:   {num_episodes}')
     print(f'  Max steps:  {max_steps} (per episode)')
+    print(f'  Output:     {ctx.output_dir}')
+    if ctx.recording is not None:
+        print(f'  Recording:  {ctx.recording.fmt} (teleop-compatible export)')
     print('=' * 60)
 
     obs, _ = gym_env.reset()
     episode_count = 0
     step_count = 0
     episode_successes: list[bool] = []
-    # Hard cap: each env runs at most max_steps, then we force-reset and count 1 episode.
+    saved_paths: list[str] = []
     max_global = num_episodes * max_steps + int(gym_env.num_envs)
     has_success_term = (
         hasattr(gym_env, 'termination_manager')
@@ -198,7 +230,6 @@ def main() -> int:
     ep_steps = torch.zeros(
         gym_env.num_envs, dtype=torch.long, device=gym_env.device,
     )
-
     progress_every = max(1, min(50, int(max_steps) // 4))
 
     with torch.inference_mode():
@@ -215,7 +246,6 @@ def main() -> int:
             timed_out = ep_steps >= int(max_steps)
             finished = done | timed_out
 
-            # Progress so it's obvious the per-episode counter is advancing.
             if int(ep_steps[0].item()) % progress_every == 0:
                 print(
                     f'[episode] {episode_count + 1}/{num_episodes} '
@@ -243,7 +273,15 @@ def main() -> int:
                     [False] * int(env_ids.numel())
                 )
 
-            # Natural done already auto-reset inside step(); only force-reset timeouts.
+            saved_paths.extend(
+                _export_finished_episodes(
+                    gym_env,
+                    ctx,
+                    env_ids,
+                    has_success_term=has_success_term,
+                )
+            )
+
             force_ids = (~done & timed_out).nonzero(
                 as_tuple=False,
             ).squeeze(-1)
@@ -297,6 +335,16 @@ def main() -> int:
             'S' if ok else 'F' for ok in episode_successes
         )
         print(f'  Per-episode:  [{flags}]')
+    if saved_paths:
+        print('  Saved datasets:')
+        for path in saved_paths:
+            print(f'    {path}')
+    elif ctx.recording is not None:
+        print('  Saved datasets: (none — no episode finished)')
+    if ctx.recording is not None and ctx.recording.exported_paths:
+        print('  LeRobot roots:')
+        for path in ctx.recording.exported_paths:
+            print(f'    {path}')
 
     try:
         if hasattr(gym_env, 'compute_metrics'):
@@ -309,6 +357,12 @@ def main() -> int:
     except Exception as exc:
         print(f'  Arena metrics: unavailable ({exc})')
     print('=' * 60)
+
+    if args.robot == 'ex001' and ctx.recording is not None:
+        from maniparena_sim.terms.recorders.streaming.file_session import (
+            drain_recorder_async_exports,
+        )
+        drain_recorder_async_exports(gym_env)
 
     policy.cleanup()
     gym_env.close()

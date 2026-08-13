@@ -1,4 +1,5 @@
 enable_cameras: true
+enable_recording: true
 num_envs: 1
 num_episodes: 10
 # Per-episode hard limit in eval.py (timeout -> reset + count 1 episode).
