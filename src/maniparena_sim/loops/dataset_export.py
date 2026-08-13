@@ -201,7 +201,7 @@ def export_episode(
 
 
 def recording_enabled(payload: dict) -> bool:
-    return bool(payload.get('enable_recording', True))
+    return bool(payload.get('enable_recording', False))
 
 
 def dataset_fps_from_scene(payload: dict, scene: Any) -> float:
