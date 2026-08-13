@@ -125,6 +125,8 @@ class CollectEnv:
     exported_paths: list[str] = field(default_factory=list)
     is_direct_lerobot: bool = False
     prefix: str = ''
+    # None → default head main + wrist previews; False → disabled.
+    stream_viewports: dict | bool | None = None
 
 
 SUPPORTED_TASKS = {
@@ -324,6 +326,7 @@ def build_collect_gym_env(
         embodiment=embodiment,
         exported_paths=exported_paths,
         is_direct_lerobot=is_direct_lerobot, prefix=prefix,
+        stream_viewports=payload.get('stream_viewports'),
     )
 
 
@@ -774,6 +777,7 @@ def build_ex001_collect_gym_env(
         gym_env=gym_env, task=task, success_term=None,
         env_name=env_name, output_dir=output_dir, embodiment=embodiment,
         exported_paths=[output_dir], is_direct_lerobot=False, prefix=prefix,
+        stream_viewports=payload.get('stream_viewports'),
     )
 
 
