@@ -1,8 +1,6 @@
-"""Vuer/WebXR controller input for non-immersive Pico teleoperation.
+"""Vuer/WebXR controller input for Pico teleoperation.
 
-This is separate from ``teleop_devices.vr``: that path uses Isaac/OpenXR
-through the NVIDIA CloudXR style immersive runtime, while this device only
-opens a browser Vuer page and reads WebXR motion-controller pose/buttons.
+Opens a browser Vuer page and reads WebXR motion-controller pose/buttons.
 """
 
 from __future__ import annotations
@@ -17,6 +15,10 @@ import torch
 from isaaclab.devices.device_base import DeviceBase, DeviceCfg
 from scipy.spatial.transform import Rotation
 
+from maniparena_sim.embodiment.teleop_devices.vuer_runtime import (
+    empty_vuer_workspace,
+    patch_vuer_idle_sleep,
+)
 from maniparena_sim.utils.debug_print import manaprint
 from maniparena_sim.utils.math_utils import quat_wxyz_normalize
 
@@ -201,14 +203,18 @@ class VuerControllerDevice(DeviceBase):
         try:
             from vuer import Vuer
             from vuer.schemas import MotionControllers
+            import vuer.server as vuer_server
         except Exception as exc:
             manaprint(f"ERROR: Vuer controller input requires the 'vuer' package: {exc}")
             return
 
+        patch_vuer_idle_sleep(vuer_server)
+        workspace_dir = empty_vuer_workspace()
         kwargs = {
             "host": self.cfg.host,
             "queries": {"grid": False},
             "queue_len": 3,
+            "workspace": workspace_dir,
         }
         if self.cfg.port is not None:
             kwargs["port"] = int(self.cfg.port)
@@ -217,11 +223,21 @@ class VuerControllerDevice(DeviceBase):
             app = Vuer(**kwargs)
         except TypeError:
             kwargs.pop("port", None)
-            app = Vuer(**kwargs)
+            try:
+                app = Vuer(**kwargs)
+            except TypeError:
+                kwargs.pop("workspace", None)
+                app = Vuer(**kwargs)
+                manaprint(
+                    "WARNING: Vuer build ignores workspace=; default cwd mount may stall Isaac when Pico connects."
+                )
 
         app.add_handler("CONTROLLER_MOVE")(self._on_controller_move)
 
         async def main(session):
+            manaprint(
+                "Vuer WebSocket connected. Enter VR on Pico, then Left-X to start teleop."
+            )
             session.upsert(
                 MotionControllers(stream=True, key="motionControllers", left=True, right=True),
                 to="bgChildren",
@@ -233,7 +249,11 @@ class VuerControllerDevice(DeviceBase):
 
         app.spawn(start=False)(main)
         url_port = self._resolve_port(self.cfg)
-        manaprint(f"Vuer controller input ready: open https://<this-computer-ip>:{url_port} on Pico.")
+        manaprint(
+            f"Vuer controller input ready: adb reverse tcp:{url_port} tcp:{url_port}, "
+            f"then open https://vuer.ai?ws=ws://localhost:{url_port} on Pico; "
+            f"workspace={workspace_dir}"
+        )
         try:
             app.run()
         except Exception as exc:
