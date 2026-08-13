@@ -412,24 +412,28 @@ def main() -> int:
             )
 
             finished_episode_no = episode_count + 1
-            if args.video and str(payload.get('video_mode', 'episode')).lower() != 'step':
+            episode_video = (
+                args.video
+                and str(payload.get('video_mode', 'episode')).lower() != 'step'
+            )
+            if episode_video:
                 _finish_episode_video(gym_env, finished_episode_no)
 
-            if env_ids.numel() > 0:
-                reason_suffix = ''
-                if (~done & timed_out).any():
-                    reason_suffix = f' timeout after {max_steps} steps'
-                    print(
-                        f'[episode]{reason_suffix} -> reset '
-                        f'(env_ids={env_ids.tolist()})'
-                    )
-                obs, _ = _reset_eval_env(gym_env, core, env_ids=env_ids)
-                if (
-                    args.video
-                    and str(payload.get('video_mode', 'episode')).lower() != 'step'
-                    and finished_episode_no < num_episodes
-                ):
-                    _start_episode_video(gym_env, finished_episode_no + 1)
+            # Natural done already auto-reset inside step(); only force-reset timeouts.
+            force_ids = (~done & timed_out).nonzero(
+                as_tuple=False,
+            ).squeeze(-1)
+            if force_ids.ndim == 0:
+                force_ids = force_ids.unsqueeze(0)
+            if force_ids.numel() > 0:
+                print(
+                    f'[episode] timeout after {max_steps} steps -> reset '
+                    f'(env_ids={force_ids.tolist()})'
+                )
+                obs, _ = _reset_eval_env(gym_env, core, env_ids=force_ids)
+
+            if episode_video and finished_episode_no < num_episodes:
+                _start_episode_video(gym_env, finished_episode_no + 1)
 
             reason = 'timeout' if bool(timed_out.any()) and not bool(done.any()) else (
                 'success' if has_success_term and bool(
