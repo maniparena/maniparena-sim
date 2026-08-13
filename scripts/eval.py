@@ -7,15 +7,18 @@ Usage:
         --robot bimanual --task sort_blocks \
         --config configs/eval/robot.yaml --viz kit
 
-    # EX001 Wall-X whole-body (21D)
+    # EX001 Wall-X whole-body (21D) + fixed third-person perspective video
     python scripts/eval.py \
         --robot ex001 --task put_bottle_on_woodshelf \
-        --config configs/eval/ex001_put_bottle.yaml --viz kit
+        --config configs/eval/ex001_put_bottle.yaml \
+        --video
 """
 
 from __future__ import annotations
 
 import argparse
+import datetime
+import os
 
 import yaml
 from isaaclab.app import AppLauncher
@@ -31,6 +34,29 @@ def parse_args():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
         description='Evaluate remote policy on maniparena robots.',
+    )
+    parser.add_argument(
+        '--video',
+        action='store_true',
+        default=False,
+        help='Record Isaac Lab perspective video clips via env.render().',
+    )
+    parser.add_argument(
+        '--video_length',
+        type=int,
+        default=None,
+        help='Steps per mp4 clip when video_mode=step (default: max_steps).',
+    )
+    parser.add_argument(
+        '--video_interval',
+        type=int,
+        default=None,
+        help='Start a step clip every N steps when video_mode=step.',
+    )
+    parser.add_argument(
+        '--log_dir',
+        default=None,
+        help='Base log directory for --video output (default: ~/maniparena_output/logs/eval).',
     )
     AppLauncher.add_app_launcher_args(parser)
     parser.add_argument(
@@ -74,6 +100,99 @@ def _apply_server_overrides(pc: dict, args) -> dict:
     return out
 
 
+def _env_core(gym_env):
+    """Return the underlying Isaac Lab env when RecordVideo wraps it."""
+    return getattr(gym_env, 'unwrapped', gym_env)
+
+
+def _resolve_log_dir(args, payload, robot: str, task: str) -> str:
+    base = args.log_dir or payload.get('log_dir') or '~/maniparena_output/logs/eval'
+    base = os.path.expanduser(str(base))
+    timestamp = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+    return os.path.join(base, f'{robot}_{task}', timestamp)
+
+
+def _video_record_wrapper(gym_env):
+    """Return the RecordVideo wrapper if ``gym_env`` is wrapped."""
+    from gymnasium.wrappers import RecordVideo
+
+    env = gym_env
+    while env is not None:
+        if isinstance(env, RecordVideo):
+            return env
+        env = getattr(env, 'env', None)
+    return None
+
+
+def _start_episode_video(gym_env, episode_index: int) -> None:
+    wrapper = _video_record_wrapper(gym_env)
+    if wrapper is None:
+        return
+    name = f'{wrapper.name_prefix}-eval-episode-{episode_index:04d}'
+    wrapper.start_recording(name)
+    wrapper._capture_frame()
+
+
+def _finish_episode_video(gym_env, episode_index: int) -> None:
+    wrapper = _video_record_wrapper(gym_env)
+    if wrapper is None or not wrapper.recording:
+        return
+    name = wrapper._video_name
+    wrapper.stop_recording()
+    if name:
+        path = os.path.join(wrapper.video_folder, f'{name}.mp4')
+        print(f'[video] saved episode {episode_index} -> {path}')
+
+
+def _reset_eval_env(gym_env, core, env_ids=None):
+    """Reset while bypassing RecordVideo for partial ``env_ids`` resets."""
+    if env_ids is None:
+        return gym_env.reset()
+    if _video_record_wrapper(gym_env) is not None:
+        return core.reset(env_ids=env_ids)
+    return gym_env.reset(env_ids=env_ids)
+
+
+def _wrap_record_video(gym_env, log_dir: str, args, payload: dict):
+    if not args.video:
+        return gym_env, None
+
+    import gymnasium as gym
+
+    video_mode = str(payload.get('video_mode', 'episode')).lower()
+    max_steps = int(payload.get('max_steps', 800))
+    video_folder = os.path.join(log_dir, 'videos', 'eval')
+    os.makedirs(video_folder, exist_ok=True)
+
+    if video_mode == 'step':
+        video_length = args.video_length or int(payload.get('video_length', max_steps))
+        video_interval = args.video_interval or int(
+            payload.get('video_interval', max_steps),
+        )
+        print(f'[video] perspective clips -> {video_folder}')
+        print(f'[video] mode=step length={video_length} interval={video_interval}')
+        wrapped = gym.wrappers.RecordVideo(
+            gym_env,
+            video_folder=video_folder,
+            step_trigger=lambda step: step % video_interval == 0,
+            video_length=video_length,
+            disable_logger=True,
+        )
+        return wrapped, video_folder
+
+    print(f'[video] perspective clips -> {video_folder}')
+    print('[video] mode=episode (flush mp4 when each eval episode finishes)')
+    wrapped = gym.wrappers.RecordVideo(
+        gym_env,
+        video_folder=video_folder,
+        episode_trigger=lambda _ep: False,
+        step_trigger=lambda _step: False,
+        video_length=0,
+        disable_logger=True,
+    )
+    return wrapped, video_folder
+
+
 def _export_finished_episodes(
     gym_env,
     ctx,
@@ -110,7 +229,7 @@ def main() -> int:
     payload = load_yaml(args.config)
     args.enable_cameras = bool(
         payload.get('enable_cameras', True)
-    )
+    ) or bool(args.video)
 
     app_launcher = AppLauncher(args)
     simulation_app = app_launcher.app
@@ -127,6 +246,9 @@ def main() -> int:
         f"[eval] policy server "
         f"{pc.get('model_address', 'localhost')}:{pc.get('model_port', 8000)}"
     )
+
+    render_mode = 'rgb_array' if args.video else None
+    log_dir = _resolve_log_dir(args, payload, args.robot, args.task) if args.video else None
 
     if args.robot == 'ex001':
         from maniparena_sim.environment.builder import (
@@ -147,6 +269,7 @@ def main() -> int:
             args.task, payload,
             headless=bool(getattr(args, 'headless', False)),
             device=getattr(args, 'device', 'cuda:0'),
+            render_mode=render_mode,
         )
         policy = Ex001WallxPolicy(
             Ex001WallxPolicyConfig(
@@ -182,6 +305,7 @@ def main() -> int:
             args.task, payload,
             headless=bool(getattr(args, 'headless', False)),
             device=getattr(args, 'device', 'cuda:0'),
+            render_mode=render_mode,
         )
         policy = RobotClosedloopPolicy(
             RobotPolicyConfig(
@@ -200,7 +324,8 @@ def main() -> int:
         )
         policy_name = 'RobotClosedloopPolicy'
 
-    gym_env = ctx.gym_env
+    gym_env, video_folder = _wrap_record_video(ctx.gym_env, log_dir, args, payload)
+    core = _env_core(gym_env)
     num_episodes = int(payload.get('num_episodes', 10))
     max_steps = int(payload.get('max_steps', 800))
 
@@ -213,22 +338,26 @@ def main() -> int:
     print(f'  Episodes:   {num_episodes}')
     print(f'  Max steps:  {max_steps} (per episode)')
     print(f'  Output:     {ctx.output_dir}')
+    if video_folder:
+        print(f'  Video:      {video_folder}')
     if ctx.recording is not None:
         print(f'  Recording:  {ctx.recording.fmt} (teleop-compatible export)')
     print('=' * 60)
 
     obs, _ = gym_env.reset()
+    if args.video and str(payload.get('video_mode', 'episode')).lower() != 'step':
+        _start_episode_video(gym_env, 1)
     episode_count = 0
     step_count = 0
     episode_successes: list[bool] = []
     saved_paths: list[str] = []
-    max_global = num_episodes * max_steps + int(gym_env.num_envs)
+    max_global = num_episodes * max_steps + int(core.num_envs)
     has_success_term = (
-        hasattr(gym_env, 'termination_manager')
-        and 'success' in gym_env.termination_manager.active_terms
+        hasattr(core, 'termination_manager')
+        and 'success' in core.termination_manager.active_terms
     )
     ep_steps = torch.zeros(
-        gym_env.num_envs, dtype=torch.long, device=gym_env.device,
+        core.num_envs, dtype=torch.long, device=core.device,
     )
     progress_every = max(1, min(50, int(max_steps) // 4))
 
@@ -236,7 +365,7 @@ def main() -> int:
         for _ in range(max_global):
             if not simulation_app.is_running():
                 break
-            actions = policy.get_actions(gym_env, obs)
+            actions = policy.get_actions(core, obs)
             obs, _, terminated, truncated, _ = gym_env.step(
                 actions,
             )
@@ -262,7 +391,7 @@ def main() -> int:
                 env_ids = env_ids.unsqueeze(0)
 
             if has_success_term:
-                succ = gym_env.termination_manager.get_term(
+                succ = core.termination_manager.get_term(
                     'success',
                 )[env_ids]
                 episode_successes.extend(
@@ -275,28 +404,36 @@ def main() -> int:
 
             saved_paths.extend(
                 _export_finished_episodes(
-                    gym_env,
+                    core,
                     ctx,
                     env_ids,
                     has_success_term=has_success_term,
                 )
             )
 
-            force_ids = (~done & timed_out).nonzero(
-                as_tuple=False,
-            ).squeeze(-1)
-            if force_ids.ndim == 0:
-                force_ids = force_ids.unsqueeze(0)
-            if force_ids.numel() > 0:
-                print(
-                    f'[episode] timeout after {max_steps} steps -> reset '
-                    f'(env_ids={force_ids.tolist()})'
-                )
-                obs, _ = gym_env.reset(env_ids=force_ids)
+            finished_episode_no = episode_count + 1
+            if args.video and str(payload.get('video_mode', 'episode')).lower() != 'step':
+                _finish_episode_video(gym_env, finished_episode_no)
+
+            if env_ids.numel() > 0:
+                reason_suffix = ''
+                if (~done & timed_out).any():
+                    reason_suffix = f' timeout after {max_steps} steps'
+                    print(
+                        f'[episode]{reason_suffix} -> reset '
+                        f'(env_ids={env_ids.tolist()})'
+                    )
+                obs, _ = _reset_eval_env(gym_env, core, env_ids=env_ids)
+                if (
+                    args.video
+                    and str(payload.get('video_mode', 'episode')).lower() != 'step'
+                    and finished_episode_no < num_episodes
+                ):
+                    _start_episode_video(gym_env, finished_episode_no + 1)
 
             reason = 'timeout' if bool(timed_out.any()) and not bool(done.any()) else (
                 'success' if has_success_term and bool(
-                    gym_env.termination_manager.get_term('success')[env_ids].any()
+                    core.termination_manager.get_term('success')[env_ids].any()
                 ) else 'done'
             )
             print(
@@ -347,8 +484,8 @@ def main() -> int:
             print(f'    {path}')
 
     try:
-        if hasattr(gym_env, 'compute_metrics'):
-            metrics = gym_env.compute_metrics()
+        if hasattr(core, 'compute_metrics'):
+            metrics = core.compute_metrics()
             entries = getattr(metrics, 'metric_data_entries', {}) or {}
             if entries:
                 print('  Arena metrics:')
@@ -362,7 +499,7 @@ def main() -> int:
         from maniparena_sim.terms.recorders.streaming.file_session import (
             drain_recorder_async_exports,
         )
-        drain_recorder_async_exports(gym_env)
+        drain_recorder_async_exports(core)
 
     policy.cleanup()
     gym_env.close()
