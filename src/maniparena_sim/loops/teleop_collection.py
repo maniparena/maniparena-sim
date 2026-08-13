@@ -2,13 +2,26 @@
 
 from __future__ import annotations
 
-import os
 from types import SimpleNamespace
 
 import torch
 
 from maniparena_sim.environment.builder import CollectEnv
+from maniparena_sim.loops.dataset_export import export_episode
 from maniparena_sim.loops.result_types import CollectionResult
+
+
+def _recording_layout_from_ctx(ctx: CollectEnv):
+    from maniparena_sim.loops.dataset_export import RecordingLayout
+
+    return RecordingLayout(
+        env_name=ctx.env_name,
+        output_dir=ctx.output_dir,
+        prefix=ctx.prefix,
+        bootstrap_name=f'{ctx.prefix}_bootstrap',
+        exported_paths=list(ctx.exported_paths),
+        is_direct_lerobot=ctx.is_direct_lerobot,
+    )
 
 
 def run_planner_collection(
@@ -22,7 +35,7 @@ def run_planner_collection(
     MasterSlaveTeleopPlanner, or any TeleopPlanner subclass.
     """
     gym_env = ctx.gym_env
-    rm = gym_env.recorder_manager
+    layout = _recording_layout_from_ctx(ctx)
 
     planner_env = SimpleNamespace(
         device=gym_env.device,
@@ -44,49 +57,17 @@ def run_planner_collection(
             if hasattr(gym_env, attr):
                 getattr(gym_env, attr).zero_()
 
-    def _next_hdf5_name():
-        idx = 0
-        while True:
-            name = f'{ctx.prefix}_episode{idx}'
-            path = os.path.join(
-                ctx.output_dir, f'{name}.hdf5',
-            )
-            if not os.path.exists(path):
-                return name
-            idx += 1
-
     def _export(mark_success: bool):
         nonlocal success_count, episode_count
         episode_count += 1
         if mark_success:
             success_count += 1
-        rm.record_pre_reset(
-            [0], force_export_or_skip=False,
-        )
-        rm.set_success_to_episodes(
-            [0],
-            torch.tensor(
-                [mark_success], dtype=torch.bool,
-                device=gym_env.device,
-            ),
-        )
-        if ctx.is_direct_lerobot:
-            rm.export_episodes([0])
-            return
-        ep_name = _next_hdf5_name()
-        rm.cfg.dataset_filename = ep_name
-        fh = rm.cfg.dataset_file_handler_class_type()
-        fh.create(
-            os.path.join(ctx.output_dir, ep_name),
-            env_name=ctx.env_name,
-        )
-        rm._dataset_file_handler = fh
-        rm.export_episodes([0])
-        fh.close()
-        rm._dataset_file_handler = None
+        path = export_episode(gym_env, layout, 0, mark_success)
+        if path:
+            print(f'[record] saved episode to {path}')
 
     def _reset_env():
-        rm.reset([0])
+        gym_env.recorder_manager.reset([0])
         # Prefer env.reset() only: sim.reset() after Fabric is up triggers
         # "Fabric Kinematics already initialized" and can skip root pose writes.
         gym_env.reset()

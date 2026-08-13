@@ -456,6 +456,7 @@ class EvalEnv:
     task: Any
     env_name: str
     output_dir: str
+    recording: Any = None
 
 
 def build_eval_gym_env(
@@ -468,6 +469,7 @@ def build_eval_gym_env(
     from isaaclab_arena.environments.arena_env_builder import ArenaEnvBuilder
     from isaaclab_arena.environments.isaaclab_arena_environment import IsaacLabArenaEnvironment
 
+    from maniparena_sim.loops.dataset_export import recording_enabled
     from maniparena_sim.utils.camera_utils import deactivate_robot_camera_prims
 
     enable_cameras = bool(payload.get('enable_cameras', True))
@@ -508,30 +510,63 @@ def build_eval_gym_env(
     ):
         env_cfg.observations.policy.concatenate_terms = False
 
+    recording = None
+    if recording_enabled(payload):
+        from maniparena_sim.loops.dataset_export import (
+            configure_env_recorder,
+            dataset_fps_from_scene,
+            finalize_bimanual_recorder,
+            resolve_recording_layout,
+        )
+
+        working_path = str(
+            payload.get('working_path', '~/maniparena_output/eval/'),
+        )
+        fmt = str(payload.get('format', 'bimanual_lerobot'))
+        recording = resolve_recording_layout(
+            working_path=working_path,
+            env_name=env_name,
+            task_prompt=str(instruction or task.get_prompt()),
+            device_tag='eval',
+            fmt=fmt,
+            dataset_fps=dataset_fps_from_scene(payload, scene),
+        )
+        boot_f = os.path.join(
+            recording.output_dir, f'{recording.bootstrap_name}.hdf5',
+        )
+        if os.path.exists(boot_f):
+            os.remove(boot_f)
+        configure_env_recorder(
+            env_cfg, recording, enable_cameras=enable_cameras,
+        )
+
     gym_env = _make_unwrapped_gym_env(reg_name, env_cfg, env_kwargs)
     apply_carb_settings(
         getattr(scene, 'render_carb_dict', None) or {},
     )
+
+    if recording is not None:
+        finalize_bimanual_recorder(gym_env, recording)
 
     if not enable_cameras:
         n = deactivate_robot_camera_prims(logger=print)
         if n:
             print(f'deactivated {n} USD camera prim(s)')
 
-    working_path = str(
-        payload.get(
-            'working_path',
-            '~/maniparena_output/eval/',
+    output_dir = (
+        recording.output_dir if recording is not None
+        else str(
+            Path(os.path.expanduser(
+                payload.get('working_path', '~/maniparena_output/eval/'),
+            )) / env_name
         )
-    )
-    output_dir = str(
-        Path(os.path.expanduser(working_path)) / env_name
     )
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
     return EvalEnv(
         gym_env=gym_env, task=task,
         env_name=env_name, output_dir=output_dir,
+        recording=recording,
     )
 
 
@@ -758,6 +793,7 @@ def build_ex001_eval_gym_env(
     from isaaclab_arena.environments.arena_env_builder import ArenaEnvBuilder
     from isaaclab_arena.environments.isaaclab_arena_environment import IsaacLabArenaEnvironment
 
+    from maniparena_sim.loops.dataset_export import recording_enabled
     from maniparena_sim.embodiment.robots.ex001 import EX001Embodiment
     from maniparena_sim.utils.camera_utils import deactivate_robot_camera_prims
 
@@ -794,7 +830,6 @@ def build_ex001_eval_gym_env(
         sim_fps=getattr(scene, 'sim_fps', 120),
         render_interval=getattr(scene, 'render_decremental', 2),
     )
-    env_cfg.recorders = None
     if hasattr(env_cfg, 'terminations'):
         env_cfg.terminations.time_out = None
     if (
@@ -803,27 +838,66 @@ def build_ex001_eval_gym_env(
     ):
         env_cfg.observations.policy.concatenate_terms = False
 
+    recording = None
+    if recording_enabled(payload):
+        from maniparena_sim.loops.dataset_export import (
+            RecordingLayout,
+            configure_env_recorder,
+            finalize_ex001_recorder,
+        )
+        from maniparena_sim.terms.recorders.streaming.hdf5_handler import PlainHDF5DatasetFileHandler
+
+        working_path = str(
+            payload.get('working_path', '~/maniparena_output/eval/'),
+        )
+        output_dir = str(Path(os.path.expanduser(working_path)) / env_name)
+        Path(output_dir).mkdir(parents=True, exist_ok=True)
+        prefix = f'{env_name}_eval'
+        bootstrap_name = f'{prefix}_bootstrap'
+        boot_f = os.path.join(output_dir, f'{bootstrap_name}.hdf5')
+        if os.path.exists(boot_f):
+            os.remove(boot_f)
+        recording = RecordingLayout(
+            env_name=env_name,
+            output_dir=output_dir,
+            prefix=prefix,
+            bootstrap_name=bootstrap_name,
+            exported_paths=[output_dir],
+            handler_type=PlainHDF5DatasetFileHandler,
+            fmt='hdf5',
+        )
+        configure_env_recorder(
+            env_cfg,
+            recording,
+            enable_cameras=enable_cameras,
+            handler_type=PlainHDF5DatasetFileHandler,
+        )
+
     gym_env = _make_unwrapped_gym_env(reg_name, env_cfg, env_kwargs)
     apply_carb_settings(
         getattr(scene, 'render_carb_dict', None) or {},
     )
+
+    if recording is not None:
+        finalize_ex001_recorder(gym_env, recording, payload)
+
     if not enable_cameras:
         n = deactivate_robot_camera_prims(logger=print)
         if n:
             print(f'deactivated {n} USD camera prim(s)')
 
-    working_path = str(
-        payload.get(
-            'working_path',
-            '~/maniparena_output/eval/',
+    output_dir = (
+        recording.output_dir if recording is not None
+        else str(
+            Path(os.path.expanduser(
+                payload.get('working_path', '~/maniparena_output/eval/'),
+            )) / env_name
         )
-    )
-    output_dir = str(
-        Path(os.path.expanduser(working_path)) / env_name
     )
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
     return EvalEnv(
         gym_env=gym_env, task=task,
         env_name=env_name, output_dir=output_dir,
+        recording=recording,
     )
