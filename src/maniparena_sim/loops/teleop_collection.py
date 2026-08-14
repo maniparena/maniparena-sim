@@ -9,6 +9,7 @@ import torch
 from maniparena_sim.environment.builder import CollectEnv
 from maniparena_sim.loops.dataset_export import export_episode
 from maniparena_sim.loops.result_types import CollectionResult
+from maniparena_sim.loops.stream_viewports import StreamViewportBinder
 
 
 def _recording_layout_from_ctx(ctx: CollectEnv):
@@ -52,6 +53,13 @@ def run_planner_collection(
     episode_count = 0
     total_frames = 0
 
+    camera_bundle = getattr(ctx.embodiment, 'camera_config', None)
+    viewport_binder = StreamViewportBinder(
+        camera_bundle=camera_bundle,
+        stream_viewports=ctx.stream_viewports,
+        enabled=camera_bundle is not None,
+    )
+
     def _clear_task_state():
         for attr in ('_buttons_contact_history_state',):
             if hasattr(gym_env, attr):
@@ -77,6 +85,7 @@ def run_planner_collection(
     gym_env.reset()
     _clear_task_state()
     planner.prepare_episode(gym_env, {})
+    viewport_binder.try_open(gym_env)
     act_dim = gym_env.action_manager.action.shape[-1]
 
     while simulation_app.is_running():
@@ -107,6 +116,7 @@ def run_planner_collection(
             action,
         )
         total_frames += 1
+        viewport_binder.try_open(gym_env)
 
         if (terminated | truncated).any().item():
             _clear_task_state()
@@ -114,6 +124,7 @@ def run_planner_collection(
             planner.prepare_episode(gym_env, obs)
             continue
 
+    viewport_binder.close()
     planner.cleanup()
     return CollectionResult(
         env_name=ctx.env_name,

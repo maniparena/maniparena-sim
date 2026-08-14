@@ -8,3 +8,13 @@ async_writer: false
 stager_chunk_size: 32
 teleop_config:
   vuer_port: 8012
+# Default Kit Viewport → head; extra windows → left / right wrists.
+stream_viewports:
+  width: 640
+  height: 480
+  position_x: 1280
+  position_y: 0
+  main_camera: head_camera
+  cameras:
+    - left_wrist_camera
+    - right_wrist_camera

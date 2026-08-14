@@ -10,3 +10,12 @@ teleop_config:
   remote_port: 5555
   reconnect_interval: 2.0
   debug: false
+stream_viewports:
+  width: 640
+  height: 480
+  position_x: 1280
+  position_y: 0
+  main_camera: head_camera
+  cameras:
+    - left_wrist_camera
+    - right_wrist_camera

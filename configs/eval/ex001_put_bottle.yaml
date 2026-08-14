@@ -3,8 +3,22 @@ enable_recording: true
 num_envs: 1
 num_episodes: 10
 # Per-episode hard limit in eval.py (timeout -> reset + count 1 episode).
+# 2000 ≈ long mobile-manip episode; use 100~300 first to verify reset works.
 max_steps: 2000
 working_path: "~/maniparena_output/eval/"
+# Third-person perspective for --video (world-frame eye / lookat in metres).
+viewer_cfg:
+  origin_type: world
+  eye: [-1.0, 1.8, 1.5]
+  lookat: [0.55, -0.85, 0.55]
+# Fixed perspective recorder (independent of Kit viewport drag).
+video_recorder:
+  backend_source: renderer
+  window_width: 1280
+  window_height: 720
+# One mp4 per eval episode (--video); use video_mode: step for fixed step clips.
+video_mode: episode
+
 policy_config:
   model_address: "localhost"
   model_port: 8000
