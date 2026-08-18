@@ -586,6 +586,7 @@ def build_eval_gym_env(
             os.remove(boot_f)
         configure_env_recorder(
             env_cfg, recording, enable_cameras=enable_cameras,
+            export_on_reset=True,
         )
 
     gym_env = _make_unwrapped_gym_env(
@@ -596,7 +597,11 @@ def build_eval_gym_env(
     )
 
     if recording is not None:
-        finalize_bimanual_recorder(gym_env, recording)
+        # Must export in record_pre_reset: step()-side auto-reset clears the
+        # episode buffer in recorder_manager.reset() before eval can flush.
+        finalize_bimanual_recorder(
+            gym_env, recording, export_on_reset=True,
+        )
 
     if not enable_cameras:
         n = deactivate_robot_camera_prims(logger=print)
@@ -926,6 +931,7 @@ def build_ex001_eval_gym_env(
             recording,
             enable_cameras=enable_cameras,
             handler_type=PlainHDF5DatasetFileHandler,
+            export_on_reset=True,
         )
 
     gym_env = _make_unwrapped_gym_env(
@@ -936,7 +942,10 @@ def build_ex001_eval_gym_env(
     )
 
     if recording is not None:
-        finalize_ex001_recorder(gym_env, recording, payload)
+        # Same as bimanual: flush in record_pre_reset before buffer clear.
+        finalize_ex001_recorder(
+            gym_env, recording, payload, export_on_reset=True,
+        )
 
     if not enable_cameras:
         n = deactivate_robot_camera_prims(logger=print)

@@ -197,18 +197,17 @@ def main(args: argparse.Namespace | None = None) -> int:
                     print("[INFO] reset: robot returned to initial pose.")
                     continue
 
-                # Sum keyboard twist + latest /chassis/cmd_vel -> wheel slots.
+                # Sum keyboard twist + latest /chassis/cmd_vel (with timeout) -> wheels.
                 k_lin, _, k_ang = kb.twist()
-                c_lin = c_ang = 0.0
-                buf = getattr(ros_ext, "_cmd_vel_buffer", None)
-                if buf is not None:
-                    c_lin, _c_y, c_ang = buf.as_tuple()
+                sim_t = float(getattr(ros_ext, "_sim_time_acc", 0.0)) + float(gym_env.step_dt)
+                c_lin, _c_y, c_ang = ros_ext.latest_cmd_vel(sim_t)
                 lw, rw = _twist_to_wheels(k_lin + c_lin, k_ang + c_ang)
                 if left_wheel_slot is not None:
                     actions[0, left_wheel_slot] = lw
                 if right_wheel_slot is not None:
                     actions[0, right_wheel_slot] = rw
 
+                ros_ext.stamp_simulation_time()
                 gym_env.step(actions)
                 ros_ext.update(gym_env.step_dt)
     except KeyboardInterrupt:
