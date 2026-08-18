@@ -7,6 +7,23 @@ from maniparena_sim.ros.stamp_utils import copy_stamp
 
 from .sim_utils import get_body_pose, get_root_pose
 
+# Bolted to the chassis. Dynamic /tf can lag the RTX /scan stamp; RViz then
+# fails with "extrapolation into the future". These frames stay on /tf_static.
+CHASSIS_STATIC_FRAMES = frozenset(
+    {
+        "a_d_laser",
+        "a_d_laser_base",
+        "a_d_laser_link",
+        "camera_chassis_front_depth_optical_frame",
+        "camera_chassis_front_depth_frame",
+        "camera_chassis_front_color_optical_frame",
+        "camera_chassis_front_color_frame",
+        "camera_chassis_front_link",
+        "base_front_camera_frame_link",
+        "imu_link",
+    }
+)
+
 
 class OdomOrigin:
     """Shared odom origin state."""
@@ -121,6 +138,8 @@ class TfPublisher:
 
         transforms = []
         for child_name, parent_name in self.parent_map.items():
+            if child_name in CHASSIS_STATIC_FRAMES:
+                continue
             if child_name not in body_poses or parent_name not in body_poses:
                 continue
             child_pos, child_quat = body_poses[child_name]
@@ -136,7 +155,7 @@ class TfPublisher:
         root_pos, root_quat = get_root_pose(obs)
         transforms = []
         for idx, body_name in enumerate(body_names_list):
-            if body_name == "base_link":
+            if body_name == "base_link" or body_name in CHASSIS_STATIC_FRAMES:
                 continue
             body_pos, body_quat = get_body_pose(obs, idx)
             if body_pos is None:
@@ -148,6 +167,21 @@ class TfPublisher:
             self.broadcaster.sendTransform(transforms)
 
     # -- top-level entry point ---------------------------------------------
+
+    def publish_static_on_base(self, obs, body_names_list, stamp, broadcaster):
+        """Publish chassis-fixed frames as ``base_link -> child`` on /tf_static."""
+        root_pos, root_quat = get_root_pose(obs)
+        transforms = []
+        for idx, body_name in enumerate(body_names_list):
+            if body_name not in CHASSIS_STATIC_FRAMES:
+                continue
+            body_pos, body_quat = get_body_pose(obs, idx)
+            if body_pos is None:
+                continue
+            position, orientation = compute_relative_pose(body_pos, body_quat, root_pos, root_quat)
+            transforms.append(self._build_transform("base_link", body_name, position, orientation, stamp))
+        if transforms:
+            broadcaster.sendTransform(transforms)
 
     def publish_all(self, obs, body_names_list, stamp):
         """Publish all TF transforms (every *publish_interval*-th call)."""
