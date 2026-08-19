@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import shutil
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -126,21 +125,6 @@ def write_lerobot_parquet(parquet_path: str | Path, *, action: np.ndarray, state
     return parquet_path
 
 
-def _resolve_ffmpeg() -> str:
-    """Prefer system ffmpeg; fall back to the imageio-ffmpeg wheel binary."""
-    path = shutil.which("ffmpeg")
-    if path:
-        return path
-    try:
-        import imageio_ffmpeg
-
-        return imageio_ffmpeg.get_ffmpeg_exe()
-    except Exception as exc:
-        raise FileNotFoundError(
-            "ffmpeg not found on PATH; install system ffmpeg or imageio-ffmpeg",
-        ) from exc
-
-
 def write_video(frames: np.ndarray, video_path: str | Path, fps: float) -> None:
     frames = np.asarray(frames, dtype=np.uint8)
     if len(frames) == 0:
@@ -149,7 +133,7 @@ def write_video(frames: np.ndarray, video_path: str | Path, fps: float) -> None:
     video_path.parent.mkdir(parents=True, exist_ok=True)
     height, width = int(frames.shape[1]), int(frames.shape[2])
     command = [
-        _resolve_ffmpeg(),
+        "ffmpeg",
         "-y",
         "-f",
         "rawvideo",
@@ -314,25 +298,14 @@ class BimanualLeRobotDatasetFileHandler(DatasetFileHandlerBase):
         del dataset_compression
         self._raise_if_not_initialized()
         if episode.is_empty() or episode.get_action(0) is None:
-            print('[record] skip lerobot export: empty episode or missing actions')
             return
-        try:
-            payload = self._extract_episode_payload(episode)
-        except ValueError as exc:
-            print(f'[record] skip lerobot export: {exc}')
-            return
+        payload = self._extract_episode_payload(episode)
         if payload is None:
-            print('[record] skip lerobot export: empty payload')
             return
         joint_action, ee_action, camera_frames, num_frames = payload
         episode_index = int(self._next_episode_index if demo_id is None else demo_id)
         self._next_episode_index = max(self._next_episode_index, episode_index + 1)
         chunk = episode_index // CHUNK_SIZE
-        if not camera_frames:
-            print(
-                '[record] warning: no camera_obs frames '
-                '(enable_cameras + camera_obs recorder required for MP4)'
-            )
         for representation, action, names in (("joint", joint_action, JOINT_VECTOR_NAMES), ("ee", ee_action, EE_VECTOR_NAMES)):
             state = build_lagged_state(action)
             global_start = self._total_frames[representation]
@@ -371,11 +344,6 @@ class BimanualLeRobotDatasetFileHandler(DatasetFileHandlerBase):
             )
             self._total_frames[representation] += num_frames
             self._write_metadata(representation, names)
-        cam_names = ','.join(sorted(camera_frames.keys())) or 'none'
-        print(
-            f'[record] lerobot episode {episode_index} '
-            f'frames={num_frames} cameras=[{cam_names}]'
-        )
 
     def flush(self):
         if self._initialized:

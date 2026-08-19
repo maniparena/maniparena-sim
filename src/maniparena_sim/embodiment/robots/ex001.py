@@ -285,7 +285,7 @@ class EX001Embodiment(EmbodimentBase):
         ``joint_pos`` covers every non-wheel joint with ABSOLUTE position targets
         (``use_default_offset=False``); the nav loop seeds the action vector with
         the robot's default joint positions so an idle command holds the pose and
-        SDK ``*_controller/commands`` topics write absolute targets directly.
+        ``/mock_robot_interface/command`` writes absolute targets directly.
         ``base_action`` drives the two wheels by velocity (summed keyboard +
         ``/chassis/cmd_vel``), so everything flows through one ``env.step``.
         """

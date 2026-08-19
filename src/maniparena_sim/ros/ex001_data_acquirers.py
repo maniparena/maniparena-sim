@@ -1,13 +1,12 @@
-"""EX001 data acquirer functions for the SDK ROS2 bridge.
+"""EX001 data acquirer functions for the ROS2 navigation bridge.
 
 Each acquirer has the signature ``(obs, extras, ...) -> ROS msg`` and is
 registered by :func:`fill_data_acquirer` into the communicator's data-acquirer
-dict. Camera *scene* keys stay ManipArena-local; SDK *topic* names are fixed.
+dict.
 """
 
 from typing import Any, Callable
 
-from maniparena_sim.ros.ex001_sdk_topics import sim_gripper_to_sdk
 from maniparena_sim.ros.message_builder import MessageBuilder
 from maniparena_sim.ros.ros2_config import EX001RosConfig
 from maniparena_sim.ros.sim_utils import camera_cache
@@ -30,14 +29,13 @@ def bind_with_dynamic_stamp(
     return callback
 
 
-def acquirer_all_joint_states(obs, extras, joint_mapping, stamp):
-    names = list(joint_mapping.joint_names)
-    indices = list(range(len(names)))
+# ── Individual acquirer functions ────────────────────────────────────────────
+
+
+def acquirer_mock_robot_state(obs, extras, joint_mapping, stamp):
+    indices = joint_mapping.all_controlled_indices
+    names = [joint_mapping.joint_names[i] for i in indices]
     return MessageBuilder.joint_states(obs, indices, names, stamp)
-
-
-def acquirer_arm_joint_states(obs, extras, joint_indices, joint_names, stamp):
-    return MessageBuilder.joint_states(obs, list(joint_indices), list(joint_names), stamp)
 
 
 def acquirer_head_joint_states(obs, extras, joint_mapping, stamp):
@@ -49,20 +47,8 @@ def acquirer_head_joint_states(obs, extras, joint_mapping, stamp):
     )
 
 
-def acquirer_lift_joint_states(obs, extras, joint_mapping, stamp):
-    return MessageBuilder.joint_states(obs, [joint_mapping.lift[0]], ["lift_joint"], stamp)
-
-
-def acquirer_gripper_joint_states(obs, extras, joint_index, joint_name, stamp):
-    msg = MessageBuilder.joint_states(obs, [joint_index], [joint_name], stamp)
-    if msg is None or not msg.position:
-        return msg
-    msg.position = [sim_gripper_to_sdk(msg.position[0])]
-    return msg
-
-
-def acquirer_arm_end_pose(obs, extras, body_index, stamp):
-    return MessageBuilder.pose_stamped_from_body(obs, body_index, stamp)
+def acquirer_chassis_odom(obs, extras, odom_origin, stamp):
+    return MessageBuilder.odom(obs, stamp, odom_origin, _ODOM_CFG)
 
 
 def acquirer_chassis_imu(obs, extras, stamp):
@@ -93,13 +79,7 @@ def acquirer_camera_head_front_color_compressed(obs, extras, stamp):
     return MessageBuilder.compressed_rgb(obs, "head_front_color_camera", stamp, _CAMERA_CONFIG)
 
 
-def acquirer_camera_head_front_depth_compressed(obs, extras, stamp):
-    return MessageBuilder.compressed_depth(obs, "head_front_depth_camera", stamp, _CAMERA_CONFIG, camera_cache)
-
-
-def acquirer_tf_static(obs, extras, stamp):
-    # Published by StaticTransformBroadcaster in RosBridgeExtension.
-    return None
+# ── Registration ─────────────────────────────────────────────────────────────
 
 
 def fill_data_acquirer(
@@ -107,60 +87,28 @@ def fill_data_acquirer(
     joint_mapping,
     stamp_holder,
     odom_origin,
-    env=None,
+    env,
 ):
-    """Register SDK data acquirer callbacks into *data_acquirer* dict.
-
-    ``/scan`` is published by the Isaac Sim RTX lidar assembler, not here.
-    ``env`` is accepted for call-site compatibility and unused.
-    """
-    del env
+    """Register all data acquirer callbacks into *data_acquirer* dict (2D nav)."""
     s = stamp_holder
 
-    data_acquirer["/joint_states"] = bind_with_dynamic_stamp(acquirer_all_joint_states, s, joint_mapping)
-    data_acquirer["/left_arm/joint_states"] = bind_with_dynamic_stamp(
-        acquirer_arm_joint_states,
-        s,
-        getattr(joint_mapping, "left_arm", ()),
-        [f"left_arm_joint{i}" for i in range(1, 7)],
-    )
-    data_acquirer["/right_arm/joint_states"] = bind_with_dynamic_stamp(
-        acquirer_arm_joint_states,
-        s,
-        getattr(joint_mapping, "right_arm", ()),
-        [f"right_arm_joint{i}" for i in range(1, 7)],
-    )
+    data_acquirer["/mock_robot_interface/state"] = bind_with_dynamic_stamp(acquirer_mock_robot_state, s, joint_mapping)
     data_acquirer["/head/joint_states"] = bind_with_dynamic_stamp(acquirer_head_joint_states, s, joint_mapping)
-    data_acquirer["/lift/joint_states"] = bind_with_dynamic_stamp(acquirer_lift_joint_states, s, joint_mapping)
-    left_gripper = getattr(joint_mapping, "left_gripper", [0])
-    right_gripper = getattr(joint_mapping, "right_gripper", [0])
-    data_acquirer["/left_gripper/joint_states"] = bind_with_dynamic_stamp(
-        acquirer_gripper_joint_states, s, left_gripper[0], "left_arm_gripper"
-    )
-    data_acquirer["/right_gripper/joint_states"] = bind_with_dynamic_stamp(
-        acquirer_gripper_joint_states, s, right_gripper[0], "right_arm_gripper"
-    )
-    left_ee = getattr(joint_mapping, "left_gripper_body", [0])
-    right_ee = getattr(joint_mapping, "right_gripper_body", [0])
-    data_acquirer["/left_arm/end_pose"] = bind_with_dynamic_stamp(acquirer_arm_end_pose, s, int(left_ee[0]))
-    data_acquirer["/right_arm/end_pose"] = bind_with_dynamic_stamp(acquirer_arm_end_pose, s, int(right_ee[0]))
-    data_acquirer["/odom"] = bind_with_dynamic_stamp(acquirer_odom, s, odom_origin)
-    data_acquirer["/tracked_pose"] = bind_with_dynamic_stamp(acquirer_tracked_pose, s)
-    data_acquirer["/tf_static"] = bind_with_dynamic_stamp(acquirer_tf_static, s)
+    data_acquirer["/chassis/odom"] = bind_with_dynamic_stamp(acquirer_chassis_odom, s, odom_origin)
     data_acquirer["/hal/chassis/imu"] = bind_with_dynamic_stamp(acquirer_chassis_imu, s)
+    data_acquirer["/tracked_pose"] = bind_with_dynamic_stamp(acquirer_tracked_pose, s)
+    data_acquirer["/odom"] = bind_with_dynamic_stamp(acquirer_odom, s, odom_origin)
 
+    # Camera streams.
     data_acquirer["/camera_chassis_front/depth/points"] = bind_with_dynamic_stamp(
         acquirer_camera_chassis_front_depth_points, s
-    )
-    data_acquirer["/camera_head_front/color/image_raw/compressed"] = bind_with_dynamic_stamp(
-        acquirer_camera_head_front_color_compressed, s
-    )
-    data_acquirer["/camera_head_front/depth/image_raw/compressedDepth"] = bind_with_dynamic_stamp(
-        acquirer_camera_head_front_depth_compressed, s
     )
     data_acquirer["/camera1/usb_cam1/image_raw/image_compressed"] = bind_with_dynamic_stamp(
         acquirer_camera1_image_compressed, s
     )
     data_acquirer["/camera3/usb_cam3/image_raw/image_compressed"] = bind_with_dynamic_stamp(
         acquirer_camera3_image_compressed, s
+    )
+    data_acquirer["/camera_head_front/color/image_raw/compressed"] = bind_with_dynamic_stamp(
+        acquirer_camera_head_front_color_compressed, s
     )

@@ -1,9 +1,7 @@
-"""EX001 control callbacks for the SDK ROS2 bridge.
+"""EX001 control callback functions for the ROS2 navigation bridge.
 
-Nav uses ``ActionsCfgNav`` (one ``joint_pos`` term + wheel velocity). Callbacks
-write absolute joint targets into the shared action buffer via *slot_map*
-(``joint_name -> action slot``). Gripper commands stay on the SDK ``0–4.5``
-range and are converted to sim joint units here.
+Each callback function processes an incoming ROS message and writes into
+the shared action buffer or movement controller.
 """
 
 from __future__ import annotations
@@ -11,11 +9,6 @@ from __future__ import annotations
 import threading
 from dataclasses import dataclass, field
 from functools import partial
-
-from maniparena_sim.ros.ex001_sdk_topics import sdk_gripper_to_sim
-
-_LEFT_ARM_JOINTS = tuple(f"left_arm_joint{i}" for i in range(1, 7))
-_RIGHT_ARM_JOINTS = tuple(f"right_arm_joint{i}" for i in range(1, 7))
 
 
 @dataclass
@@ -47,32 +40,24 @@ class CmdVelCommandBuffer:
             return self.sequence, (self.linear_x, self.linear_y, self.angular_z)
 
 
-def _slots_for_names(slot_map: dict[str, int], names: tuple[str, ...] | list[str]) -> list[int]:
-    slots: list[int] = []
-    for name in names:
-        slot = slot_map.get(name)
-        if slot is not None:
-            slots.append(int(slot))
-    return slots
+def control_mock_robot_command(msg, slot_map, action_buffer, verbose=False):
+    """Handle unified joint command (/mock_robot_interface/command).
 
-
-def _write_joint_targets(action_buffer, indices, values) -> None:
+    Writes absolute joint position targets into the env action vector using the
+    ActionManager slot layout (``slot_map`` maps joint name -> action slot).
+    """
     if action_buffer is None:
         return
-    for joint_idx, value in zip(indices, values):
-        if 0 <= int(joint_idx) < action_buffer.shape[1]:
-            action_buffer[0, int(joint_idx)] = float(value)
-
-
-def control_arm_joint_commands(msg, joint_indices, action_buffer):
     try:
-        data = list(msg.data)
-    except Exception:
-        return
-    indices = list(joint_indices)
-    if not indices or len(data) < len(indices):
-        return
-    _write_joint_targets(action_buffer, indices, data[: len(indices)])
+        n = len(msg.position)
+        for i, name in enumerate(msg.name):
+            slot = slot_map.get(name)
+            if slot is None or i >= n:
+                continue
+            action_buffer[0, slot] = float(msg.position[i])
+    except Exception as e:
+        if verbose:
+            print(f"[ROS] Error processing mock robot command: {e}")
 
 
 def control_head_position_commands(msg, slot_map, action_buffer):
@@ -91,28 +76,6 @@ def control_head_position_commands(msg, slot_map, action_buffer):
         action_buffer[0, yaw_slot] = float(data[1])
 
 
-def control_lift_position_commands(msg, slot_map, action_buffer):
-    try:
-        data = list(msg.data)
-    except Exception:
-        return
-    if not data or action_buffer is None:
-        return
-    lift_slot = slot_map.get("lift_joint")
-    if lift_slot is not None:
-        action_buffer[0, lift_slot] = float(data[0])
-
-
-def control_gripper_commands(msg, joint_slot, action_buffer):
-    try:
-        data = list(msg.data)
-    except Exception:
-        return
-    if not data or joint_slot is None or action_buffer is None:
-        return
-    action_buffer[0, int(joint_slot)] = float(sdk_gripper_to_sim(data[0]))
-
-
 def control_chassis_cmd_vel(msg, cmd_vel_buffer=None, verbose=False):
     """Capture chassis velocity command from the navigation stack."""
     linear_x = float(msg.linear.x)
@@ -124,6 +87,13 @@ def control_chassis_cmd_vel(msg, cmd_vel_buffer=None, verbose=False):
         cmd_vel_buffer.update(linear_x, linear_y, angular_z)
 
 
+def noop_control(_msg):
+    return None
+
+
+# ── Registration ─────────────────────────────────────────────────────────────
+
+
 def fill_control_callbacks(
     control_callbacks,
     slot_map,
@@ -131,40 +101,16 @@ def fill_control_callbacks(
     cmd_vel_buffer=None,
     verbose=False,
 ):
-    """Register SDK control callbacks into *control_callbacks* dict."""
-    left_arm = _slots_for_names(slot_map, _LEFT_ARM_JOINTS)
-    right_arm = _slots_for_names(slot_map, _RIGHT_ARM_JOINTS)
-    left_gripper = slot_map.get("left_arm_gripper")
-    right_gripper = slot_map.get("right_arm_gripper")
-
-    control_callbacks["/left_arm_joint_controller/commands"] = partial(
-        control_arm_joint_commands,
-        joint_indices=left_arm,
+    """Register all control callbacks into *control_callbacks* dict."""
+    control_callbacks["/mock_robot_interface/command"] = partial(
+        control_mock_robot_command,
+        slot_map=slot_map,
         action_buffer=action_buffer,
-    )
-    control_callbacks["/right_arm_joint_controller/commands"] = partial(
-        control_arm_joint_commands,
-        joint_indices=right_arm,
-        action_buffer=action_buffer,
+        verbose=verbose,
     )
     control_callbacks["/head_position_controller/commands"] = partial(
         control_head_position_commands,
         slot_map=slot_map,
-        action_buffer=action_buffer,
-    )
-    control_callbacks["/lift_position_controller/commands"] = partial(
-        control_lift_position_commands,
-        slot_map=slot_map,
-        action_buffer=action_buffer,
-    )
-    control_callbacks["/left_gripper_controller/commands"] = partial(
-        control_gripper_commands,
-        joint_slot=left_gripper,
-        action_buffer=action_buffer,
-    )
-    control_callbacks["/right_gripper_controller/commands"] = partial(
-        control_gripper_commands,
-        joint_slot=right_gripper,
         action_buffer=action_buffer,
     )
     control_callbacks["/chassis/cmd_vel"] = partial(
