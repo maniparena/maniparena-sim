@@ -236,19 +236,13 @@ class MessageBuilder:
 
     @staticmethod
     def pose_stamped_from_body(obs, body_idx, stamp, frame_id="world"):
-        """Build PoseStamped from a specific body pose.
-
-        ``policy["body_pose_w"]`` is stored flat as ``(N, num_bodies * 7)``.
-        """
+        """Build PoseStamped from a specific body pose."""
         from geometry_msgs.msg import Point
         from geometry_msgs.msg import Pose as RosPose
         from geometry_msgs.msg import PoseStamped, Quaternion
 
-        from maniparena_sim.ros.sim_utils import get_body_pose
-
-        body_pos, body_quat = get_body_pose(obs, body_idx)
-        if body_pos is None or body_quat is None or len(body_pos) < 3 or len(body_quat) < 4:
-            return None
+        body_pose = obs["policy"]["body_pose_w"][0]
+        pose_data = body_pose[body_idx]
 
         msg = PoseStamped()
         copy_stamp(msg.header.stamp, stamp)
@@ -256,15 +250,15 @@ class MessageBuilder:
 
         msg.pose = RosPose()
         msg.pose.position = Point(
-            x=float(body_pos[0]),
-            y=float(body_pos[1]),
-            z=float(body_pos[2]),
+            x=float(pose_data[0]),
+            y=float(pose_data[1]),
+            z=float(pose_data[2]),
         )
         msg.pose.orientation = Quaternion(
-            x=float(body_quat[0]),
-            y=float(body_quat[1]),
-            z=float(body_quat[2]),
-            w=float(body_quat[3]),
+            x=float(pose_data[3]),
+            y=float(pose_data[4]),
+            z=float(pose_data[5]),
+            w=float(pose_data[6]),
         )
         return msg
 

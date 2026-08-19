@@ -83,51 +83,31 @@ def configure_env_recorder(
     *,
     enable_cameras: bool,
     handler_type: type | None = None,
-    export_on_reset: bool = False,
 ) -> None:
-    """Attach RecorderManager cfg before ``gym.make`` (teleop + eval).
-
-    ``export_on_reset`` must be True for policy eval: Isaac Lab clears the
-    recorder episode buffer inside ``_reset_idx`` after ``record_pre_reset``,
-    so demos that terminate inside ``step()`` are only flushed if export runs
-    during ``record_pre_reset``. Teleop keeps False and flushes manually (H).
-    """
+    """Attach RecorderManager cfg before ``gym.make`` (teleop + eval)."""
     from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
     from isaaclab.managers import DatasetExportMode
 
-    from maniparena_sim.terms.recorders.recording_terms import (
-        PreStepCameraObservationsRecorderCfg,
-        PreStepPolicyObservationsRecorderCfg,
-    )
+    from maniparena_sim.terms.recorders.recording_terms import PreStepCameraObservationsRecorderCfg
 
     env_cfg.recorders = ActionStateRecorderManagerCfg()
     env_cfg.recorders.dataset_export_dir_path = layout.output_dir
     env_cfg.recorders.dataset_filename = layout.bootstrap_name
     env_cfg.recorders.dataset_export_mode = DatasetExportMode.EXPORT_ALL
-    env_cfg.recorders.export_in_record_pre_reset = bool(export_on_reset)
     resolved_handler = handler_type if handler_type is not None else layout.handler_type
     if resolved_handler is not None:
         env_cfg.recorders.dataset_file_handler_class_type = resolved_handler
-    # Structured policy obs (eef/joint keys) for LeRobot EE export.
-    env_cfg.recorders.record_pre_step_policy_observations = (
-        PreStepPolicyObservationsRecorderCfg()
-    )
     if enable_cameras:
         env_cfg.recorders.record_camera_obs = PreStepCameraObservationsRecorderCfg()
 
 
-def finalize_bimanual_recorder(
-    gym_env: Any,
-    layout: RecordingLayout,
-    *,
-    export_on_reset: bool = False,
-) -> None:
+def finalize_bimanual_recorder(gym_env: Any, layout: RecordingLayout) -> None:
     """Post-``gym.make`` recorder cleanup shared by collect and eval."""
     from isaaclab.managers import DatasetExportMode
 
     rm = gym_env.recorder_manager
     rm.cfg.dataset_export_mode = DatasetExportMode.EXPORT_ALL
-    rm.cfg.export_in_record_pre_reset = bool(export_on_reset)
+    rm.cfg.export_in_record_pre_reset = False
     if not layout.is_direct_lerobot and rm._dataset_file_handler is not None:
         rm._dataset_file_handler.close()
         rm._dataset_file_handler = None
@@ -140,8 +120,6 @@ def finalize_ex001_recorder(
     gym_env: Any,
     layout: RecordingLayout,
     payload: dict,
-    *,
-    export_on_reset: bool = False,
 ) -> None:
     """Install EX001 streaming recorder stack (same as ex001 collect)."""
     from isaaclab.managers import DatasetExportMode
@@ -154,7 +132,7 @@ def finalize_ex001_recorder(
 
     rm = gym_env.recorder_manager
     rm.cfg.dataset_export_mode = DatasetExportMode.EXPORT_ALL
-    rm.cfg.export_in_record_pre_reset = bool(export_on_reset)
+    rm.cfg.export_in_record_pre_reset = False
     video_fps = float(payload.get('step_hz', 20))
     install_staging(
         rm,
@@ -188,40 +166,15 @@ def next_episode_dataset_name(layout: RecordingLayout) -> str:
         idx += 1
 
 
-def _episode_has_actions(rm: Any, env_id: int) -> bool:
-    ep = rm._episodes.get(int(env_id))
-    if ep is None or ep.is_empty():
-        return False
-    return ep.get_action(0) is not None
-
-
 def export_episode(
     gym_env: Any,
     layout: RecordingLayout,
     env_id: int,
     mark_success: bool,
 ) -> str | None:
-    """Flush one finished episode to disk (teleop ``H`` key and eval share this).
-
-    When ``export_in_record_pre_reset`` is enabled (policy eval), a natural
-    ``done`` already flushes inside ``step()`` before the buffer is cleared.
-    In that case this helper is a no-op and returns the dataset root if the
-    LeRobot handler already has episodes.
-    """
+    """Flush one finished episode to disk (teleop ``H`` key and eval share this)."""
     rm = gym_env.recorder_manager
     env_ids = [int(env_id)]
-    handler = getattr(rm, '_dataset_file_handler', None)
-    before = (
-        int(handler.get_num_episodes())
-        if handler is not None and hasattr(handler, 'get_num_episodes')
-        else 0
-    )
-
-    # Auto-reset path already exported + cleared the buffer.
-    if not _episode_has_actions(rm, env_id):
-        if layout.is_direct_lerobot and before > 0:
-            return layout.output_dir
-        return None
 
     rm.record_pre_reset(env_ids, force_export_or_skip=False)
     rm.set_success_to_episodes(
@@ -231,12 +184,7 @@ def export_episode(
 
     if layout.is_direct_lerobot:
         rm.export_episodes(env_ids)
-        after = (
-            int(handler.get_num_episodes())
-            if handler is not None and hasattr(handler, 'get_num_episodes')
-            else before
-        )
-        return layout.output_dir if after > before or before > 0 else None
+        return layout.output_dir
 
     ep_name = next_episode_dataset_name(layout)
     rm.cfg.dataset_filename = ep_name

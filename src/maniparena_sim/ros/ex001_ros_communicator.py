@@ -1,4 +1,4 @@
-"""ROS2 publisher for the EX001 navigation robot (SDK topic surface)."""
+"""ROS2 publisher for the EX001 navigation robot using the Isaac Sim ROS2 bridge."""
 
 from geometry_msgs.msg import PoseStamped, Twist
 from nav_msgs.msg import Odometry
@@ -7,106 +7,74 @@ from sensor_msgs.msg import CompressedImage
 from sensor_msgs.msg import Imu as RosImu
 from sensor_msgs.msg import JointState, LaserScan, PointCloud2
 from std_msgs.msg import Float64MultiArray
-from tf2_msgs.msg import TFMessage
 
-from maniparena_sim.ros.ex001_sdk_topics import EX001_SDK_PUBLISH_TOPICS, EX001_SDK_SUBSCRIBE_TOPICS
 from maniparena_sim.ros.ros2_config import ROS_QOS_CONFIG
 from maniparena_sim.ros.ros_communicator import RosCommunicator
 
 
 class EX001RosCommunicator(RosCommunicator):
-    """ROS bridge implementation for EX001 SDK topic names."""
+    """ROS bridge implementation for the EX001 robot."""
 
+    # Topics published every control step (state / odom / fast sensors).
     FAST_TOPICS = frozenset(
         {
             "/hal/chassis/imu",
+            "/chassis/odom",
             "/odom",
             "/tracked_pose",
-            "/joint_states",
             "/head/joint_states",
-            "/left_arm/joint_states",
-            "/right_arm/joint_states",
-            "/left_gripper/joint_states",
-            "/right_gripper/joint_states",
-            "/lift/joint_states",
-            "/left_arm/end_pose",
-            "/right_arm/end_pose",
+            "/mock_robot_interface/state",
         }
     )
 
+    # Topics published at a lower rate (lidar / camera streams).
     LOW_RATE_TOPICS = frozenset(
         {
             "/scan",
             "/camera_chassis_front/depth/points",
-            "/camera_head_front/color/image_raw/compressed",
-            "/camera_head_front/depth/image_raw/compressedDepth",
             "/camera1/usb_cam1/image_raw/image_compressed",
+            "/camera_head_front/color/image_raw/compressed",
             "/camera3/usb_cam3/image_raw/image_compressed",
-            "/tf_static",
         }
     )
 
     PUBLISHERS = {
-        "/joint_states": JointState,
-        "/left_arm/joint_states": JointState,
-        "/right_arm/joint_states": JointState,
-        "/left_gripper/joint_states": JointState,
-        "/right_gripper/joint_states": JointState,
+        "/mock_robot_interface/state": JointState,
         "/head/joint_states": JointState,
-        "/lift/joint_states": JointState,
-        "/left_arm/end_pose": PoseStamped,
-        "/right_arm/end_pose": PoseStamped,
-        "/odom": Odometry,
-        "/tracked_pose": PoseStamped,
+        "/chassis/odom": Odometry,
         "/hal/chassis/imu": RosImu,
         "/scan": LaserScan,
         "/camera_chassis_front/depth/points": PointCloud2,
-        "/camera_head_front/color/image_raw/compressed": CompressedImage,
-        "/camera_head_front/depth/image_raw/compressedDepth": CompressedImage,
         "/camera1/usb_cam1/image_raw/image_compressed": CompressedImage,
+        "/camera_head_front/color/image_raw/compressed": CompressedImage,
         "/camera3/usb_cam3/image_raw/image_compressed": CompressedImage,
-        "/tf_static": TFMessage,
+        "/tracked_pose": PoseStamped,
+        "/odom": Odometry,
     }
 
-    # /scan via RTX OmniGraph; /tf_static via StaticTransformBroadcaster.
-    DEDICATED_PUBLISHERS = frozenset({"/scan", "/tf_static"})
+    DEDICATED_PUBLISHERS = frozenset({"/scan"})
 
     SUBSCRIBERS = {
-        "/left_arm_joint_controller/commands": Float64MultiArray,
-        "/right_arm_joint_controller/commands": Float64MultiArray,
-        "/left_gripper_controller/commands": Float64MultiArray,
-        "/right_gripper_controller/commands": Float64MultiArray,
+        "/mock_robot_interface/command": JointState,
         "/head_position_controller/commands": Float64MultiArray,
-        "/lift_position_controller/commands": Float64MultiArray,
         "/chassis/cmd_vel": Twist,
     }
 
     _ex001_sampling_rate = {
         "default": 25,
-        "/joint_states": 50,
-        "/left_arm/joint_states": 50,
-        "/right_arm/joint_states": 50,
-        "/left_gripper/joint_states": 50,
-        "/right_gripper/joint_states": 50,
-        "/head/joint_states": 50,
-        "/lift/joint_states": 50,
-        "/left_arm/end_pose": 30,
-        "/right_arm/end_pose": 30,
-        "/camera_head_front/color/image_raw/compressed": 15,
-        "/camera_head_front/depth/image_raw/compressedDepth": 5,
+        "/mock_robot_interface/state": 50,
         "/camera1/usb_cam1/image_raw/image_compressed": 15,
+        "/camera_head_front/color/image_raw/compressed": 15,
         "/camera3/usb_cam3/image_raw/image_compressed": 15,
         "/camera_chassis_front/depth/points": 15,
         "/hal/chassis/imu": 120,
         "/scan": 10,
-        "/odom": 30,
+        "/chassis/odom": 30,
         "/tracked_pose": 30,
-        "/tf_static": 1,
+        "/odom": 30,
     }
 
     def _initRobotPublisher(self):
-        if set(self.PUBLISHERS) != EX001_SDK_PUBLISH_TOPICS:
-            raise ValueError("EX001RosCommunicator.PUBLISHERS must match EX001 SDK publish topics")
         for topic, msg_type in self.PUBLISHERS.items():
             if topic in self.DEDICATED_PUBLISHERS:
                 continue
@@ -129,8 +97,6 @@ class EX001RosCommunicator(RosCommunicator):
             self._clock_publisher = None
 
     def _initRobotSubscriber(self):
-        if set(self.SUBSCRIBERS) != EX001_SDK_SUBSCRIBE_TOPICS:
-            raise ValueError("EX001RosCommunicator.SUBSCRIBERS must match EX001 SDK subscribe topics")
         for topic, msg_type in self.SUBSCRIBERS.items():
             cb = self._control_callbacks.get(topic)
             if cb is None or not callable(cb):
