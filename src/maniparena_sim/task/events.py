@@ -132,3 +132,38 @@ def randomize_object_pose_from_pose_range(
     pose_tensor[:, :3] += env.scene.env_origins[env_ids]
     asset.write_root_pose_to_sim(pose_tensor, env_ids=env_ids)
     asset.write_root_velocity_to_sim(torch.zeros(num_envs, 6, device=env.device), env_ids=env_ids)
+
+def assign_objects_to_slots(
+    env: ManagerBasedEnv,
+    env_ids: torch.Tensor,
+    asset_cfgs: list[SceneEntityCfg],
+    slots: list[tuple[float, float, float]],
+) -> None:
+    """Each reset: shuffle slots, give one unique slot to each object."""
+    if env_ids is None or env_ids.numel() == 0:
+        return
+    n_obj = len(asset_cfgs)
+    if n_obj != len(slots):
+        raise ValueError(f"need {n_obj} slots, got {len(slots)}")
+
+    device = env.device
+    slots_t = torch.tensor(slots, dtype=torch.float32, device=device)
+    num_envs = len(env_ids)
+    # perms[e, obj_i] = which slot this object uses in this env
+    perms = torch.stack(
+        [torch.randperm(n_obj, device=device) for _ in range(num_envs)]
+    )
+
+    for obj_i, asset_cfg in enumerate(asset_cfgs):
+        asset = env.scene[asset_cfg.name]
+        slot_idx = perms[:, obj_i]
+        pose = torch.zeros(num_envs, 7, device=device)
+        pose[:, :3] = slots_t[slot_idx]
+        pose[:, 6] = 1.0  # xyzw identity: (0,0,0,1)
+        _sync_pose_to_usd(asset, env_ids, pose)
+        pose = pose.clone()
+        pose[:, :3] += env.scene.env_origins[env_ids]
+        asset.write_root_pose_to_sim(pose, env_ids=env_ids)
+        asset.write_root_velocity_to_sim(
+            torch.zeros(num_envs, 6, device=env.device), env_ids=env_ids,
+        )

@@ -77,6 +77,10 @@ def resolve_lerobot_episode_file(
         raise FileNotFoundError(
             f'No LeRobot parquet files under: {input_path}'
         )
+    for path in files:
+        match = re.search(r'episode_(\d+)', path.stem)
+        if match is not None and int(match.group(1)) == episode:
+            return path
     if episode < 0 or episode >= len(files):
         raise IndexError(
             f'Episode {episode} out of range for '

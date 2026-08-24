@@ -82,6 +82,13 @@ def parse_args():
     return parser.parse_args()
 
 
+def _optional_float(value) -> float | None:
+    """Parse yaml number; missing / null / empty means unset."""
+    if value is None or value == '':
+        return None
+    return float(value)
+
+
 def _apply_server_overrides(pc: dict, args) -> dict:
     """Apply CLI server address/port onto policy_config."""
     out = dict(pc or {})
@@ -151,6 +158,16 @@ def _reset_eval_env(gym_env, core, env_ids=None):
     if _video_record_wrapper(gym_env) is not None:
         return core.reset(env_ids=env_ids)
     return gym_env.reset(env_ids=env_ids)
+
+
+def _obs_follow_xyz(obs, key: str):
+    from maniparena_sim.loops.ee_tracking import obs_follow_xyz
+    return obs_follow_xyz(obs, key)
+
+
+def _save_ee_tracking_png(path: str, cmd, act, hz: float = 30.0) -> str:
+    from maniparena_sim.loops.ee_tracking import save_ee_tracking_png
+    return save_ee_tracking_png(path, cmd, act, hz=hz)
 
 
 def _wrap_record_video(gym_env, log_dir: str, args, payload: dict):
@@ -283,9 +300,6 @@ def main() -> int:
                 ),
                 action_horizon=int(pc.get('action_horizon', 32)),
                 action_chunk_length=int(pc.get('action_chunk_length', 32)),
-                interpolation_multiplier=int(
-                    pc.get('interpolation_multiplier', 2),
-                ),
                 ee_pose_normalize=bool(pc.get('ee_pose_normalize', False)),
                 pos_gain=float(pc.get('pos_gain', 1.0)),
                 rot_gain=float(pc.get('rot_gain', 1.0)),
@@ -314,12 +328,16 @@ def main() -> int:
                 instruction=str(pc.get('instruction', 'pick up the object')),
                 action_horizon=int(pc.get('action_horizon', 32)),
                 action_chunk_length=int(pc.get('action_chunk_length', 32)),
-                interpolation_multiplier=int(
-                    pc.get('interpolation_multiplier', 2),
-                ),
                 ee_pose_normalize=bool(pc.get('ee_pose_normalize', True)),
                 pos_gain=float(pc.get('pos_gain', 1.0)),
                 rot_gain=float(pc.get('rot_gain', 1.0)),
+                gripper_scale=float(pc.get('gripper_scale', 1.0)),
+                gripper_open_threshold=_optional_float(
+                    pc.get('gripper_open_threshold'),
+                ),
+                gripper_close_threshold=_optional_float(
+                    pc.get('gripper_close_threshold'),
+                ),
             ),
         )
         policy_name = 'RobotClosedloopPolicy'
@@ -335,13 +353,32 @@ def main() -> int:
     print(f'  Policy:     {policy_name}')
     print(f'  Server:     {policy.cfg.model_address}'
           f':{policy.cfg.model_port}')
+    print(f'  Instruction: {policy.cfg.instruction}')
+    print(
+        f'  Horizon:    {policy.cfg.action_horizon}  '
+        f'gripper_scale={float(getattr(policy.cfg, "gripper_scale", 1.0)):g}'
+    )
     print(f'  Episodes:   {num_episodes}')
     print(f'  Max steps:  {max_steps} (per episode)')
+    env_len_s = getattr(getattr(core, 'cfg', None), 'episode_length_s', None)
+    env_max_len = getattr(core, 'max_episode_length', None)
+    if env_len_s is not None:
+        extra = f' (~{int(env_max_len)} env steps)' if env_max_len is not None else ''
+        print(f'  Episode s:  {float(env_len_s):g}{extra}')
     print(f'  Output:     {ctx.output_dir}')
     if video_folder:
         print(f'  Video:      {video_folder}')
     if ctx.recording is not None:
         print(f'  Recording:  {ctx.recording.fmt} (teleop-compatible export)')
+    plot_ee = bool(payload.get('plot_ee_tracking', False))
+    save_model_ee = bool(payload.get('save_model_ee_cmd', plot_ee))
+    ee_cmd: list = []
+    ee_act: list = []
+    ee_cmd_ee: list = []
+    if plot_ee:
+        print('  EE plot:    enabled (cmd vs sim xyz, one PNG per episode)')
+    if save_model_ee:
+        print('  EE npy:     save model cmd (xyz+rpy+grip) per episode')
     print('=' * 60)
 
     obs, _ = gym_env.reset()
@@ -369,6 +406,23 @@ def main() -> int:
             obs, _, terminated, truncated, _ = gym_env.step(
                 actions,
             )
+            if plot_ee or save_model_ee:
+                import numpy as np
+                cmd_ee = getattr(policy, 'last_cmd_ee', None)
+                cmd_xyz = getattr(policy, 'last_cmd_xyz', None)
+                left_xyz = _obs_follow_xyz(obs, 'follow1_pos')
+                right_xyz = _obs_follow_xyz(obs, 'follow2_pos')
+                if cmd_ee is not None:
+                    ee_cmd_ee.append(
+                        np.asarray(cmd_ee, dtype=np.float32).reshape(-1)[:14],
+                    )
+                if (
+                    cmd_xyz is not None
+                    and left_xyz is not None
+                    and right_xyz is not None
+                ):
+                    ee_cmd.append(np.asarray(cmd_xyz, dtype=np.float32).reshape(-1)[:6])
+                    ee_act.append(np.concatenate([left_xyz, right_xyz]))
             step_count += 1
             ep_steps += 1
             done = terminated | truncated
@@ -444,6 +498,27 @@ def main() -> int:
                 f'[episode] finished #{episode_count + 1} '
                 f'reason={reason} ep_steps={ep_steps[env_ids].tolist()}'
             )
+            if save_model_ee and ee_cmd_ee:
+                import numpy as np
+                npy_path = os.path.join(
+                    ctx.output_dir,
+                    f'model_ee_cmd_episode_{episode_count + 1:03d}.npy',
+                )
+                np.save(npy_path, np.stack(ee_cmd_ee).astype(np.float32))
+                print(
+                    f'[npy] model EE cmd '
+                    f'(T,{ee_cmd_ee[0].shape[0]}) -> {npy_path}'
+                )
+                ee_cmd_ee.clear()
+            if plot_ee and ee_cmd:
+                plot_path = os.path.join(
+                    ctx.output_dir,
+                    f'ee_tracking_episode_{episode_count + 1:03d}.png',
+                )
+                _save_ee_tracking_png(plot_path, ee_cmd, ee_act)
+                print(f'[plot] EE cmd vs sim -> {plot_path}')
+                ee_cmd.clear()
+                ee_act.clear()
 
             policy.reset(env_ids)
             ep_steps[env_ids] = 0

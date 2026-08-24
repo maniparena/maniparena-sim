@@ -21,6 +21,51 @@ from maniparena_sim.policy.server_client import PolicyServerClient
 from maniparena_sim.utils.math_utils import euler_xyz_to_quat_xyzw
 
 
+def follow_pair_to_ik16(
+    left_ee: np.ndarray,
+    right_ee: np.ndarray,
+    origin: torch.Tensor,
+    root_pos: torch.Tensor,
+    root_quat: torch.Tensor,
+    device,
+) -> torch.Tensor:
+    """Convert env-local 7D+7D follow poses to a 16D absolute IK action."""
+    left_ee = np.asarray(left_ee, dtype=np.float32).reshape(-1)
+    right_ee = np.asarray(right_ee, dtype=np.float32).reshape(-1)
+    tgt_lp = (
+        torch.as_tensor(left_ee[0:3], dtype=torch.float32, device=device)
+        + origin
+    )
+    tgt_rp = (
+        torch.as_tensor(right_ee[0:3], dtype=torch.float32, device=device)
+        + origin
+    )
+    tgt_lq = torch.as_tensor(
+        euler_xyz_to_quat_xyzw(np.asarray([left_ee[3:6]], dtype=np.float32))[0],
+        dtype=torch.float32, device=device,
+    )
+    tgt_rq = torch.as_tensor(
+        euler_xyz_to_quat_xyzw(np.asarray([right_ee[3:6]], dtype=np.float32))[0],
+        dtype=torch.float32, device=device,
+    )
+    l_pos_b, l_quat_b = subtract_frame_transforms(
+        root_pos.unsqueeze(0), root_quat.unsqueeze(0),
+        tgt_lp.unsqueeze(0), tgt_lq.unsqueeze(0),
+    )
+    r_pos_b, r_quat_b = subtract_frame_transforms(
+        root_pos.unsqueeze(0), root_quat.unsqueeze(0),
+        tgt_rp.unsqueeze(0), tgt_rq.unsqueeze(0),
+    )
+    action = torch.zeros(16, dtype=torch.float32, device=device)
+    action[0:3] = l_pos_b[0]
+    action[3:7] = l_quat_b[0]
+    action[7] = float(left_ee[6])
+    action[8:11] = r_pos_b[0]
+    action[11:15] = r_quat_b[0]
+    action[15] = float(right_ee[6])
+    return action
+
+
 @dataclass
 class RobotPolicyConfig:
     model_address: str = 'localhost'
@@ -29,7 +74,6 @@ class RobotPolicyConfig:
 
     action_horizon: int = 32
     action_chunk_length: int = 32
-    interpolation_multiplier: int = 2
     ee_pose_normalize: bool = True
 
     camera_left: str = 'left_wrist_cam'
@@ -50,8 +94,11 @@ class RobotPolicyConfig:
 
     pos_gain: float = 1.0
     rot_gain: float = 1.0
-    gripper_open_threshold: float = 3.3
-    gripper_close_threshold: float = 1.0
+    # Desktop H-jaw is already ~0–5.72 in data/sim. Keep 1.0; do not use EX001 G-jaw 1.89.
+    gripper_scale: float = 1.0
+    # None: use the model gripper as-is. Set a value to snap below it to 0.
+    gripper_open_threshold: Optional[float] = None
+    gripper_close_threshold: Optional[float] = None
 
 
 class RobotClosedloopPolicy:
@@ -78,6 +125,9 @@ class RobotClosedloopPolicy:
         self._chunk: Optional[torch.Tensor] = None
         self._chunk_idx = -1
         self._needs_chunk = True
+        self._cmd_ee_chunk: Optional[np.ndarray] = None
+        self.last_cmd_ee: Optional[np.ndarray] = None
+        self.last_cmd_xyz: Optional[np.ndarray] = None
 
     # -- PolicyLike interface --
 
@@ -106,6 +156,15 @@ class RobotClosedloopPolicy:
 
         if self._chunk is not None:
             actions[0] = self._chunk[self._chunk_idx]
+            if (
+                self._cmd_ee_chunk is not None
+                and self._chunk_idx < self._cmd_ee_chunk.shape[0]
+            ):
+                row = self._cmd_ee_chunk[self._chunk_idx]
+                self.last_cmd_ee = row
+                self.last_cmd_xyz = np.concatenate(
+                    [row[0:3], row[7:10]],
+                ).astype(np.float32)
             self._chunk_idx += 1
             if self._chunk_idx >= self._chunk.shape[0]:
                 self._chunk_idx = -1
@@ -134,6 +193,9 @@ class RobotClosedloopPolicy:
             self._chunk.zero_()
         self._chunk_idx = -1
         self._needs_chunk = True
+        self._cmd_ee_chunk = None
+        self.last_cmd_ee = None
+        self.last_cmd_xyz = None
 
     # -- observation helpers --
 
@@ -179,6 +241,14 @@ class RobotClosedloopPolicy:
         if idx >= len(jp):
             return 0.0
         return float(jp[idx])
+
+    def _apply_gripper_command(self, raw: float) -> float:
+        """Scale the model gripper. Optionally snap below open_threshold to 0."""
+        value = float(raw) * float(self.cfg.gripper_scale)
+        threshold = self.cfg.gripper_open_threshold
+        if threshold is not None and value < float(threshold):
+            return 0.0
+        return value
 
     def _get_follow_state(
         self, policy_obs: Dict[str, Any], side: str,
@@ -360,25 +430,6 @@ class RobotClosedloopPolicy:
 
     # -- EE coordinate transform --
 
-    @staticmethod
-    def _interpolate_rows(rows: np.ndarray, multiplier: int) -> np.ndarray:
-        multiplier = max(1, int(multiplier))
-        if multiplier == 1:
-            return rows
-        rows = np.asarray(rows, dtype=np.float32)
-        if rows.ndim == 1:
-            rows = rows.reshape(1, -1)
-        in_len, dim = rows.shape
-        out_len = in_len * multiplier
-        if in_len <= 1:
-            return np.repeat(rows, multiplier, axis=0)
-        src = np.arange(in_len, dtype=np.float64)
-        dst = np.linspace(0.0, float(in_len - 1), out_len)
-        out = np.zeros((out_len, dim), dtype=np.float32)
-        for j in range(dim):
-            out[:, j] = np.interp(dst, src, rows[:, j]).astype(np.float32)
-        return out
-
     def _denormalize_response(
         self, rows: np.ndarray, side: str,
     ) -> np.ndarray:
@@ -443,6 +494,26 @@ class RobotClosedloopPolicy:
 
         f1 = self._denormalize_response(f1[:horizon, :7], 'left')
         f2 = self._denormalize_response(f2[:horizon, :7], 'right')
+        cmd_ee = np.concatenate([f1[:, :7], f2[:, :7]], axis=-1)
+        cmd_ee[:, 6] = [
+            self._apply_gripper_command(v) for v in cmd_ee[:, 6]
+        ]
+        cmd_ee[:, 13] = [
+            self._apply_gripper_command(v) for v in cmd_ee[:, 13]
+        ]
+        if horizon < self.cfg.action_horizon:
+            cmd_ee = np.concatenate(
+                [
+                    cmd_ee,
+                    np.repeat(
+                        cmd_ee[-1:],
+                        self.cfg.action_horizon - horizon,
+                        axis=0,
+                    ),
+                ],
+                axis=0,
+            )
+        self._cmd_ee_chunk = cmd_ee.astype(np.float32)
 
         chunk = torch.zeros(
             self.cfg.action_horizon, self.ACTION_DIM,
@@ -453,61 +524,12 @@ class RobotClosedloopPolicy:
         root_pos, root_quat = self._get_robot_root_pose(env)
         root_pos = root_pos.to(device=device, dtype=torch.float32)
         root_quat = root_quat.to(device=device, dtype=torch.float32)
-        root_pos_b = root_pos.unsqueeze(0)
-        root_quat_b = root_quat.unsqueeze(0)
 
-        for i in range(horizon):
-            tgt_lp = (
-                torch.as_tensor(
-                    f1[i, 0:3], dtype=torch.float32, device=device,
-                )
-                + origin
-            )
-            tgt_rp = (
-                torch.as_tensor(
-                    f2[i, 0:3], dtype=torch.float32, device=device,
-                )
-                + origin
-            )
-            tgt_lq = torch.as_tensor(
-                euler_xyz_to_quat_xyzw(
-                    np.asarray([f1[i, 3:6]], dtype=np.float32),
-                )[0],
-                dtype=torch.float32, device=device,
-            )
-            tgt_rq = torch.as_tensor(
-                euler_xyz_to_quat_xyzw(
-                    np.asarray([f2[i, 3:6]], dtype=np.float32),
-                )[0],
-                dtype=torch.float32, device=device,
-            )
-
-            l_pos_b, l_quat_b = subtract_frame_transforms(
-                root_pos_b, root_quat_b,
-                tgt_lp.unsqueeze(0), tgt_lq.unsqueeze(0),
-            )
-            r_pos_b, r_quat_b = subtract_frame_transforms(
-                root_pos_b, root_quat_b,
-                tgt_rp.unsqueeze(0), tgt_rq.unsqueeze(0),
-            )
-
-            chunk[i, 0:3] = l_pos_b[0]
-            chunk[i, 3:7] = l_quat_b[0]
-            chunk[i, 7] = float(f1[i, 6])
-            chunk[i, 8:11] = r_pos_b[0]
-            chunk[i, 11:15] = r_quat_b[0]
-            chunk[i, 15] = float(f2[i, 6])
-
-        if horizon < self.cfg.action_horizon:
-            chunk[horizon:] = chunk[horizon - 1]
-
-        if self.cfg.interpolation_multiplier > 1:
-            interpolated = self._interpolate_rows(
-                chunk.detach().cpu().numpy(),
-                self.cfg.interpolation_multiplier,
-            )
-            return torch.as_tensor(
-                interpolated, dtype=torch.float32, device=device,
+        for i in range(self.cfg.action_horizon):
+            chunk[i] = follow_pair_to_ik16(
+                self._cmd_ee_chunk[i, 0:7],
+                self._cmd_ee_chunk[i, 7:14],
+                origin, root_pos, root_quat, device,
             )
 
         return chunk

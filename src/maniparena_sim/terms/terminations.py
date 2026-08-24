@@ -39,7 +39,7 @@ def all_objects_in_basket(
     basket_cfg: SceneEntityCfg,
     x_threshold: float = 0.14,
     y_threshold: float = 0.14,
-    z_threshold: float = 0.12,
+    z_threshold: float = 0.06,
     velocity_threshold: float = 0.5,
 ) -> torch.Tensor:
     basket: RigidObject = env.scene[basket_cfg.name]

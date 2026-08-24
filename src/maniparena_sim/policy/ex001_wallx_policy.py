@@ -368,12 +368,6 @@ class Ex001WallxPolicy(RobotClosedloopPolicy):
         if horizon < self.cfg.action_horizon:
             chunk[horizon:] = chunk[horizon - 1]
 
-        if self.cfg.interpolation_multiplier > 1:
-            interpolated = self._interpolate_rows(
-                chunk.detach().cpu().numpy(),
-                self.cfg.interpolation_multiplier,
-            )
-            return torch.as_tensor(interpolated, dtype=torch.float32, device=device)
         return chunk
 
     def _query_action_chunk(

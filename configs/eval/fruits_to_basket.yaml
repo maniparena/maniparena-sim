@@ -1,15 +1,26 @@
 enable_cameras: true
+enable_recording: true
 num_envs: 1
 num_episodes: 10
-max_steps: 800
+max_steps: 1200
+# Isaac Lab time_out uses this, not max_steps. 40 s @ 30 Hz = 1200 steps
+# (ManaEnv X2Real pick_fruits_into_basket benchmark).
+episode_length_s: 40
 working_path: "~/maniparena_output/eval/"
+# Desktop bimanual only. Do not switch --robot to ex001 (whole-body).
+# Wall-X server must stay robot-type=desktop.
 policy_config:
-  model_address: "localhost"
-  model_port: 8000
-  instruction: "pick the fruits and put them into the basket"
+  model_address: "192.168.0.70"
+  model_port: 41015
+  instruction: "Pick up the fruits and put them into the basket."
   action_horizon: 32
-  action_chunk_length: 16
-  interpolation_multiplier: 2
+  action_chunk_length: 32
   ee_pose_normalize: true
   pos_gain: 1.0
   rot_gain: 1.0
+  # 0=closed, ~5.72=open. Omit open_threshold to keep model gripper as-is.
+  gripper_scale: 1.0
+  gripper_open_threshold: 4.0
+# One PNG: left/right EE xyz, policy command vs simulated follow.
+plot_ee_tracking: true
+save_model_ee_cmd: true

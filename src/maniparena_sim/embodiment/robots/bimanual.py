@@ -14,7 +14,6 @@ from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
 from isaaclab.envs.mdp.actions import joint_actions
 from isaaclab.envs.mdp.actions.actions_cfg import (
     BinaryJointPositionActionCfg,
-    DifferentialInverseKinematicsActionCfg,
     JointPositionActionCfg,
 )
 from isaaclab.managers import ActionTermCfg
@@ -35,7 +34,24 @@ from isaaclab_arena.utils.configclass import combine_configclass_instances
 from isaaclab_arena.utils.pose import Pose
 
 from maniparena_sim.assets import ASSETS_DIR
+from maniparena_sim.embodiment.actions.command_rate_diff_ik import (
+    CommandRateDifferentialInverseKinematicsActionCfg,
+)
+from maniparena_sim.embodiment.actuators.stable_pd import StablePDActuatorCfg
 from maniparena_sim.embodiment.sensors.update_camera import OpenCVFisheyeCameraCfg
+
+# Arm StablePD. Override via MANA_ARM_KP / MANA_ARM_KD / MANA_ARM_EFFORT.
+# 1500/150/200 is the tabletop default; replay tracking uses a stiffer set.
+_ARM_KP = float(os.environ.get("MANA_ARM_KP", "5510.1778"))
+_ARM_KD = float(os.environ.get("MANA_ARM_KD", "150.0"))
+_ARM_EFFORT = float(os.environ.get("MANA_ARM_EFFORT", "500.0"))
+_ARM_ARMATURE = float(os.environ.get("MANA_ARM_ARMATURE", "1.0"))
+_GRIPPER_KP = 4000.0
+_GRIPPER_KD = 50.0
+_GRIPPER_EFFORT = 500.0
+_GRIPPER_ARMATURE = 1.0
+_GRIPPER_MIMIC_KP = 40.0
+_GRIPPER_MIMIC_KD = 40.0
 
 
 _BIMANUAL_GRIPPER_OPEN = 5.717175
@@ -144,8 +160,8 @@ class BimanualEmbodiment(EmbodimentBase):
                 articulation_props=sim_utils.ArticulationRootPropertiesCfg(
                     enabled_self_collisions=False,
                     fix_root_link=True,
-                    solver_position_iteration_count=16,
-                    solver_velocity_iteration_count=8,
+                    solver_position_iteration_count=32,
+                    solver_velocity_iteration_count=4,
                 ),
             ),
             prim_path="{ENV_REGEX_NS}/Robot",
@@ -154,10 +170,40 @@ class BimanualEmbodiment(EmbodimentBase):
                 rot=(0.0, 0.0, 0.0, 1.0),
             ),
             actuators={
-                "left_arm_acts": ImplicitActuatorCfg(joint_names_expr=["left_arm_joint[1-6]"], effort_limit_sim=200.0, stiffness=1500.0, damping=150.0),
-                "right_arm_acts": ImplicitActuatorCfg(joint_names_expr=["right_arm_joint[1-6]"], effort_limit_sim=200.0, stiffness=1500.0, damping=150.0),
-                "left_gripper_acts": ImplicitActuatorCfg(joint_names_expr=["left_arm_gripper"], effort_limit_sim=200.0, stiffness=200.0, damping=30.0),
-                "right_gripper_acts": ImplicitActuatorCfg(joint_names_expr=["right_arm_gripper"], effort_limit_sim=200.0, stiffness=200.0, damping=30.0),
+                "left_arm_acts": StablePDActuatorCfg(
+                    joint_names_expr=["left_arm_joint[1-6]"],
+                    effort_limit=_ARM_EFFORT,
+                    stiffness=_ARM_KP,
+                    damping=_ARM_KD,
+                    armature=_ARM_ARMATURE,
+                ),
+                "right_arm_acts": StablePDActuatorCfg(
+                    joint_names_expr=["right_arm_joint[1-6]"],
+                    effort_limit=_ARM_EFFORT,
+                    stiffness=_ARM_KP,
+                    damping=_ARM_KD,
+                    armature=_ARM_ARMATURE,
+                ),
+                "left_gripper_acts": StablePDActuatorCfg(
+                    joint_names_expr=["left_arm_gripper"],
+                    effort_limit=_GRIPPER_EFFORT,
+                    stiffness=_GRIPPER_KP,
+                    damping=_GRIPPER_KD,
+                    armature=_GRIPPER_ARMATURE,
+                ),
+                "right_gripper_acts": StablePDActuatorCfg(
+                    joint_names_expr=["right_arm_gripper"],
+                    effort_limit=_GRIPPER_EFFORT,
+                    stiffness=_GRIPPER_KP,
+                    damping=_GRIPPER_KD,
+                    armature=_GRIPPER_ARMATURE,
+                ),
+                # USD mimic fingers stay on implicit PD; do not use StablePD.
+                "gripper_mimic_acts": ImplicitActuatorCfg(
+                    joint_names_expr=["left_arm_gripper_.*", "right_arm_gripper_.*"],
+                    stiffness=_GRIPPER_MIMIC_KP,
+                    damping=_GRIPPER_MIMIC_KD,
+                ),
             },
         )
         left_ee_frame: FrameTransformerCfg = FrameTransformerCfg(
@@ -226,7 +272,7 @@ class BimanualEmbodiment(EmbodimentBase):
 
     @configclass
     class ActionsCfg:
-        arm_action: ActionTermCfg = DifferentialInverseKinematicsActionCfg(
+        arm_action: ActionTermCfg = CommandRateDifferentialInverseKinematicsActionCfg(
             asset_name="robot",
             joint_names=["left_arm_joint[1-6]"],
             body_name="left_arm_gripper_base_link",
@@ -240,7 +286,7 @@ class BimanualEmbodiment(EmbodimentBase):
             offset=0.0,
             use_default_offset=False,
         )
-        right_arm_action: ActionTermCfg = DifferentialInverseKinematicsActionCfg(
+        right_arm_action: ActionTermCfg = CommandRateDifferentialInverseKinematicsActionCfg(
             asset_name="robot",
             joint_names=["right_arm_joint[1-6]"],
             body_name="right_arm_gripper_base_link",

@@ -138,12 +138,34 @@ SUPPORTED_TASKS = {
 }
 
 
-def build_task_runtime(task_name: str, scene):
+def _payload_episode_length_s(payload: dict | None) -> float | None:
+    """Read eval/collect YAML ``episode_length_s`` (seconds)."""
+    if not payload:
+        return None
+    raw = payload.get('episode_length_s')
+    if raw is None:
+        return None
+    value = float(raw)
+    if value <= 0.0:
+        raise ValueError(f'episode_length_s must be > 0, got {value}')
+    return value
+
+
+def build_task_runtime(
+    task_name: str,
+    scene,
+    *,
+    episode_length_s: float | None = None,
+):
     if task_name not in SUPPORTED_TASKS:
         raise ValueError(f"Unsupported task '{task_name}'. Supported: {list(SUPPORTED_TASKS)}")
     cfg_cls, builder_cls = SUPPORTED_TASKS[task_name]
     task_cfg = cfg_cls(task_type=task_name)
+    if episode_length_s is not None:
+        task_cfg.episode_length_s = episode_length_s
     task = builder_cls().finalize(task_cfg, scene=scene)
+    if episode_length_s is not None:
+        task.episode_length_s = float(episode_length_s)
     task.config = task_cfg
     return task
 
@@ -375,14 +397,14 @@ def build_replay_gym_env(
                 'Embodiment has no JointActionsCfg for joint replay.'
             )
         embodiment.action_config = embodiment.JointActionsCfg()
-    elif replay_mode == 'ee':
+    elif replay_mode in ('ee', 'model_ee'):
         if not hasattr(embodiment, 'ActionsCfg'):
             raise RuntimeError(
                 'Embodiment has no ActionsCfg for EE replay.'
             )
         embodiment.action_config = embodiment.ActionsCfg()
 
-    if replay_mode in ('joint', 'ee'):
+    if replay_mode in ('joint', 'ee', 'model_ee'):
         ac = embodiment.action_config
         ac.gripper_action = JointPositionActionCfg(
             asset_name='robot',
@@ -526,7 +548,10 @@ def build_eval_gym_env(
     embodiment = BimanualEmbodiment(enable_cameras=enable_cameras)
     if not enable_cameras:
         embodiment.camera_config = None
-    task = build_task_runtime(task_name, scene)
+    task = build_task_runtime(
+        task_name, scene,
+        episode_length_s=_payload_episode_length_s(payload),
+    )
     _apply_viewer_cfg_override(task, payload)
 
     env_name = f'bimanual_{task_name}_eval'
@@ -551,6 +576,8 @@ def build_eval_gym_env(
         render_interval=getattr(scene, 'render_decremental', 2),
     )
     _apply_video_recorder_cfg(env_cfg, payload)
+    if hasattr(task, 'get_episode_length_s'):
+        env_cfg.episode_length_s = float(task.get_episode_length_s())
 
     if (
         hasattr(env_cfg, 'observations')
@@ -865,7 +892,10 @@ def build_ex001_eval_gym_env(
         embodiment.camera_config = None
     embodiment.action_config = embodiment.ActionsCfgWallxWholebody()
     _apply_ex001_task_spawn(embodiment, task_name)
-    task = build_task_runtime(task_name, scene)
+    task = build_task_runtime(
+        task_name, scene,
+        episode_length_s=_payload_episode_length_s(payload),
+    )
     _apply_viewer_cfg_override(task, payload)
 
     env_name = f'ex001_{task_name}_eval'
@@ -890,6 +920,8 @@ def build_ex001_eval_gym_env(
         render_interval=getattr(scene, 'render_decremental', 2),
     )
     _apply_video_recorder_cfg(env_cfg, payload)
+    if hasattr(task, 'get_episode_length_s'):
+        env_cfg.episode_length_s = float(task.get_episode_length_s())
     if hasattr(env_cfg, 'terminations'):
         env_cfg.terminations.time_out = None
     if (

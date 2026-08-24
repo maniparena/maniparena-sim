@@ -179,16 +179,18 @@ class ReplayDataReader:
         if dataset_format != 'auto':
             return dataset_format
         path = normalize_dataset_path(dataset_path)
-        if (
-            path.suffix.lower() == '.hdf5'
-            or find_hdf5_files(path)
-        ):
-            return 'hdf5'
+        if path.suffix.lower() == '.npy':
+            return 'npy'
         if (
             path.suffix.lower() == '.parquet'
             or find_lerobot_parquet_files(path)
         ):
             return 'lerobot'
+        if (
+            path.suffix.lower() == '.hdf5'
+            or find_hdf5_files(path)
+        ):
+            return 'hdf5'
         raise FileNotFoundError(
             f'Unable to detect dataset format for: '
             f'{dataset_path}'
@@ -258,9 +260,25 @@ class ReplayDataReader:
                 replay_mode if fmt == 'lerobot' else None
             ),
         )
+        if fmt == 'npy':
+            return self._read_npy(rd)
         if fmt == 'hdf5':
             return self._read_hdf5(rd, device)
         return self._read_lerobot(rd)
+
+    def _read_npy(self, rd: ReplayData) -> ReplayData:
+        path = rd.dataset_path
+        if not path.is_file():
+            raise FileNotFoundError(f'NPY not found: {path}')
+        cmd = np.load(path)
+        if cmd.ndim != 2 or cmd.shape[1] < 14:
+            raise ValueError(
+                f'model EE npy must be (T, 14), got {cmd.shape} in {path}'
+            )
+        rd.ee_sequence = cmd[:, :14].astype(np.float32)
+        rd.dataset_label = str(path)
+        rd.replay_description = 'Model EE command npy (16D IK)'
+        return rd
 
     def _read_hdf5(
         self,

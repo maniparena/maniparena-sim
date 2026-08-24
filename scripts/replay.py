@@ -72,6 +72,7 @@ def main() -> int:
         restore_initial_state,
         run_ee_replay,
         run_joint_replay,
+        run_model_ee_replay,
         run_state_replay,
     )
     from maniparena_sim.terms.replay.reader import (
@@ -99,12 +100,6 @@ def main() -> int:
     gym_env.reset()
     gym_env.recorder_manager.reset([0])
 
-    initial_state = reader.read_initial_state(
-        replay_data, device=str(gym_env.device),
-    )
-    if initial_state is not None:
-        restore_initial_state(gym_env, initial_state)
-
     print('=' * 60)
     print(f'  Task:     {args.task}')
     print(f'  Mode:     {replay_mode}')
@@ -114,6 +109,12 @@ def main() -> int:
     print(f'  Episode:  {episode}')
     print('=' * 60)
 
+    initial_state = reader.read_initial_state(
+        replay_data, device=str(gym_env.device),
+    )
+    if initial_state is not None:
+        restore_initial_state(gym_env, initial_state)
+
     if replay_mode == 'state':
         step_count = run_state_replay(
             gym_env, replay_data, simulation_app,
@@ -122,6 +123,20 @@ def main() -> int:
         step_count = run_joint_replay(
             gym_env, replay_data.joint_sequence,
             simulation_app,
+        )
+    elif replay_mode == 'model_ee' or replay_data.dataset_format == 'npy':
+        plot_path = str(
+            Path(
+                payload.get('plot_path')
+                or Path(replay_data.dataset_path).with_name(
+                    Path(replay_data.dataset_path).stem + '_replay.png',
+                )
+            ).expanduser()
+        )
+        step_count = run_model_ee_replay(
+            gym_env, replay_data.ee_sequence, simulation_app,
+            plot_path=plot_path,
+            hz=float(payload.get('step_hz', 30)),
         )
     else:
         step_count = run_ee_replay(
@@ -149,15 +164,17 @@ def main() -> int:
 
         print(
             f'\n[DONE] Replayed {step_count} frames, '
-            f'exported LeRobot dataset.'
+            f'exported LeRobot dataset.',
+            flush=True,
         )
         for p in ctx.exported_paths:
             print(f'  exported: {p}')
     elif step_count > 0:
-        print(f'\n[DONE] Replayed {step_count} frames.')
+        print(f'\n[DONE] Replayed {step_count} frames.', flush=True)
     else:
         print(
-            '\n[WARN] 0 frames replayed, skip export.'
+            '\n[WARN] 0 frames replayed, skip export.',
+            flush=True,
         )
 
     replay_data.close()

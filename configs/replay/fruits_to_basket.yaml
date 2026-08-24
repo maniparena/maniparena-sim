@@ -1,0 +1,8 @@
+enable_cameras: false
+export_lerobot: false
+step_hz: 30
+# Frozen eval episode-79 model EE cmd (do not point at eval/ — that file is overwritten).
+dataset_path: "~/maniparena_output/replay/model_ee_cmd_episode_001.npy"
+replay_mode: "model_ee"
+episode_length_s: 40
+plot_path: "~/maniparena_output/replay/model_ee_cmd_episode_001_replay.png"

@@ -6,24 +6,76 @@ import numpy as np
 from isaaclab.envs.common import ViewerCfg
 from isaaclab.managers import SceneEntityCfg, TerminationTermCfg
 from isaaclab_arena.utils.cameras import get_viewer_cfg_look_at_object
+from isaaclab.envs.mdp import reset_scene_to_default
+from isaaclab.managers import EventTermCfg, SceneEntityCfg, TerminationTermCfg
+from isaaclab_arena.utils.configclass import make_configclass
 
+from maniparena_sim.task.events import assign_objects_to_slots
 from maniparena_sim.task.fruits_to_basket import FruitsToBasketTask, FruitsToBasketTerminationsCfg
 from maniparena_sim.task.utils import build_default_events_cfg, find_assets_by_tag, find_background
 from maniparena_sim.terms.terminations import all_objects_in_basket, any_object_dropped
 
 
 class FruitsToBasketBuilder:
-    DEFAULT_POSE_RANGE = {"x": (0.0, 0.1), "y": (-0.7, 0.15), "z": (-0.15, -0.15), "yaw": (-0.5, 0.5)}
+    DEFAULT_POSE_RANGE = {"x": (0.0, 0.1), "y": (-0.32, 0.32), "z": (-0.15, -0.15), "yaw": (-0.5, 0.5)}
 
     def finalize(self, task_cfg, scene):
         targets = find_assets_by_tag(scene, "collect_target")
+        assets = getattr(scene, "assets", {})
+        assets_list = list(assets.values()) if isinstance(assets, dict) else list(assets)
+        slot_objects = [
+            next(a for a in assets_list if getattr(a, "name", None) == name)
+            for name in ("bread", "apple", "banana", "pear")
+        ]
         containers = find_assets_by_tag(scene, "container")
         bg = find_background(scene)
         basket = containers[0] if containers else None
         if not targets or basket is None or bg is None:
             raise ValueError("FruitsToBasketTask needs collect_target, container and background")
-        task = FruitsToBasketTask(target_objects=targets, all_objects=targets, basket=basket, background_scene=bg)
-        task.events_cfg = build_default_events_cfg(targets, domain_randomization_cfg=getattr(task_cfg, "domain_randomization_cfg", None), pose_range=self.DEFAULT_POSE_RANGE)
+        episode_length_s = getattr(task_cfg, "episode_length_s", None)
+        task = FruitsToBasketTask(
+            target_objects=targets,
+            all_objects=targets,
+            basket=basket,
+            background_scene=bg,
+            episode_length_s=episode_length_s,
+        )
+        # task.events_cfg = build_default_events_cfg(
+        #     targets,
+        #     domain_randomization_cfg=getattr(task_cfg, "domain_randomization_cfg", None),
+        #     pose_range=self.DEFAULT_POSE_RANGE,
+        # )
+        task.events_cfg = make_configclass(
+    "ObjectResetEventsCfg",
+    [
+        (
+            "reset_scene_to_default",
+            EventTermCfg,
+            EventTermCfg(
+                func=reset_scene_to_default,
+                mode="reset",
+                params={"reset_joint_targets": True},
+            ),
+        ),
+        (
+            "assign_fruit_slots",
+            EventTermCfg,
+            EventTermCfg(
+                func=assign_objects_to_slots,
+                mode="reset",
+                params={
+                    "asset_cfgs": [SceneEntityCfg(obj.name) for obj in slot_objects],
+                    "slots": [
+                        (0.07, -0.50, -0.17),
+                        (0.07, -0.37, -0.17),
+                        (0.07, -0.23, -0.17),
+                        (0.07, -0.10, -0.17),
+                    ],
+                },
+            ),
+        ),
+    ],
+)()
         task.termination_cfg = FruitsToBasketTerminationsCfg(
             success=TerminationTermCfg(
                 func=all_objects_in_basket,
@@ -32,7 +84,7 @@ class FruitsToBasketBuilder:
                     "basket_cfg": SceneEntityCfg(basket.name),
                     "x_threshold": 0.14,
                     "y_threshold": 0.14,
-                    "z_threshold": 0.12,
+                    "z_threshold": 0.06,
                     "velocity_threshold": 0.5,
                 },
             ),

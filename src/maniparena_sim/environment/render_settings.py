@@ -97,6 +97,10 @@ def patch_env_cfg_render(
     """
     env_cfg.sim.dt = 1.0 / float(sim_fps)
     env_cfg.sim.render_interval = render_interval
+    from maniparena_sim.embodiment.actuators.stable_pd import (
+        prepare_stable_pd_on_env_cfg,
+    )
+    prepare_stable_pd_on_env_cfg(env_cfg)
     if not render_cfg_dict:
         return
 

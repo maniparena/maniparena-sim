@@ -20,12 +20,11 @@ video_recorder:
 video_mode: episode
 
 policy_config:
-  model_address: "localhost"
-  model_port: 8000
-  instruction: "pick the bottle from the table and place it on the wooden shelf"
+  model_address: "192.168.0.38"
+  model_port: 41021
+  instruction: "place the bottle on the shelf"
   action_horizon: 32
   action_chunk_length: 16
-  interpolation_multiplier: 2
   # follow* is already init-relative on the Wall-X wire; keep false.
   ee_pose_normalize: false
   # Sim-effective EX001 wheel geometry

@@ -53,6 +53,8 @@ class TaskCFG:
     tags: str = ""
     num_episodes: int = 100
     max_steps_per_episode: int = 100
+    # None → Arena TaskBase default (20 s). Eval YAML can override.
+    episode_length_s: Optional[float] = None
     seed: Optional[int] = None
     scene_constraints: ConstraintCollection = field(default_factory=dict)
     robot_constraints: ConstraintCollection = field(default_factory=dict)
