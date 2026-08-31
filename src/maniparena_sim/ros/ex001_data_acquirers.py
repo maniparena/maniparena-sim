@@ -7,7 +7,6 @@ dict. Camera *scene* keys stay ManipArena-local; SDK *topic* names are fixed.
 
 from typing import Any, Callable
 
-from maniparena_sim.ros.ex001_sdk_topics import sim_gripper_to_sdk
 from maniparena_sim.ros.message_builder import MessageBuilder
 from maniparena_sim.ros.ros2_config import EX001RosConfig
 from maniparena_sim.ros.sim_utils import camera_cache
@@ -54,11 +53,7 @@ def acquirer_lift_joint_states(obs, extras, joint_mapping, stamp):
 
 
 def acquirer_gripper_joint_states(obs, extras, joint_index, joint_name, stamp):
-    msg = MessageBuilder.joint_states(obs, [joint_index], [joint_name], stamp)
-    if msg is None or not msg.position:
-        return msg
-    msg.position = [sim_gripper_to_sdk(msg.position[0])]
-    return msg
+    return MessageBuilder.joint_states(obs, [joint_index], [joint_name], stamp)
 
 
 def acquirer_arm_end_pose(obs, extras, body_index, stamp):
@@ -102,19 +97,26 @@ def acquirer_tf_static(obs, extras, stamp):
     return None
 
 
+def acquirer_chassis_scan(obs, extras, lidar_2d, stamp):
+    """Build ``/scan`` from RTX GenericModelOutput using the bridge stamp."""
+    del obs, extras
+    if lidar_2d is None:
+        return None
+    return lidar_2d.build_laserscan(stamp)
+
+
 def fill_data_acquirer(
     data_acquirer,
     joint_mapping,
     stamp_holder,
     odom_origin,
-    env=None,
+    lidar_2d=None,
 ):
     """Register SDK data acquirer callbacks into *data_acquirer* dict.
 
-    ``/scan`` is published by the Isaac Sim RTX lidar assembler, not here.
-    ``env`` is accepted for call-site compatibility and unused.
+    ``/scan`` is published through the main communicator when ``lidar_2d`` is
+    available, so it shares the same timestamp as ``/clock`` and TF.
     """
-    del env
     s = stamp_holder
 
     data_acquirer["/joint_states"] = bind_with_dynamic_stamp(acquirer_all_joint_states, s, joint_mapping)
@@ -148,6 +150,8 @@ def fill_data_acquirer(
     data_acquirer["/tracked_pose"] = bind_with_dynamic_stamp(acquirer_tracked_pose, s)
     data_acquirer["/tf_static"] = bind_with_dynamic_stamp(acquirer_tf_static, s)
     data_acquirer["/hal/chassis/imu"] = bind_with_dynamic_stamp(acquirer_chassis_imu, s)
+    if lidar_2d is not None:
+        data_acquirer["/scan"] = bind_with_dynamic_stamp(acquirer_chassis_scan, s, lidar_2d)
 
     data_acquirer["/camera_chassis_front/depth/points"] = bind_with_dynamic_stamp(
         acquirer_camera_chassis_front_depth_points, s

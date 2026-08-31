@@ -35,6 +35,10 @@ def parse_args():
     parser = argparse.ArgumentParser(description="EX001 ROS2 navigation.")
     AppLauncher.add_app_launcher_args(parser)
     parser.add_argument("--config", default="configs/navigate/ex001_nav.yaml")
+    # RTX cameras/lidar still render on the NVIDIA GPU.  Keep PhysX tensors on
+    # CPU by default because this Sim/Lab stack can otherwise fall back to CPU
+    # PhysX while leaving Warp on CUDA, producing ProxyArray type mismatches.
+    parser.set_defaults(device="cpu")
     return parser.parse_args()
 
 
@@ -207,7 +211,6 @@ def main(args: argparse.Namespace | None = None) -> int:
                 if right_wheel_slot is not None:
                     actions[0, right_wheel_slot] = rw
 
-                ros_ext.stamp_simulation_time()
                 gym_env.step(actions)
                 ros_ext.update(gym_env.step_dt)
     except KeyboardInterrupt:

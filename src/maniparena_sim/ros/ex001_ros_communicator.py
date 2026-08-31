@@ -68,8 +68,8 @@ class EX001RosCommunicator(RosCommunicator):
         "/tf_static": TFMessage,
     }
 
-    # /scan via RTX OmniGraph; /tf_static via StaticTransformBroadcaster.
-    DEDICATED_PUBLISHERS = frozenset({"/scan", "/tf_static"})
+    # /scan uses the main communicator; /tf_static has its own broadcaster.
+    DEDICATED_PUBLISHERS = frozenset({"/tf_static"})
 
     SUBSCRIBERS = {
         "/left_arm_joint_controller/commands": Float64MultiArray,

@@ -18,7 +18,6 @@ from typing import Any
 
 import yaml
 
-from maniparena_sim.ros.ex001_sdk_topics import iter_banned_sdk_topics
 from maniparena_sim.ros.sim_utils import build_robot_state_snapshot
 from maniparena_sim.utils.debug_print import manaprint
 
@@ -120,10 +119,6 @@ class RosBridgeExtension:
         from maniparena_sim.ros.sim_utils import get_root_pose, get_ros_time, init_camera_cache
         from maniparena_sim.ros.tf_publisher import OdomOrigin, TfPublisher
 
-        surface = set(EX001RosCommunicator.PUBLISHERS) | set(EX001RosCommunicator.SUBSCRIBERS)
-        banned = iter_banned_sdk_topics(surface)
-        if banned:
-            raise RuntimeError(f"Banned ROS topic names on EX001 SDK surface: {banned}")
         if set(EX001RosCommunicator.PUBLISHERS) != EX001_SDK_PUBLISH_TOPICS:
             raise RuntimeError("EX001RosCommunicator.PUBLISHERS drifted from EX001_SDK_PUBLISH_TOPICS")
         if set(EX001RosCommunicator.SUBSCRIBERS) != EX001_SDK_SUBSCRIBE_TOPICS:
@@ -179,7 +174,7 @@ class RosBridgeExtension:
             joint_mapping,
             self._stamp_holder,
             odom_origin,
-            env,
+            self._lidar_2d,
         )
         shared_action_buffer = action_buffer
         if shared_action_buffer is None:
@@ -256,8 +251,6 @@ class RosBridgeExtension:
         if self._cfg.use_sim_time:
             stamp = self._get_ros_time(self._sim_time_acc)
             self._communicator.publish_clock(self._sim_time_acc)
-            if self._lidar_2d is not None:
-                self._lidar_2d.stamp_simulation_time(self._sim_time_acc)
         else:
             stamp = self._get_ros_time()
 
@@ -275,12 +268,6 @@ class RosBridgeExtension:
         if due_slow:
             slow_obs = self._compute_slow_obs(due_slow, fast_obs)
             self._communicator.publish_topics(due_slow, slow_obs, {})
-
-    def stamp_simulation_time(self) -> None:
-        """Push Kit simulation time into the official ``/scan`` writer (pre-step)."""
-        if self._lidar_2d is None or not self._cfg.use_sim_time:
-            return
-        self._lidar_2d.stamp_simulation_time(self._sim_time_acc)
 
     def shutdown(self) -> None:
         if self._lidar_2d is not None:

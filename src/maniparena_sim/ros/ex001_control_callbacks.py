@@ -2,8 +2,8 @@
 
 Nav uses ``ActionsCfgNav`` (one ``joint_pos`` term + wheel velocity). Callbacks
 write absolute joint targets into the shared action buffer via *slot_map*
-(``joint_name -> action slot``). Gripper commands stay on the SDK ``0–4.5``
-range and are converted to sim joint units here.
+(``joint_name -> action slot``). Gripper commands use the simulation-native
+``0–1.89`` range directly.
 """
 
 from __future__ import annotations
@@ -11,8 +11,6 @@ from __future__ import annotations
 import threading
 from dataclasses import dataclass, field
 from functools import partial
-
-from maniparena_sim.ros.ex001_sdk_topics import sdk_gripper_to_sim
 
 _LEFT_ARM_JOINTS = tuple(f"left_arm_joint{i}" for i in range(1, 7))
 _RIGHT_ARM_JOINTS = tuple(f"right_arm_joint{i}" for i in range(1, 7))
@@ -110,7 +108,7 @@ def control_gripper_commands(msg, joint_slot, action_buffer):
         return
     if not data or joint_slot is None or action_buffer is None:
         return
-    action_buffer[0, int(joint_slot)] = float(sdk_gripper_to_sim(data[0]))
+    action_buffer[0, int(joint_slot)] = float(data[0])
 
 
 def control_chassis_cmd_vel(msg, cmd_vel_buffer=None, verbose=False):
