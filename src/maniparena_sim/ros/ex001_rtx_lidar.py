@@ -1,14 +1,162 @@
+"""EX001 RTX lidar data extraction and ROS ``LaserScan`` construction."""
+
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
+from types import SimpleNamespace
 
-import omni.kit.app
-import omni.replicator.core as rep
-import omni.timeline
-import omni.usd
+import numpy as np
+
+from maniparena_sim.utils.debug_print import manaprint
+
+
+def _sane_beam_count(count: float) -> bool:
+    return 50.0 <= float(count) <= 20000.0
+
+
+def laser_scan_writer_params(
+    *,
+    scan_type: str,
+    scan_rate_hz: float,
+    near_m: float,
+    far_m: float,
+    firing_rate_hz: float = 0.0,
+    report_rate_hz: float = 0.0,
+    azimuth_deg: Sequence[float] | None = None,
+    fallback_beams: int = 3140,
+) -> dict[str, object]:
+    """Build 2D LaserScan geometry from OmniLidar attributes.
+
+    EX001 authors ``reportRateBaseHz`` as points per revolution (3140), not Hz.
+    ``patternFiringRateHz`` is only a fallback when that count is unavailable.
+    """
+    rotation_rate = max(float(scan_rate_hz), 1e-6)
+    if str(scan_type).upper() == "SOLID_STATE" and azimuth_deg:
+        az_start = float(min(azimuth_deg))
+        az_end = float(max(azimuth_deg))
+        h_fov = az_end - az_start
+        h_res = h_fov / float(len(azimuth_deg))
+        if az_end > 180.0:
+            az_start -= 180.0
+            az_end -= 180.0
+    else:
+        report_count = float(report_rate_hz or 0.0)
+        firing_rate = float(firing_rate_hz or 0.0)
+        if _sane_beam_count(report_count):
+            beam_count = report_count
+        elif firing_rate > 0.0 and _sane_beam_count(firing_rate / rotation_rate):
+            beam_count = firing_rate / rotation_rate
+        else:
+            beam_count = float(fallback_beams)
+        h_res = 360.0 / beam_count
+        az_start = -180.0
+        az_end = 180.0
+        h_fov = 360.0
+    return {
+        "horizontalFov": float(h_fov),
+        "horizontalResolution": float(h_res),
+        "depthRange": [float(near_m), float(far_m)],
+        "rotationRate": float(rotation_rate),
+        "azimuthRange": [float(az_start), float(az_end)],
+    }
+
+
+def full_scan_prim_overrides(
+    scan_rate_hz: float,
+    sim_fps: float = 120.0,
+    firing_rate_hz: float = 0.0,
+) -> dict[str, object]:
+    """USD attrs the official Lidar wrap otherwise skips when missing."""
+    del sim_fps, firing_rate_hz
+    return {
+        "omni:sensor:Core:accumulateOutputs": True,
+        "omni:sensor:Core:instantLidar": True,
+        "omni:sensor:Core:elementsCoordsType": "CARTESIAN",
+        "omni:sensor:tickRate": max(float(scan_rate_hz), 1e-6),
+    }
+
+
+def lidar_publish_step(sim_fps: float = 120.0, scan_rate_hz: float = 10.0) -> int:
+    """Frames per published scan at ``scan_rate_hz``."""
+    return max(1, int(round(float(sim_fps) / max(float(scan_rate_hz), 1e-6))))
+
+
+def bin_points_to_laser_ranges(
+    points: np.ndarray,
+    intensities: np.ndarray | None,
+    *,
+    azimuth_range_deg: Sequence[float],
+    horizontal_resolution_deg: float,
+    range_min: float,
+    range_max: float,
+) -> tuple[list[float], list[float], float, float, float]:
+    """Bin sensor-frame XYZ hits into ROS ``LaserScan`` ranges."""
+    az_min_deg = float(azimuth_range_deg[0])
+    az_max_deg = float(azimuth_range_deg[1])
+    h_res_deg = max(float(horizontal_resolution_deg), 1e-9)
+    angle_min = math.radians(az_min_deg)
+    angle_max = math.radians(az_max_deg)
+    angle_increment = math.radians(h_res_deg)
+    num_beams = max(1, int(round((az_max_deg - az_min_deg) / h_res_deg)))
+
+    ranges = [math.inf] * num_beams
+    out_intensity = [0.0] * num_beams
+    if points is None or len(points) == 0:
+        return ranges, out_intensity, angle_min, angle_max, angle_increment
+
+    pts = np.asarray(points, dtype=np.float64).reshape(-1, 3)
+    if intensities is None or len(intensities) == 0:
+        inten = np.ones(len(pts), dtype=np.float64)
+    else:
+        inten = np.asarray(intensities, dtype=np.float64).reshape(-1)
+        if len(inten) != len(pts):
+            inten = np.ones(len(pts), dtype=np.float64)
+
+    xy_range = np.linalg.norm(pts[:, :2], axis=1)
+    azimuth = np.arctan2(pts[:, 1], pts[:, 0])
+    valid = (xy_range >= float(range_min)) & (xy_range <= float(range_max))
+    if not np.any(valid):
+        return ranges, out_intensity, angle_min, angle_max, angle_increment
+
+    indices = np.floor((azimuth[valid] - angle_min) / angle_increment).astype(np.int64)
+    keep = (indices >= 0) & (indices < num_beams)
+    if not np.any(keep):
+        return ranges, out_intensity, angle_min, angle_max, angle_increment
+
+    indices = indices[keep]
+    distances = xy_range[valid][keep]
+    valid_intensities = inten[valid][keep]
+    for beam, distance, intensity in zip(indices.tolist(), distances.tolist(), valid_intensities.tolist()):
+        if distance < ranges[beam]:
+            ranges[beam] = float(distance)
+            out_intensity[beam] = float(intensity)
+    return ranges, out_intensity, angle_min, angle_max, angle_increment
+
+
+def resolve_lidar_prim_path(prim_path: str, env_id: int = 0, scene=None) -> str:
+    """Replace ``{ENV_REGEX_NS}`` using the spawned scene env prims."""
+    if "{ENV_REGEX_NS}" not in prim_path:
+        return prim_path
+    suffix = prim_path.split("{ENV_REGEX_NS}", 1)[1]
+    env_paths = getattr(scene, "env_prim_paths", None) if scene is not None else None
+    if env_paths:
+        return f"{env_paths[env_id]}{suffix}"
+    env_ns = getattr(scene, "env_ns", None) if scene is not None else None
+    if not env_ns:
+        cfg = getattr(scene, "cfg", None) if scene is not None else None
+        env_ns = getattr(cfg, "env_ns", None) if cfg is not None else None
+    if env_ns:
+        return prim_path.replace("{ENV_REGEX_NS}", f"{env_ns}/env_{env_id}")
+    raise ValueError(
+        "Cannot resolve lidar prim path: scene has no env_prim_paths or env_ns. "
+        f"template={prim_path!r} env_id={env_id}"
+    )
 
 
 class RtxLidarHelper:
+    """Isaac Sim 6 RTX lidar read through the GenericModelOutput annotator."""
+
     def __init__(
         self,
         prim_path: str,
@@ -17,38 +165,30 @@ class RtxLidarHelper:
         frame_id: str = "a_d_laser",
         topic_name: str = "scan",
         scan_rate_hz: float = 10.0,
-        num_beams: int = 314,
+        num_beams: int = 3140,
         use_sim_time: bool = False,
     ):
+        del use_sim_time, topic_name
         self._prim_path = prim_path
         self._env_id = env_id
         self._frame_id = frame_id
-        self._topic_name = topic_name
         self._scan_rate_hz = scan_rate_hz
         self._num_beams = num_beams
-        self._use_sim_time = use_sim_time
         self._lidar = None
         self._render_product = None
-        self._writer = None
-        self._ros_node = None
-        self._ros_executor = None
-        self._ros_thread = None
-        self._scan_publisher = None
-        self._partial_subscription = None
-        self._bucket = None
-        self._bucket_is_warmup = True
-        self._ranges = None
-        self._intensities = None
-        self._last_valid_ranges = [math.inf] * num_beams
-        self._last_valid_intensities = [0.0] * num_beams
-        self._last_valid_ages = [3] * num_beams
-        self._scan_template = None
+        self._annotator = None
+        self._geometry: dict[str, object] | None = None
         self._near_m = 0.05
         self._far_m = 25.0
+        self._resolved_prim_path: str | None = None
 
     def initialize(self, scene) -> bool:
-        prim_path = self._prim_path.replace("{ENV_REGEX_NS}", f"{scene.env_ns}/env_{self._env_id}")
+        import omni.kit.app
+        import omni.replicator.core as rep
+        import omni.usd
 
+        prim_path = resolve_lidar_prim_path(self._prim_path, self._env_id, scene)
+        self._resolved_prim_path = prim_path
         extension_manager = omni.kit.app.get_app().get_extension_manager()
         if not extension_manager.set_extension_enabled_immediate("isaacsim.sensors.experimental.rtx", True):
             return False
@@ -62,170 +202,141 @@ class RtxLidarHelper:
 
         self._near_m = float(self._read_attr(lidar_prim, "omni:sensor:Core:nearRangeM", 0.05))
         self._far_m = float(self._read_attr(lidar_prim, "omni:sensor:Core:farRangeM", 25.0))
-        self._set_attr(lidar_prim, "omni:sensor:Core:scanRateBaseHz", self._scan_rate_hz)
-        self._set_attr(lidar_prim, "omni:sensor:Core:reportRateBaseHz", self._scan_rate_hz * self._num_beams)
+        scan_rate = float(self._read_attr(lidar_prim, "omni:sensor:Core:scanRateBaseHz", self._scan_rate_hz))
+        self._scan_rate_hz = scan_rate
+        firing_rate_hz = float(self._read_attr(lidar_prim, "omni:sensor:Core:patternFiringRateHz", 0.0) or 0.0)
+        report_rate_hz = float(self._read_attr(lidar_prim, "omni:sensor:Core:reportRateBaseHz", 0.0) or 0.0)
+        scan_type = str(self._read_attr(lidar_prim, "omni:sensor:Core:scanType", "") or "")
+        prim_overrides = full_scan_prim_overrides(scan_rate)
+        for name, value in prim_overrides.items():
+            self._ensure_attr(lidar_prim, name, value)
 
         self._lidar = Lidar(
             prim_path,
             accumulate_outputs=True,
-            aux_output_level="FULL",
-            tick_rate=self._scan_rate_hz,
+            aux_output_level="NONE",
+            tick_rate=float(prim_overrides["omni:sensor:tickRate"]),
             reset_xform_op_properties=False,
         )
-
+        self._geometry = laser_scan_writer_params(
+            scan_type=scan_type,
+            scan_rate_hz=scan_rate,
+            near_m=self._near_m,
+            far_m=self._far_m,
+            firing_rate_hz=firing_rate_hz,
+            report_rate_hz=report_rate_hz,
+            azimuth_deg=self._read_attr(lidar_prim, "omni:sensor:Core:emitterState:s001:azimuthDeg", None),
+            fallback_beams=self._num_beams,
+        )
+        manaprint(
+            "INFO: [EX001 lidar] "
+            f"type={lidar_prim.GetPrimTypeInfo().GetTypeName()} "
+            f"tickRate={self._read_attr(lidar_prim, 'omni:sensor:tickRate', None)} "
+            f"scanRateBaseHz={scan_rate} "
+            f"scanType={scan_type} "
+            f"patternFiringRateHz={firing_rate_hz} "
+            f"reportRateBaseHz={report_rate_hz} "
+            f"accumulateOutputs={self._read_attr(lidar_prim, 'omni:sensor:Core:accumulateOutputs', None)} "
+            f"instantLidar={self._read_attr(lidar_prim, 'omni:sensor:Core:instantLidar', None)} "
+            f"elementsCoordsType={self._read_attr(lidar_prim, 'omni:sensor:Core:elementsCoordsType', None)} "
+            f"python_scan={self._geometry}"
+        )
         self._render_product = rep.create.render_product(
             camera=prim_path,
             resolution=(1, 1),
             render_vars=["GenericModelOutput"],
         )
-        self._writer = rep.writers.get("RtxLidarROS2PublishLaserScan")
-        self._writer.initialize(
-            frameId=self._frame_id,
-            nodeNamespace="",
-            queueSize=10,
-            topicName="_maniparena/scan_raw",
-            context=0,
-            qosProfile="",
-            horizontalFov=360.0,
-            horizontalResolution=360.0 / self._num_beams,
-            depthRange=[self._near_m, self._far_m],
-            rotationRate=self._scan_rate_hz,
-            azimuthRange=[-180.0, 180.0],
-        )
-        self._writer.attach([self._render_product.path])
-
-        timeline = omni.timeline.get_timeline_interface()
-        if float(timeline.get_end_time()) < 1_000_000.0:
-            timeline.set_end_time(1_000_000.0)
-        if not timeline.is_playing():
-            timeline.play()
-
+        self._annotator = rep.AnnotatorRegistry.get_annotator("GenericModelOutput")
+        self._annotator.attach([self._render_product.path])
         return True
 
-    def start_ros_assembler(self) -> None:
-        import threading
-
-        import rclpy
-        from rclpy.executors import SingleThreadedExecutor
-        from rclpy.qos import qos_profile_sensor_data
-        from sensor_msgs.msg import LaserScan
-
-        self._ros_node = rclpy.create_node("ex001_lidar_scan_assembler")
-        self._scan_publisher = self._ros_node.create_publisher(LaserScan, self._topic_name, 10)
-        self._partial_subscription = self._ros_node.create_subscription(
-            LaserScan,
-            "/maniparena/scan_raw",
-            self._on_partial_scan,
-            qos_profile_sensor_data,
+    def get_point_cloud_data(self) -> dict | None:
+        if self._annotator is None:
+            return None
+        raw = self._annotator.get_data()
+        if raw is None:
+            return None
+        if isinstance(raw, dict):
+            raw = raw.get("data", raw)
+        try:
+            from isaacsim.sensors.experimental.rtx import parse_generic_model_output_data
+        except ImportError:
+            return None
+        gmo = parse_generic_model_output_data(raw)
+        num_elements = int(getattr(gmo, "numElements", 0) or 0)
+        if num_elements <= 0:
+            return None
+        points = np.column_stack(
+            [
+                np.asarray(gmo.x, dtype=np.float32)[:num_elements],
+                np.asarray(gmo.y, dtype=np.float32)[:num_elements],
+                np.asarray(gmo.z, dtype=np.float32)[:num_elements],
+            ]
         )
-        self._ros_executor = SingleThreadedExecutor()
-        self._ros_executor.add_node(self._ros_node)
-        self._ros_thread = threading.Thread(target=self._ros_executor.spin, daemon=True)
-        self._ros_thread.start()
+        return {"points": points, "intensities": np.ones(num_elements, dtype=np.float32)}
 
-    def _on_partial_scan(self, msg) -> None:
-        if len(msg.ranges) != self._num_beams:
-            return
-
-        stamp_ns = int(msg.header.stamp.sec) * 1_000_000_000 + int(msg.header.stamp.nanosec)
-        period_ns = int(round(1_000_000_000 / self._scan_rate_hz))
-        bucket = stamp_ns // period_ns
-        if self._bucket is None:
-            self._reset_bucket(bucket)
-        elif bucket > self._bucket:
-            elapsed_buckets = bucket - self._bucket
-            if not self._bucket_is_warmup:
-                self._publish_completed_scan(period_ns)
-                self._advance_cache_ages(elapsed_buckets - 1)
-            self._bucket_is_warmup = False
-            self._reset_bucket(bucket)
-        elif bucket < self._bucket:
-            return
-
-        self._merge_partial_scan(msg)
-
-    def _merge_partial_scan(self, msg) -> None:
-        self._scan_template = msg
-        for index, range_m in enumerate(msg.ranges):
-            if math.isfinite(range_m) and msg.range_min <= range_m <= msg.range_max:
-                self._ranges[index] = float(range_m)
-                if index < len(msg.intensities):
-                    self._intensities[index] = float(msg.intensities[index])
-
-    def _reset_bucket(self, bucket: int) -> None:
-        self._bucket = bucket
-        self._ranges = [math.inf] * self._num_beams
-        self._intensities = [0.0] * self._num_beams
-        self._scan_template = None
-
-    def _publish_completed_scan(self, period_ns: int) -> None:
-        if self._scan_publisher is None or self._scan_template is None:
-            return
-
+    def build_laserscan(self, stamp):
+        """Build ``sensor_msgs/LaserScan`` with the bridge's current stamp."""
+        if self._geometry is None:
+            return None
+        data = self.get_point_cloud_data()
+        if data is None:
+            return None
         from maniparena_sim.ros.message_builder import MessageBuilder
 
-        template = self._scan_template
-        if self._use_sim_time:
-            stamp_ns = self._bucket * period_ns
-        else:
-            stamp_ns = self._ros_node.get_clock().now().nanoseconds
-        observed_ranges = self._ranges
-        observed_intensities = self._intensities
-        ranges = list(observed_ranges)
-        intensities = list(observed_intensities)
-        for index, range_m in enumerate(observed_ranges):
-            if math.isfinite(range_m):
-                self._last_valid_ranges[index] = range_m
-                self._last_valid_intensities[index] = observed_intensities[index]
-                self._last_valid_ages[index] = 0
-                continue
-            self._last_valid_ages[index] += 1
-            if self._last_valid_ages[index] <= 2:
-                ranges[index] = self._last_valid_ranges[index]
-                intensities[index] = self._last_valid_intensities[index]
-        msg = MessageBuilder.laserscan(
+        geometry = self._geometry
+        ranges, intensities, angle_min, angle_max, angle_increment = bin_points_to_laser_ranges(
+            data["points"],
+            data["intensities"],
+            azimuth_range_deg=geometry["azimuthRange"],
+            horizontal_resolution_deg=float(geometry["horizontalResolution"]),
+            range_min=self._near_m,
+            range_max=self._far_m,
+        )
+        template = SimpleNamespace(
+            angle_min=angle_min,
+            angle_max=angle_max,
+            angle_increment=angle_increment,
+        )
+        stamp_ns = int(stamp.sec) * 1_000_000_000 + int(stamp.nanosec)
+        return MessageBuilder.laserscan(
             template,
             stamp_ns=stamp_ns,
             frame_id=self._frame_id,
-            scan_rate_hz=self._scan_rate_hz,
+            scan_rate_hz=float(geometry["rotationRate"]),
             range_min=self._near_m,
             range_max=self._far_m,
             ranges=ranges,
             intensities=intensities,
         )
-        self._scan_publisher.publish(msg)
-
-    def _advance_cache_ages(self, skipped_buckets: int) -> None:
-        if skipped_buckets <= 0:
-            return
-        for index in range(self._num_beams):
-            self._last_valid_ages[index] += skipped_buckets
 
     def shutdown(self) -> None:
-        if self._ros_executor is not None:
-            self._ros_executor.shutdown(timeout_sec=1.0)
-        if self._ros_thread is not None:
-            self._ros_thread.join(timeout=1.0)
-        if self._ros_node is not None and self._partial_subscription is not None:
-            self._ros_node.destroy_subscription(self._partial_subscription)
-        if self._ros_node is not None and self._scan_publisher is not None:
-            self._ros_node.destroy_publisher(self._scan_publisher)
-        if self._ros_executor is not None and self._ros_node is not None:
-            self._ros_executor.remove_node(self._ros_node)
-        if self._ros_node is not None:
-            self._ros_node.destroy_node()
-        self._partial_subscription = None
-        self._scan_publisher = None
-        self._ros_executor = None
-        self._ros_thread = None
-        self._ros_node = None
-        if self._writer is not None:
-            self._writer.detach()
-            self._writer = None
+        if self._annotator is not None:
+            try:
+                self._annotator.detach()
+            except Exception:
+                pass
+            self._annotator = None
         if self._render_product is not None:
             self._render_product.destroy()
             self._render_product = None
         self._lidar = None
+        self._geometry = None
+
+    @staticmethod
+    def _ensure_attr(prim, name: str, value) -> None:
+        from pxr import Sdf
+
+        attr = prim.GetAttribute(name)
+        if not (attr and attr.IsValid()):
+            if isinstance(value, bool):
+                type_name = Sdf.ValueTypeNames.Bool
+            elif isinstance(value, (int, float)):
+                type_name = Sdf.ValueTypeNames.Float
+            else:
+                type_name = Sdf.ValueTypeNames.Token
+            attr = prim.CreateAttribute(name, type_name)
+        attr.Set(value)
 
     @staticmethod
     def _read_attr(prim, name: str, default):
@@ -233,12 +344,6 @@ class RtxLidarHelper:
         if attr and attr.IsValid() and attr.Get() is not None:
             return attr.Get()
         return default
-
-    @staticmethod
-    def _set_attr(prim, name: str, value) -> None:
-        attr = prim.GetAttribute(name)
-        if attr and attr.IsValid():
-            attr.Set(value)
 
 
 def create_ex001_lidar(
@@ -248,7 +353,7 @@ def create_ex001_lidar(
     frame_id: str = "a_d_laser",
     topic_name: str = "scan",
     scan_rate_hz: float = 10.0,
-    num_beams: int = 314,
+    num_beams: int = 3140,
     use_sim_time: bool = False,
 ) -> RtxLidarHelper:
     """Create EX001 lidar helper. Path must be passed from config."""

@@ -40,6 +40,17 @@ class EX001RosConfig:
             "compress_quality": 80,
             "pointcloud_downsample": 1,
         },
+        # /camera_head_front/depth/image_raw/compressedDepth
+        # Requires head_camera depth in camera_obs; otherwise acquirer returns None.
+        "head_front_depth_camera": {
+            "scene_entity": "head_camera",
+            "rgb_key": None,
+            "depth_key": "head_depth_cam",
+            "frame_id": "camera_head_front_depth_optical_frame",
+            "compress_fmt": "png",
+            "compress_quality": None,
+            "pointcloud_downsample": 1,
+        },
         # /camera_chassis_front/depth/points  <- chassis depth
         "chassis_front_camera": {
             "scene_entity": "chassis_camera",

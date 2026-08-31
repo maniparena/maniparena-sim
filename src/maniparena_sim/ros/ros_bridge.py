@@ -16,7 +16,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import yaml
 
 from maniparena_sim.ros.sim_utils import build_robot_state_snapshot
@@ -27,6 +26,7 @@ CAMERA_TOPICS: set[str] = {
     "/camera1/usb_cam1/image_raw/image_compressed",
     "/camera3/usb_cam3/image_raw/image_compressed",
     "/camera_head_front/color/image_raw/compressed",
+    "/camera_head_front/depth/image_raw/compressedDepth",
 }
 
 
@@ -58,6 +58,8 @@ class RosBridgeExtension:
         self._cfg = cfg
         self._communicator: Any = None
         self._tf_pub: Any = None
+        self._tf_static: Any = None
+        self._static_tf_sent: bool = False
         self._stamp_holder: dict = {"stamp": None}
         self._body_names: list[str] = []
         self._sim_time_acc: float = 0.0
@@ -65,6 +67,10 @@ class RosBridgeExtension:
         self._robot: Any = None
         self._imu_sensor: Any = None
         self._cmd_vel_buffer: Any = None
+        self._cmd_vel_last_seq: int = 0
+        self._cmd_vel_last_sim_time: float = float("-inf")
+        self._cmd_vel_held: tuple[float, float, float] = (0.0, 0.0, 0.0)
+        self._cmd_vel_zero_sent: bool = False
         self._lidar_2d: Any = None
         self._enabled_publishers: set[str] = set()
         self._fast_topics: set[str] = set()
@@ -78,6 +84,10 @@ class RosBridgeExtension:
     @property
     def chassis_input(self) -> str:
         return self._cfg.chassis_input
+
+    @property
+    def cmd_vel_timeout_s(self) -> float:
+        return float(self._cfg.cmd_vel_timeout_s)
 
     # -- lifecycle ---------------------------------------------------------
 
@@ -97,22 +107,29 @@ class RosBridgeExtension:
         if str(ros2_python) not in sys.path:
             sys.path.insert(0, str(ros2_python))
 
-        from tf2_ros import TransformBroadcaster
+        from tf2_ros import StaticTransformBroadcaster, TransformBroadcaster
 
-        from maniparena_sim.ros.ex001_control_callbacks import fill_control_callbacks
+        from maniparena_sim.ros.ex001_control_callbacks import CmdVelCommandBuffer, fill_control_callbacks
         from maniparena_sim.ros.ex001_data_acquirers import fill_data_acquirer
-        from maniparena_sim.ros.ex001_joint_mapping import EX001JointIndexMapping
+        from maniparena_sim.ros.ex001_joint_mapping import EX001JointIndexMapping, build_action_slot_map
         from maniparena_sim.ros.ex001_ros_communicator import EX001RosCommunicator
+        from maniparena_sim.ros.ex001_sdk_topics import EX001_SDK_PUBLISH_TOPICS, EX001_SDK_SUBSCRIBE_TOPICS
         from maniparena_sim.ros.prim_paths import EX001_PATHS
         from maniparena_sim.ros.ros2_config import EX001RosConfig
         from maniparena_sim.ros.sim_utils import get_root_pose, get_ros_time, init_camera_cache
         from maniparena_sim.ros.tf_publisher import OdomOrigin, TfPublisher
+
+        if set(EX001RosCommunicator.PUBLISHERS) != EX001_SDK_PUBLISH_TOPICS:
+            raise RuntimeError("EX001RosCommunicator.PUBLISHERS drifted from EX001_SDK_PUBLISH_TOPICS")
+        if set(EX001RosCommunicator.SUBSCRIBERS) != EX001_SDK_SUBSCRIBE_TOPICS:
+            raise RuntimeError("EX001RosCommunicator.SUBSCRIBERS drifted from EX001_SDK_SUBSCRIBE_TOPICS")
 
         self._get_ros_time = get_ros_time
         self._robot = robot
         self._imu_sensor = env.scene["imu"] if "imu" in env.scene.keys() else None
         self._cmd_vel_buffer = None
         self._sim_time_acc = 0.0
+        self._static_tf_sent = False
         nav_mode = self._cfg.nav_mode
 
         # -- Sensors (2D RTX lidar only) -----------------------------------
@@ -126,26 +143,19 @@ class RosBridgeExtension:
             frame_id=lidar_cfg["frame_id"],
             topic_name="scan",
             scan_rate_hz=10.0,
-            num_beams=314,
             use_sim_time=self._cfg.use_sim_time,
         )
         if not self._lidar_2d.initialize(env.scene):
             raise RuntimeError("Failed to initialize EX001 ROS2 RTX lidar publisher")
 
-        # -- ROS chassis controller (differential drive) ------------------
-        ros_chassis_ctrl = None
-        # -- Chassis cmd_vel buffer ----------------------------------------
-        # The chassis is driven through the env action vector (wheel-velocity
-        # term) by the nav loop, which reads this buffer and sums it with the
-        # keyboard twist. No direct-to-sim controller / gate here.
-        from maniparena_sim.ros.ex001_control_callbacks import CmdVelCommandBuffer
-
         self._cmd_vel_buffer = CmdVelCommandBuffer()
+        self._cmd_vel_last_seq = 0
+        self._cmd_vel_last_sim_time = float("-inf")
+        self._cmd_vel_held = (0.0, 0.0, 0.0)
+        self._cmd_vel_zero_sent = False
 
         # -- Joint mapping / odom / camera cache ---------------------------
         joint_mapping = EX001JointIndexMapping(robot)
-        from maniparena_sim.ros.ex001_joint_mapping import build_action_slot_map
-
         slot_map = build_action_slot_map(env.action_manager)
         odom_origin = OdomOrigin()
         init_camera_cache(env, EX001RosConfig.CAMERA_CONFIG)
@@ -164,7 +174,7 @@ class RosBridgeExtension:
             joint_mapping,
             self._stamp_holder,
             odom_origin,
-            env,
+            self._lidar_2d,
         )
         shared_action_buffer = action_buffer
         if shared_action_buffer is None:
@@ -180,6 +190,7 @@ class RosBridgeExtension:
         # -- Communicator & TF ---------------------------------------------
         enabled_publishers = self._resolve_enabled_publishers(
             has_camera_obs="chassis_camera" in env.scene.keys(),
+            has_imu_sensor=self._imu_sensor is not None,
         )
         self._communicator = EX001RosCommunicator(
             control_callbacks=control_callbacks,
@@ -187,17 +198,12 @@ class RosBridgeExtension:
             use_sim_time=self._cfg.use_sim_time,
             enabled_publishers=enabled_publishers,
         )
-        self._lidar_2d.start_ros_assembler()
         self._enabled_publishers = set(enabled_publishers)
         self._fast_topics = EX001RosCommunicator.FAST_TOPICS & self._enabled_publishers
         self._slow_topics = EX001RosCommunicator.LOW_RATE_TOPICS & self._enabled_publishers
-        self._camera_topics = {
-            "/camera_chassis_front/depth/points",
-            "/camera1/usb_cam1/image_raw/image_compressed",
-            "/camera3/usb_cam3/image_raw/image_compressed",
-            "/camera_head_front/color/image_raw/compressed",
-        } & self._enabled_publishers
+        self._camera_topics = CAMERA_TOPICS & self._enabled_publishers
         tf_broadcaster = TransformBroadcaster(self._communicator)
+        self._tf_static = StaticTransformBroadcaster(self._communicator)
         self._tf_pub = TfPublisher(tf_broadcaster, odom_origin, publish_interval=1)
         self._tf_pub.init_from_robot(robot)
         self._body_names = list(robot.data.body_names)
@@ -208,6 +214,31 @@ class RosBridgeExtension:
             f"use_sim_time={self._cfg.use_sim_time}  "
             f"control_rate_hz={self._cfg.control_rate_hz:.2f}"
         )
+
+    def latest_cmd_vel(self, sim_time_s: float) -> tuple[float, float, float]:
+        """Return held ``/chassis/cmd_vel`` with timeout zeroing."""
+        buf = self._cmd_vel_buffer
+        if buf is None:
+            return (0.0, 0.0, 0.0)
+        snapshot = buf.read_if_new(self._cmd_vel_last_seq)
+        if snapshot is not None:
+            self._cmd_vel_last_seq, self._cmd_vel_held = snapshot
+            self._cmd_vel_last_sim_time = float(sim_time_s)
+            self._cmd_vel_zero_sent = False
+        timeout = self.cmd_vel_timeout_s
+        if (
+            timeout > 0.0
+            and self._cmd_vel_last_sim_time != float("-inf")
+            and (float(sim_time_s) - self._cmd_vel_last_sim_time) > timeout
+        ):
+            if self._cmd_vel_zero_sent:
+                return (0.0, 0.0, 0.0)
+            self._cmd_vel_held = (0.0, 0.0, 0.0)
+            self._cmd_vel_zero_sent = True
+            return self._cmd_vel_held
+        if self._cmd_vel_last_sim_time == float("-inf"):
+            return (0.0, 0.0, 0.0)
+        return self._cmd_vel_held
 
     def update(self, dt: float) -> None:
         """Call once per simulation step (after ``env.step``)."""
@@ -225,6 +256,9 @@ class RosBridgeExtension:
 
         self._stamp_holder["stamp"] = stamp
         fast_obs = build_robot_state_snapshot(self._env, self._robot, self._imu_sensor)
+        if not self._static_tf_sent and self._tf_static is not None:
+            self._tf_pub.publish_static_on_base(fast_obs, self._body_names, stamp, self._tf_static)
+            self._static_tf_sent = True
         due_fast = self._communicator.collect_due_topics(dt, self._fast_topics)
         if due_fast:
             self._communicator.publish_topics(due_fast, fast_obs, {})
@@ -243,6 +277,7 @@ class RosBridgeExtension:
             self._communicator.shutdown()
             self._communicator = None
         self._cmd_vel_buffer = None
+        self._tf_static = None
 
     def _compute_obs(self) -> dict:
         """Get observations via the environment's observation manager."""
@@ -254,11 +289,15 @@ class RosBridgeExtension:
             return self._compute_obs()
         return fallback_obs
 
-    def _resolve_enabled_publishers(self, *, has_camera_obs: bool) -> set[str]:
+    def _resolve_enabled_publishers(self, *, has_camera_obs: bool, has_imu_sensor: bool) -> set[str]:
         from maniparena_sim.ros.ex001_ros_communicator import EX001RosCommunicator
 
         publishers = set(EX001RosCommunicator.PUBLISHERS.keys())
         publishers.difference_update(EX001RosCommunicator.DEDICATED_PUBLISHERS)
         if not has_camera_obs:
             publishers.difference_update(CAMERA_TOPICS)
+        if not has_imu_sensor:
+            publishers.discard("/hal/chassis/imu")
+        # Head depth is optional until camera_obs exposes head_depth_cam.
+        publishers.discard("/camera_head_front/depth/image_raw/compressedDepth")
         return publishers
