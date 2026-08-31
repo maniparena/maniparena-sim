@@ -1,4 +1,4 @@
-"""ROS2 bridge extension – YAML-driven ROS topic pub/sub for navigation.
+"""SDK ROS2 bridge extension – YAML-driven ROS topic pub/sub.
 
 Lifecycle matches the other extensions::
 
@@ -19,7 +19,7 @@ from typing import Any
 import yaml
 
 from maniparena_sim.ros.sim_utils import build_robot_state_snapshot
-from maniparena_sim.utils.debug_print import manaprint
+from maniparena_sim.utils.debug_print import maniparenaprint
 
 CAMERA_TOPICS: set[str] = {
     "/camera_chassis_front/depth/points",
@@ -52,7 +52,7 @@ def load_ros_bridge_cfg(config_path: str | Path) -> RosBridgeCfg:
 
 
 class RosBridgeExtension:
-    """Self-contained ROS2 bridge for the EX001 navigation environment."""
+    """Self-contained QUANTA_X1 SDK ROS2 bridge."""
 
     def __init__(self, cfg: RosBridgeCfg):
         self._cfg = cfg
@@ -109,20 +109,20 @@ class RosBridgeExtension:
 
         from tf2_ros import StaticTransformBroadcaster, TransformBroadcaster
 
-        from maniparena_sim.ros.ex001_control_callbacks import CmdVelCommandBuffer, fill_control_callbacks
-        from maniparena_sim.ros.ex001_data_acquirers import fill_data_acquirer
-        from maniparena_sim.ros.ex001_joint_mapping import EX001JointIndexMapping, build_action_slot_map
-        from maniparena_sim.ros.ex001_ros_communicator import EX001RosCommunicator
-        from maniparena_sim.ros.ex001_sdk_topics import EX001_SDK_PUBLISH_TOPICS, EX001_SDK_SUBSCRIBE_TOPICS
-        from maniparena_sim.ros.prim_paths import EX001_PATHS
-        from maniparena_sim.ros.ros2_config import EX001RosConfig
+        from maniparena_sim.ros.quanta_x1_control_callbacks import CmdVelCommandBuffer, fill_control_callbacks
+        from maniparena_sim.ros.quanta_x1_data_acquirers import fill_data_acquirer
+        from maniparena_sim.ros.quanta_x1_joint_mapping import QuantaX1JointIndexMapping, build_action_slot_map
+        from maniparena_sim.ros.quanta_x1_ros_communicator import QuantaX1RosCommunicator
+        from maniparena_sim.ros.quanta_x1_sdk_topics import QUANTA_X1_SDK_PUBLISH_TOPICS, QUANTA_X1_SDK_SUBSCRIBE_TOPICS
+        from maniparena_sim.ros.prim_paths import QUANTA_X1_PATHS
+        from maniparena_sim.ros.ros2_config import QuantaX1RosConfig
         from maniparena_sim.ros.sim_utils import get_root_pose, get_ros_time, init_camera_cache
         from maniparena_sim.ros.tf_publisher import OdomOrigin, TfPublisher
 
-        if set(EX001RosCommunicator.PUBLISHERS) != EX001_SDK_PUBLISH_TOPICS:
-            raise RuntimeError("EX001RosCommunicator.PUBLISHERS drifted from EX001_SDK_PUBLISH_TOPICS")
-        if set(EX001RosCommunicator.SUBSCRIBERS) != EX001_SDK_SUBSCRIBE_TOPICS:
-            raise RuntimeError("EX001RosCommunicator.SUBSCRIBERS drifted from EX001_SDK_SUBSCRIBE_TOPICS")
+        if set(QuantaX1RosCommunicator.PUBLISHERS) != QUANTA_X1_SDK_PUBLISH_TOPICS:
+            raise RuntimeError("QuantaX1RosCommunicator.PUBLISHERS drifted from QUANTA_X1_SDK_PUBLISH_TOPICS")
+        if set(QuantaX1RosCommunicator.SUBSCRIBERS) != QUANTA_X1_SDK_SUBSCRIBE_TOPICS:
+            raise RuntimeError("QuantaX1RosCommunicator.SUBSCRIBERS drifted from QUANTA_X1_SDK_SUBSCRIBE_TOPICS")
 
         self._get_ros_time = get_ros_time
         self._robot = robot
@@ -135,18 +135,18 @@ class RosBridgeExtension:
         # -- Sensors (2D RTX lidar only) -----------------------------------
         if nav_mode != "2d":
             raise NotImplementedError(f"Only ros.nav_mode='2d' is supported, got {nav_mode!r}.")
-        from maniparena_sim.ros.ex001_rtx_lidar import create_ex001_lidar
+        from maniparena_sim.ros.quanta_x1_rtx_lidar import create_quanta_x1_lidar
 
-        lidar_cfg = EX001RosConfig.LIDAR_CONFIG["chassis_lidar"]
-        self._lidar_2d = create_ex001_lidar(
-            prim_path=EX001_PATHS.lidar,
+        lidar_cfg = QuantaX1RosConfig.LIDAR_CONFIG["chassis_lidar"]
+        self._lidar_2d = create_quanta_x1_lidar(
+            prim_path=QUANTA_X1_PATHS.lidar,
             frame_id=lidar_cfg["frame_id"],
             topic_name="scan",
             scan_rate_hz=10.0,
             use_sim_time=self._cfg.use_sim_time,
         )
         if not self._lidar_2d.initialize(env.scene):
-            raise RuntimeError("Failed to initialize EX001 ROS2 RTX lidar publisher")
+            raise RuntimeError("Failed to initialize QUANTA_X1 ROS2 RTX lidar publisher")
 
         self._cmd_vel_buffer = CmdVelCommandBuffer()
         self._cmd_vel_last_seq = 0
@@ -155,10 +155,10 @@ class RosBridgeExtension:
         self._cmd_vel_zero_sent = False
 
         # -- Joint mapping / odom / camera cache ---------------------------
-        joint_mapping = EX001JointIndexMapping(robot)
+        joint_mapping = QuantaX1JointIndexMapping(robot)
         slot_map = build_action_slot_map(env.action_manager)
         odom_origin = OdomOrigin()
-        init_camera_cache(env, EX001RosConfig.CAMERA_CONFIG)
+        init_camera_cache(env, QuantaX1RosConfig.CAMERA_CONFIG)
 
         self._env = env
         obs0 = build_robot_state_snapshot(env, robot, self._imu_sensor)
@@ -166,8 +166,8 @@ class RosBridgeExtension:
         odom_origin.init_from_pose(root_pos, root_quat)
 
         # -- Acquirers / callbacks -----------------------------------------
-        data_acquirer = {t: None for t in EX001RosCommunicator.PUBLISHERS}
-        control_callbacks = {t: None for t in EX001RosCommunicator.SUBSCRIBERS}
+        data_acquirer = {t: None for t in QuantaX1RosCommunicator.PUBLISHERS}
+        control_callbacks = {t: None for t in QuantaX1RosCommunicator.SUBSCRIBERS}
 
         fill_data_acquirer(
             data_acquirer,
@@ -192,15 +192,15 @@ class RosBridgeExtension:
             has_camera_obs="chassis_camera" in env.scene.keys(),
             has_imu_sensor=self._imu_sensor is not None,
         )
-        self._communicator = EX001RosCommunicator(
+        self._communicator = QuantaX1RosCommunicator(
             control_callbacks=control_callbacks,
             data_acquirer=data_acquirer,
             use_sim_time=self._cfg.use_sim_time,
             enabled_publishers=enabled_publishers,
         )
         self._enabled_publishers = set(enabled_publishers)
-        self._fast_topics = EX001RosCommunicator.FAST_TOPICS & self._enabled_publishers
-        self._slow_topics = EX001RosCommunicator.LOW_RATE_TOPICS & self._enabled_publishers
+        self._fast_topics = QuantaX1RosCommunicator.FAST_TOPICS & self._enabled_publishers
+        self._slow_topics = QuantaX1RosCommunicator.LOW_RATE_TOPICS & self._enabled_publishers
         self._camera_topics = CAMERA_TOPICS & self._enabled_publishers
         tf_broadcaster = TransformBroadcaster(self._communicator)
         self._tf_static = StaticTransformBroadcaster(self._communicator)
@@ -208,7 +208,7 @@ class RosBridgeExtension:
         self._tf_pub.init_from_robot(robot)
         self._body_names = list(robot.data.body_names)
 
-        manaprint(
+        maniparenaprint(
             f"INFO: [ROS] Initialized: nav_mode={nav_mode}  "
             f"chassis_input={self._cfg.chassis_input}  "
             f"use_sim_time={self._cfg.use_sim_time}  "
@@ -290,14 +290,12 @@ class RosBridgeExtension:
         return fallback_obs
 
     def _resolve_enabled_publishers(self, *, has_camera_obs: bool, has_imu_sensor: bool) -> set[str]:
-        from maniparena_sim.ros.ex001_ros_communicator import EX001RosCommunicator
+        from maniparena_sim.ros.quanta_x1_ros_communicator import QuantaX1RosCommunicator
 
-        publishers = set(EX001RosCommunicator.PUBLISHERS.keys())
-        publishers.difference_update(EX001RosCommunicator.DEDICATED_PUBLISHERS)
+        publishers = set(QuantaX1RosCommunicator.PUBLISHERS.keys())
+        publishers.difference_update(QuantaX1RosCommunicator.DEDICATED_PUBLISHERS)
         if not has_camera_obs:
             publishers.difference_update(CAMERA_TOPICS)
         if not has_imu_sensor:
             publishers.discard("/hal/chassis/imu")
-        # Head depth is optional until camera_obs exposes head_depth_cam.
-        publishers.discard("/camera_head_front/depth/image_raw/compressedDepth")
         return publishers

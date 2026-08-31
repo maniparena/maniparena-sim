@@ -91,7 +91,7 @@ def _make_unwrapped_gym_env(
     or the viewport stays at a bad/default pose (often reads as a black screen).
 
     Also clear Sim6 ``disableColorRender`` after sensors spawn: depth-only cameras
-    (EX001 chassis) otherwise black the Kit viewport under ``--viz kit``.
+    (QUANTA_X1 chassis) otherwise black the Kit viewport under ``--viz kit``.
     """
     import gymnasium as gym
     from isaaclab_arena.utils.isaaclab_utils.simulation_app import reapply_viewer_cfg
@@ -625,7 +625,7 @@ def build_eval_gym_env(
     )
 
 
-EX001_SUPPORTED_TASKS = (
+QUANTA_X1_SUPPORTED_TASKS = (
     "sort_blocks",
     "fruits_to_basket",
     "buttons_contact",
@@ -634,8 +634,8 @@ EX001_SUPPORTED_TASKS = (
 )
 
 
-def _apply_ex001_task_spawn(embodiment, task_name: str) -> None:
-    """Override EX001 root spawn for task-specific layouts.
+def _apply_quanta_x1_task_spawn(embodiment, task_name: str) -> None:
+    """Override QUANTA_X1 root spawn for task-specific layouts.
 
     Must set ``embodiment.initial_pose`` (not only ``init_state``): Arena builds
     a reset-mode event from ``initial_pose``. Without it, keyboard ``R`` /
@@ -646,32 +646,32 @@ def _apply_ex001_task_spawn(embodiment, task_name: str) -> None:
     from isaaclab_arena.utils.pose import Pose
 
     from maniparena_sim.environment.scene_builder import (
-        PUT_BOTTLE_EX001_INIT_POS,
-        PUT_BOTTLE_EX001_INIT_QUAT_XYZW,
+        PUT_BOTTLE_QUANTA_X1_INIT_POS,
+        PUT_BOTTLE_QUANTA_X1_INIT_QUAT_XYZW,
     )
 
     pose = Pose(
-        position_xyz=PUT_BOTTLE_EX001_INIT_POS,
-        rotation_xyzw=PUT_BOTTLE_EX001_INIT_QUAT_XYZW,
+        position_xyz=PUT_BOTTLE_QUANTA_X1_INIT_POS,
+        rotation_xyzw=PUT_BOTTLE_QUANTA_X1_INIT_QUAT_XYZW,
     )
     # Construction spawn only; episode reset samples robot/bottle in the task.
     embodiment.set_initial_pose(pose, create_reset_event=False)
-    embodiment.scene_config.robot.init_state.pos = PUT_BOTTLE_EX001_INIT_POS
-    embodiment.scene_config.robot.init_state.rot = PUT_BOTTLE_EX001_INIT_QUAT_XYZW
+    embodiment.scene_config.robot.init_state.pos = PUT_BOTTLE_QUANTA_X1_INIT_POS
+    embodiment.scene_config.robot.init_state.rot = PUT_BOTTLE_QUANTA_X1_INIT_QUAT_XYZW
 
 
-def build_ex001_collect_gym_env(
+def build_quanta_x1_collect_gym_env(
     task_name: str,
     payload: dict,
     control_mode: str = 'keyboard',
     headless: bool = False,
     device: str = 'cuda:0',
 ) -> CollectEnv:
-    """Build a gym env configured for ex001 whole-body teleop collection."""
-    if task_name not in EX001_SUPPORTED_TASKS:
+    """Build a gym env configured for quanta_x1 whole-body teleop collection."""
+    if task_name not in QUANTA_X1_SUPPORTED_TASKS:
         raise ValueError(
-            f"Unsupported ex001 task '{task_name}'. "
-            f"Supported: {list(EX001_SUPPORTED_TASKS)}"
+            f"Unsupported quanta_x1 task '{task_name}'. "
+            f"Supported: {list(QUANTA_X1_SUPPORTED_TASKS)}"
         )
     import torch
     from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
@@ -679,7 +679,7 @@ def build_ex001_collect_gym_env(
     from isaaclab_arena.environments.arena_env_builder import ArenaEnvBuilder
     from isaaclab_arena.environments.isaaclab_arena_environment import IsaacLabArenaEnvironment
 
-    from maniparena_sim.embodiment.robots.ex001 import EX001Embodiment
+    from maniparena_sim.embodiment.robots.quanta_x1 import QuantaX1Embodiment
     from maniparena_sim.terms.recorders.recording_terms import PreStepCameraObservationsRecorderCfg
     from maniparena_sim.terms.recorders.streaming.hdf5_handler import PlainHDF5DatasetFileHandler
     from maniparena_sim.terms.recorders.streaming.install import (
@@ -689,8 +689,8 @@ def build_ex001_collect_gym_env(
 
     enable_cameras = bool(payload.get('enable_cameras', True))
 
-    scene = build_scene(task_name, robot='ex001')
-    embodiment = EX001Embodiment(enable_cameras=enable_cameras)
+    scene = build_scene(task_name, robot='quanta_x1')
+    embodiment = QuantaX1Embodiment(enable_cameras=enable_cameras)
     if not enable_cameras:
         embodiment.camera_config = None
     # Keyboard integrates deltas into an absolute DiffIK hold pose.
@@ -698,10 +698,10 @@ def build_ex001_collect_gym_env(
         embodiment.action_config = embodiment.ActionsCfgAbsIK()
     else:
         embodiment.action_config = embodiment.ActionsCfgAbsIK()
-    _apply_ex001_task_spawn(embodiment, task_name)
+    _apply_quanta_x1_task_spawn(embodiment, task_name)
     task = build_task_runtime(task_name, scene)
 
-    env_name = f'ex001_{task_name}_collect'
+    env_name = f'quanta_x1_{task_name}_collect'
     arena_env = IsaacLabArenaEnvironment(
         name=env_name, embodiment=embodiment, scene=scene, task=task, teleop_device=None,
     )
@@ -786,32 +786,33 @@ def build_ex001_collect_gym_env(
     )
 
 
-def build_ex001_nav_gym_env(
+def build_quanta_x1_sdk_ros2_gym_env(
     payload: dict,
     headless: bool = False,
     device: str = 'cuda:0',
 ):
-    """Build an ex001 gym env for ROS2 navigation (no recorder, dummy_task scene).
+    """Build a quanta_x1 gym env for SDK ROS2 (no recorder, dummy_task scene).
 
-    Returns ``(gym_env, embodiment)``. Navigation does not record data, so this
+    Returns ``(gym_env, embodiment)``. SDK ROS2 does not record data, so this
     intentionally skips the RecorderManager streaming stack used by collection.
     """
     from isaaclab_arena.environments.arena_env_builder import ArenaEnvBuilder
     from isaaclab_arena.environments.isaaclab_arena_environment import IsaacLabArenaEnvironment
 
-    from maniparena_sim.embodiment.robots.ex001 import EX001Embodiment
+    from maniparena_sim.embodiment.robots.quanta_x1 import QuantaX1Embodiment
 
     enable_cameras = True
-    scene = build_scene('dummy_task', robot='ex001')
-    embodiment = EX001Embodiment(enable_cameras=enable_cameras)
-    # Nav spawns on the floor: drop the tabletop z-offset so the base sits at z=0.
+    scene = build_scene('dummy_task', robot='quanta_x1')
+    embodiment = QuantaX1Embodiment(enable_cameras=enable_cameras)
+    embodiment.enable_head_depth()
+    # SDK ROS2 spawns on the floor: drop the tabletop z-offset so the base sits at z=0.
     _p = embodiment.scene_config.robot.init_state.pos
     embodiment.scene_config.robot.init_state.pos = (_p[0], _p[1], 0.0)
     # Joint-position hold over non-wheel joints; chassis driven directly to sim.
-    embodiment.action_config = embodiment.ActionsCfgNav()
+    embodiment.action_config = embodiment.ActionsCfgSdkRos2()
     task = build_task_runtime('dummy_task', scene)
 
-    env_name = 'ex001_nav'
+    env_name = 'quanta_x1_sdk_ros2'
     arena_env = IsaacLabArenaEnvironment(
         name=env_name, embodiment=embodiment, scene=scene, task=task, teleop_device=None,
     )
@@ -822,7 +823,7 @@ def build_ex001_nav_gym_env(
         env_cfg, getattr(scene, 'render_cfg_dict', None) or {},
         sim_fps=getattr(scene, 'sim_fps', 120), render_interval=getattr(scene, 'render_decremental', 2),
     )
-    # No recorder for navigation.
+    # No recorder for SDK ROS2.
     env_cfg.recorders = None
     if hasattr(env_cfg, 'terminations'):
         env_cfg.terminations.time_out = None
@@ -834,7 +835,7 @@ def build_ex001_nav_gym_env(
     return gym_env, embodiment
 
 
-def build_ex001_eval_gym_env(
+def build_quanta_x1_eval_gym_env(
     task_name: str,
     payload: dict,
     headless: bool = False,
@@ -842,33 +843,33 @@ def build_ex001_eval_gym_env(
     *,
     render_mode: str | None = None,
 ) -> EvalEnv:
-    """Build an EX001 gym env for Wall-X whole-body (21D) policy evaluation."""
-    if task_name not in EX001_SUPPORTED_TASKS:
+    """Build an QUANTA_X1 gym env for Wall-X whole-body (21D) policy evaluation."""
+    if task_name not in QUANTA_X1_SUPPORTED_TASKS:
         raise ValueError(
-            f"Unsupported ex001 task '{task_name}'. "
-            f"Supported: {list(EX001_SUPPORTED_TASKS)}"
+            f"Unsupported quanta_x1 task '{task_name}'. "
+            f"Supported: {list(QUANTA_X1_SUPPORTED_TASKS)}"
         )
     from isaaclab_arena.environments.arena_env_builder import ArenaEnvBuilder
     from isaaclab_arena.environments.isaaclab_arena_environment import IsaacLabArenaEnvironment
 
     from maniparena_sim.loops.dataset_export import recording_enabled
-    from maniparena_sim.embodiment.robots.ex001 import EX001Embodiment
+    from maniparena_sim.embodiment.robots.quanta_x1 import QuantaX1Embodiment
     from maniparena_sim.utils.camera_utils import deactivate_robot_camera_prims
 
     enable_cameras = bool(payload.get('enable_cameras', True))
     policy_cfg = payload.get('policy_config') or {}
     instruction = policy_cfg.get('instruction')
 
-    scene = build_scene(task_name, robot='ex001')
-    embodiment = EX001Embodiment(enable_cameras=enable_cameras)
+    scene = build_scene(task_name, robot='quanta_x1')
+    embodiment = QuantaX1Embodiment(enable_cameras=enable_cameras)
     if not enable_cameras:
         embodiment.camera_config = None
     embodiment.action_config = embodiment.ActionsCfgWallxWholebody()
-    _apply_ex001_task_spawn(embodiment, task_name)
+    _apply_quanta_x1_task_spawn(embodiment, task_name)
     task = build_task_runtime(task_name, scene)
     _apply_viewer_cfg_override(task, payload)
 
-    env_name = f'ex001_{task_name}_eval'
+    env_name = f'quanta_x1_{task_name}_eval'
     arena_env = IsaacLabArenaEnvironment(
         name=env_name, embodiment=embodiment, scene=scene,
         task=task, teleop_device=None,
@@ -903,7 +904,7 @@ def build_ex001_eval_gym_env(
         from maniparena_sim.loops.dataset_export import (
             RecordingLayout,
             configure_env_recorder,
-            finalize_ex001_recorder,
+            finalize_quanta_x1_recorder,
         )
         from maniparena_sim.terms.recorders.streaming.hdf5_handler import PlainHDF5DatasetFileHandler
 
@@ -943,7 +944,7 @@ def build_ex001_eval_gym_env(
 
     if recording is not None:
         # Same as bimanual: flush in record_pre_reset before buffer clear.
-        finalize_ex001_recorder(
+        finalize_quanta_x1_recorder(
             gym_env, recording, payload, export_on_reset=True,
         )
 

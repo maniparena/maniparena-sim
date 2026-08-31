@@ -99,7 +99,7 @@ python scripts/collect.py \
 
 # Vuer (Pico WebXR) — adb reverse, then https://vuer.ai?ws=ws://localhost:8012
 python scripts/collect.py \
-    --robot ex001 \
+    --robot quanta_x1 \
     --task fruits_to_basket \
     --control-mode vuer \
     --config configs/collect/vuer.yaml \

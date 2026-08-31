@@ -1,4 +1,4 @@
-# EX001 ROS2 navigation (2D-lidar, cameras on). No data recording.
+# QUANTA_X1 SDK ROS2 (2D lidar and cameras enabled). No data recording.
 
 # Keyboard chassis sensitivity (summed with /chassis/cmd_vel).
 keyboard:

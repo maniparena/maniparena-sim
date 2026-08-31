@@ -9,7 +9,7 @@ from typing import Any
 
 from isaacsim.core.utils import stage as stage_utils
 
-from maniparena_sim.planners.ex001_vr_teleop import VuerTeleopPlanner
+from maniparena_sim.planners.quanta_x1_vr_teleop import VuerTeleopPlanner
 from maniparena_sim.planners.keyboard_teleop import KeyboardTeleopPlanner
 from maniparena_sim.planners.master_slave_teleop import MasterSlaveTeleopPlanner
 from maniparena_sim.planners.planner_base import PlannerBase

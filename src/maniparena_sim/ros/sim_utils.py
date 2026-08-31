@@ -10,7 +10,7 @@ import numpy as np
 import torch
 
 from maniparena_sim.ros.math_utils import to_numpy
-from maniparena_sim.utils.debug_print import manaprint
+from maniparena_sim.utils.debug_print import maniparenaprint
 
 # ── Camera Intrinsics Cache ──────────────────────────────────────────────────
 
@@ -39,7 +39,7 @@ def init_camera_cache(env, camera_config: dict) -> None:
             "far_clip": clip[1],
         }
     if camera_cache:
-        manaprint(f"INFO: Camera cache initialized: {list(camera_cache.keys())}")
+        maniparenaprint(f"INFO: Camera cache initialized: {list(camera_cache.keys())}")
 
 
 # ── ROS Time ─────────────────────────────────────────────────────────────────
@@ -85,7 +85,7 @@ def build_robot_state_snapshot(env, robot, imu_sensor=None) -> dict:
     if applied_torque is None:
         robot_id = id(robot)
         if robot_id not in _warned_applied_torque_robot_ids:
-            manaprint("WARNING: applied_torque unavailable, using zeros for joint_efforts")
+            maniparenaprint("WARNING: applied_torque unavailable, using zeros for joint_efforts")
             _warned_applied_torque_robot_ids.add(robot_id)
         applied_torque = torch.zeros_like(joint_pos)
     policy["joint_efforts"] = applied_torque

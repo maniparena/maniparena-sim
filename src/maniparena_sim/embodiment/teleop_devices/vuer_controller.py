@@ -19,7 +19,7 @@ from maniparena_sim.embodiment.teleop_devices.vuer_runtime import (
     empty_vuer_workspace,
     patch_vuer_idle_sleep,
 )
-from maniparena_sim.utils.debug_print import manaprint
+from maniparena_sim.utils.debug_print import maniparenaprint
 from maniparena_sim.utils.math_utils import quat_wxyz_normalize
 
 
@@ -205,7 +205,7 @@ class VuerControllerDevice(DeviceBase):
             from vuer.schemas import MotionControllers
             import vuer.server as vuer_server
         except Exception as exc:
-            manaprint(f"ERROR: Vuer controller input requires the 'vuer' package: {exc}")
+            maniparenaprint(f"ERROR: Vuer controller input requires the 'vuer' package: {exc}")
             return
 
         patch_vuer_idle_sleep(vuer_server)
@@ -228,14 +228,14 @@ class VuerControllerDevice(DeviceBase):
             except TypeError:
                 kwargs.pop("workspace", None)
                 app = Vuer(**kwargs)
-                manaprint(
+                maniparenaprint(
                     "WARNING: Vuer build ignores workspace=; default cwd mount may stall Isaac when Pico connects."
                 )
 
         app.add_handler("CONTROLLER_MOVE")(self._on_controller_move)
 
         async def main(session):
-            manaprint(
+            maniparenaprint(
                 "Vuer WebSocket connected. Enter VR on Pico, then Left-X to start teleop."
             )
             session.upsert(
@@ -249,7 +249,7 @@ class VuerControllerDevice(DeviceBase):
 
         app.spawn(start=False)(main)
         url_port = self._resolve_port(self.cfg)
-        manaprint(
+        maniparenaprint(
             f"Vuer controller input ready: adb reverse tcp:{url_port} tcp:{url_port}, "
             f"then open https://vuer.ai?ws=ws://localhost:{url_port} on Pico; "
             f"workspace={workspace_dir}"
@@ -257,7 +257,7 @@ class VuerControllerDevice(DeviceBase):
         try:
             app.run()
         except Exception as exc:
-            manaprint(f"ERROR: Vuer controller input stopped: {exc}")
+            maniparenaprint(f"ERROR: Vuer controller input stopped: {exc}")
 
     async def _on_controller_move(self, event, session, fps=60) -> None:
         del session, fps

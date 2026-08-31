@@ -1,7 +1,7 @@
-"""Dummy task for open-scene teleop and navigation bring-up.
+"""Dummy task for open-scene teleop and SDK ROS2 bring-up.
 
 No objects and no success condition — episodes end manually. Used by both
-teleop collection (open-scene practice) and the ROS2 navigation script.
+teleop collection (open-scene practice) and the SDK ROS2 script.
 """
 
 from __future__ import annotations

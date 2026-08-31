@@ -1,4 +1,4 @@
-"""Vuer/Pico WebXR teleop planner for bimanual and ex001.
+"""Vuer/Pico WebXR teleop planner for bimanual and quanta_x1.
 
 Uses ``VuerControllerDevice`` only. OpenXR / CloudXR is removed.
 
@@ -12,7 +12,7 @@ Button scheme:
   * Left-Y  -> manually export the current episode as success
   * Right-A -> reset / skip the current episode
 
-Env action layout (16D abs-IK; ex001 adds wheels+lift -> 19D):
+Env action layout (16D abs-IK; quanta_x1 adds wheels+lift -> 19D):
   [L_pos(3), L_quat(4), L_grip(1), R_pos(3), R_quat(4), R_grip(1),
    L_wheel(1), R_wheel(1), lift(1)]
 Raw device layout (per arm pose+grip interleaved, then buttons, then joystick):
@@ -349,7 +349,7 @@ class VuerTeleopPlanner(TeleopPlanner):
             z = joystick.new_tensor(0.0)
             thumb_x = torch.where(torch.abs(thumb_x) < db, z, thumb_x)
             thumb_y = torch.where(torch.abs(thumb_y) < db, z, thumb_y)
-        from maniparena_sim.embodiment.robots.ex001 import twist_to_wheel_vel
+        from maniparena_sim.embodiment.robots.quanta_x1 import twist_to_wheel_vel
 
         lin = -thumb_y * float(cfg.linear_velocity) * float(self.settings.motion_controller_base_linear_scale)
         ang = -thumb_x * float(cfg.angular_velocity) * float(self.settings.motion_controller_base_angular_scale)
@@ -539,5 +539,5 @@ class VuerTeleopPlanner(TeleopPlanner):
 
 
 # Backward-compatible aliases.
-Ex001VRTeleopSettings = VuerTeleopSettings
-Ex001VRTeleopPlanner = VuerTeleopPlanner
+QuantaX1VRTeleopSettings = VuerTeleopSettings
+QuantaX1VRTeleopPlanner = VuerTeleopPlanner

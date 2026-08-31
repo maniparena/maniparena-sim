@@ -1,4 +1,4 @@
-"""Shared keyboard teleop planner for both robots (bimanual + ex001).
+"""Shared keyboard teleop planner for both robots (bimanual + quanta_x1).
 
 Keyboard emits per-arm delta pose commands. The planner integrates those deltas
 into an absolute DiffIK hold target so that when no keys are pressed the last

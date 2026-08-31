@@ -28,7 +28,7 @@ policy_config:
   interpolation_multiplier: 2
   # follow* is already init-relative on the Wall-X wire; keep false.
   ee_pose_normalize: false
-  # Sim-effective EX001 wheel geometry
+  # Sim-effective QUANTA_X1 wheel geometry
   wheel_radius: 0.084
   wheel_track_width: 0.458
   pos_gain: 1.0

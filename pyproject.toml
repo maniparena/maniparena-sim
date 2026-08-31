@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "maniparena_sim"
 version = "0.1.0"
-description = "EX001 / bimanual data collection and validation runtime."
+description = "QUANTA_X1 / bimanual data collection and validation runtime."
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [

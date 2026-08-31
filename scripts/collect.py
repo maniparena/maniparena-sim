@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Teleop data collection for Bimanual and ex001.
+"""Teleop data collection for Bimanual and quanta_x1.
 
 Usage:
     # Lab/Sim 6.0 defaults to headless; pass --viz kit for the Kit viewport.
@@ -8,11 +8,11 @@ Usage:
         --config configs/collect/keyboard.yaml --viz kit
 
     python scripts/collect.py \
-        --robot ex001 --task sort_blocks --control-mode keyboard \
+        --robot quanta_x1 --task sort_blocks --control-mode keyboard \
         --config configs/collect/keyboard.yaml --viz kit
 
     python scripts/collect.py \
-        --robot ex001 --task sort_blocks --control-mode vuer \
+        --robot quanta_x1 --task sort_blocks --control-mode vuer \
         --config configs/collect/vuer.yaml --viz kit
 
     python scripts/collect.py \
@@ -46,7 +46,7 @@ def parse_args():
     AppLauncher.add_app_launcher_args(parser)
     parser.add_argument(
         '--robot', default='bimanual',
-        choices=['bimanual', 'ex001'],
+        choices=['bimanual', 'quanta_x1'],
     )
     parser.add_argument(
         '--task', required=True,
@@ -89,7 +89,7 @@ def _create_planner(control_mode: str, payload: dict):
         return planner
 
     if control_mode in ('vuer', 'vr'):
-        from maniparena_sim.planners.ex001_vr_teleop import (
+        from maniparena_sim.planners.quanta_x1_vr_teleop import (
             VuerTeleopPlanner,
             VuerTeleopSettings,
         )
@@ -127,21 +127,21 @@ def _create_planner(control_mode: str, payload: dict):
     )
 
 
-def _create_ex001_planner(control_mode: str, payload: dict):
-    """Instantiate an ex001 TeleopPlanner for the given mode."""
+def _create_quanta_x1_planner(control_mode: str, payload: dict):
+    """Instantiate a quanta_x1 TeleopPlanner for the given mode."""
     teleop_cfg = payload.get('teleop_config', {})
     step_hz = int(payload.get('step_hz', 20))
     max_steps = int(payload.get('max_steps', 400))
 
     if control_mode == 'keyboard':
         # Same keyboard planner/device as the desktop arm; base control turns
-        # on automatically via the ex001 embodiment's diff-drive cfg.
+        # on automatically via the quanta_x1 embodiment's diff-drive cfg.
         return _create_planner('keyboard', payload)
 
     if control_mode in ('vuer', 'vr'):
         return _create_planner(control_mode, payload)
 
-    raise ValueError(f'Unsupported ex001 control mode: {control_mode}')
+    raise ValueError(f'Unsupported quanta_x1 control mode: {control_mode}')
 
 
 def main() -> int:
@@ -165,7 +165,7 @@ def main() -> int:
     simulation_app = app_launcher.app
 
     from maniparena_sim.environment.builder import (
-        EX001_SUPPORTED_TASKS,
+        QUANTA_X1_SUPPORTED_TASKS,
         build_collect_gym_env,
     )
     from maniparena_sim.environment.registry import (
@@ -177,29 +177,29 @@ def main() -> int:
 
     bootstrap_arena_registry()
 
-    if args.robot == 'ex001':
-        if args.task not in EX001_SUPPORTED_TASKS:
+    if args.robot == 'quanta_x1':
+        if args.task not in QUANTA_X1_SUPPORTED_TASKS:
             raise ValueError(
-                "ex001 robot supports tasks "
-                f"{list(EX001_SUPPORTED_TASKS)}, got: {args.task}"
+                "quanta_x1 robot supports tasks "
+                f"{list(QUANTA_X1_SUPPORTED_TASKS)}, got: {args.task}"
             )
         if control_mode not in ('keyboard', 'vuer', 'vr'):
             raise ValueError(
-                "ex001 robot supports control modes "
+                "quanta_x1 robot supports control modes "
                 "keyboard/vuer, "
                 f"got: {control_mode}"
             )
         from maniparena_sim.environment.builder import (
-            build_ex001_collect_gym_env,
+            build_quanta_x1_collect_gym_env,
         )
-        ctx = build_ex001_collect_gym_env(
+        ctx = build_quanta_x1_collect_gym_env(
             args.task,
             payload,
             control_mode=control_mode,
             headless=bool(getattr(args, 'headless', False)),
             device=getattr(args, 'device', 'cuda:0'),
         )
-        planner = _create_ex001_planner(control_mode, payload)
+        planner = _create_quanta_x1_planner(control_mode, payload)
     else:
         ctx = build_collect_gym_env(
             args.task, payload,
@@ -235,7 +235,7 @@ def main() -> int:
     for p in result.exported_paths:
         print(f'exported: {p}')
 
-    if args.robot == 'ex001':
+    if args.robot == 'quanta_x1':
         from maniparena_sim.terms.recorders.streaming.file_session import drain_recorder_async_exports
         drain_recorder_async_exports(ctx.gym_env)
 

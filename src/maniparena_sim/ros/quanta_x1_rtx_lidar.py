@@ -1,4 +1,4 @@
-"""EX001 RTX lidar data extraction and ROS ``LaserScan`` construction."""
+"""QUANTA_X1 RTX lidar data extraction and ROS ``LaserScan`` construction."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from types import SimpleNamespace
 
 import numpy as np
 
-from maniparena_sim.utils.debug_print import manaprint
+from maniparena_sim.utils.debug_print import maniparenaprint
 
 
 def _sane_beam_count(count: float) -> bool:
@@ -28,7 +28,7 @@ def laser_scan_writer_params(
 ) -> dict[str, object]:
     """Build 2D LaserScan geometry from OmniLidar attributes.
 
-    EX001 authors ``reportRateBaseHz`` as points per revolution (3140), not Hz.
+    QUANTA_X1 authors ``reportRateBaseHz`` as points per revolution (3140), not Hz.
     ``patternFiringRateHz`` is only a fallback when that count is unavailable.
     """
     rotation_rate = max(float(scan_rate_hz), 1e-6)
@@ -228,8 +228,8 @@ class RtxLidarHelper:
             azimuth_deg=self._read_attr(lidar_prim, "omni:sensor:Core:emitterState:s001:azimuthDeg", None),
             fallback_beams=self._num_beams,
         )
-        manaprint(
-            "INFO: [EX001 lidar] "
+        maniparenaprint(
+            "INFO: [QUANTA_X1 lidar] "
             f"type={lidar_prim.GetPrimTypeInfo().GetTypeName()} "
             f"tickRate={self._read_attr(lidar_prim, 'omni:sensor:tickRate', None)} "
             f"scanRateBaseHz={scan_rate} "
@@ -346,7 +346,7 @@ class RtxLidarHelper:
         return default
 
 
-def create_ex001_lidar(
+def create_quanta_x1_lidar(
     prim_path: str,
     env_id: int = 0,
     *,
@@ -356,7 +356,7 @@ def create_ex001_lidar(
     num_beams: int = 3140,
     use_sim_time: bool = False,
 ) -> RtxLidarHelper:
-    """Create EX001 lidar helper. Path must be passed from config."""
+    """Create QUANTA_X1 lidar helper. Path must be passed from config."""
     return RtxLidarHelper(
         prim_path,
         env_id,

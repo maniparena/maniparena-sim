@@ -32,7 +32,7 @@ class MessageBuilder:
             stamp: ROS ``builtin_interfaces/Time`` stamp.
             odom_origin: ``OdomOrigin`` instance.
             odom_cfg: Single-entry config dict, e.g.
-                ``EX001RosConfig.ODOM_CONFIG["chassis_odom"]``.
+                ``QuantaX1RosConfig.ODOM_CONFIG["chassis_odom"]``.
         """
         from geometry_msgs.msg import Point, Quaternion, Vector3
         from nav_msgs.msg import Odometry
@@ -86,7 +86,7 @@ class MessageBuilder:
 
         Args:
             imu_cfg: Single-entry config dict, e.g.
-                ``EX001RosConfig.IMU_CONFIG["chassis_imu"]``.
+                ``QuantaX1RosConfig.IMU_CONFIG["chassis_imu"]``.
         """
         from sensor_msgs.msg import Imu as RosImu
 
@@ -550,7 +550,7 @@ class MessageBuilder:
         depth_mm = meters_to_mm(depth_clipped)
         depth_mm = np.clip(depth_mm, 0, DEPTH_MAX_MM).astype(np.uint16)
 
-        fmt = config.get("compress_fmt", "png")
+        fmt = config.get("depth_compress_fmt") or "png"
         _, compressed = cv2.imencode(f".{fmt}", depth_mm)
 
         msg = CompressedImage()

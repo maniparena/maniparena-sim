@@ -77,7 +77,7 @@ class SidecarVideoSession:
         self._exception: BaseException | None = None
         self._lock = threading.Lock()
         self._closed = False
-        self._thread = threading.Thread(target=self._loop, name="ex001-sidecar-video", daemon=True)
+        self._thread = threading.Thread(target=self._loop, name="quanta_x1-sidecar-video", daemon=True)
         self._thread.start()
 
     def _hdf5_path(self) -> Path | None:

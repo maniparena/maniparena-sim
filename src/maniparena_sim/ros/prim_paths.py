@@ -1,11 +1,11 @@
-"""Centralized USD prim-path configuration for EX001 robot sensors."""
+"""Centralized USD prim-path configuration for QUANTA_X1 robot sensors."""
 
 from dataclasses import dataclass
 
 
 @dataclass
-class EX001PathConfig:
-    """Path configuration for EX001 robot sensors."""
+class QuantaX1PathConfig:
+    """Path configuration for QUANTA_X1 robot sensors."""
 
     # Base robot path
     robot_base: str = "{ENV_REGEX_NS}/Robot"
@@ -28,4 +28,4 @@ class EX001PathConfig:
     lidar: str = "{ENV_REGEX_NS}/Robot/a_d_laser/Laser"
 
 
-EX001_PATHS = EX001PathConfig()
+QUANTA_X1_PATHS = QuantaX1PathConfig()

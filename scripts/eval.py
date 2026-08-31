@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Closed-loop policy evaluation for Bimanual and EX001.
+"""Closed-loop policy evaluation for Bimanual and QUANTA_X1.
 
 Usage:
     # Bimanual (16D EE)
@@ -7,10 +7,10 @@ Usage:
         --robot bimanual --task sort_blocks \
         --config configs/eval/robot.yaml --viz kit
 
-    # EX001 Wall-X whole-body (21D) + fixed third-person perspective video
+    # QUANTA_X1 Wall-X whole-body (21D) + fixed third-person perspective video
     python scripts/eval.py \
-        --robot ex001 --task put_bottle_on_woodshelf \
-        --config configs/eval/ex001_put_bottle.yaml \
+        --robot quanta_x1 --task put_bottle_on_woodshelf \
+        --config configs/eval/quanta_x1_put_bottle.yaml \
         --video
 """
 
@@ -61,7 +61,7 @@ def parse_args():
     AppLauncher.add_app_launcher_args(parser)
     parser.add_argument(
         '--robot', default='bimanual',
-        choices=['bimanual', 'ex001'],
+        choices=['bimanual', 'quanta_x1'],
     )
     parser.add_argument(
         '--task', required=True,
@@ -250,29 +250,29 @@ def main() -> int:
     render_mode = 'rgb_array' if args.video else None
     log_dir = _resolve_log_dir(args, payload, args.robot, args.task) if args.video else None
 
-    if args.robot == 'ex001':
+    if args.robot == 'quanta_x1':
         from maniparena_sim.environment.builder import (
-            EX001_SUPPORTED_TASKS,
-            build_ex001_eval_gym_env,
+            QUANTA_X1_SUPPORTED_TASKS,
+            build_quanta_x1_eval_gym_env,
         )
-        from maniparena_sim.policy.ex001_wallx_policy import (
-            Ex001WallxPolicy,
-            Ex001WallxPolicyConfig,
+        from maniparena_sim.policy.quanta_x1_wallx_policy import (
+            QuantaX1WallxPolicy,
+            QuantaX1WallxPolicyConfig,
         )
 
-        if args.task not in EX001_SUPPORTED_TASKS:
+        if args.task not in QUANTA_X1_SUPPORTED_TASKS:
             raise SystemExit(
-                f'ex001 unsupported task: {args.task}; '
-                f'supported={list(EX001_SUPPORTED_TASKS)}'
+                f'quanta_x1 unsupported task: {args.task}; '
+                f'supported={list(QUANTA_X1_SUPPORTED_TASKS)}'
             )
-        ctx = build_ex001_eval_gym_env(
+        ctx = build_quanta_x1_eval_gym_env(
             args.task, payload,
             headless=bool(getattr(args, 'headless', False)),
             device=getattr(args, 'device', 'cuda:0'),
             render_mode=render_mode,
         )
-        policy = Ex001WallxPolicy(
-            Ex001WallxPolicyConfig(
+        policy = QuantaX1WallxPolicy(
+            QuantaX1WallxPolicyConfig(
                 model_address=str(pc.get('model_address', 'localhost')),
                 model_port=int(pc.get('model_port', 8000)),
                 instruction=str(
@@ -293,7 +293,7 @@ def main() -> int:
                 wheel_track_width=float(pc.get('wheel_track_width', 0.458)),
             ),
         )
-        policy_name = 'Ex001WallxPolicy'
+        policy_name = 'QuantaX1WallxPolicy'
     else:
         from maniparena_sim.environment.builder import build_eval_gym_env
         from maniparena_sim.policy.robot_policy import (
@@ -499,7 +499,7 @@ def main() -> int:
         print(f'  Arena metrics: unavailable ({exc})')
     print('=' * 60)
 
-    if args.robot == 'ex001' and ctx.recording is not None:
+    if args.robot == 'quanta_x1' and ctx.recording is not None:
         from maniparena_sim.terms.recorders.streaming.file_session import (
             drain_recorder_async_exports,
         )

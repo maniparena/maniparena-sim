@@ -6,7 +6,7 @@ from typing import Any, Collection, Iterable
 import rclpy
 from rclpy.node import Node
 
-from maniparena_sim.utils.debug_print import manaprint
+from maniparena_sim.utils.debug_print import maniparenaprint
 from maniparena_sim.ros.timer import FixedTimeStampTimer
 
 
@@ -90,12 +90,12 @@ class RosCommunicator(Node, ABC):
     def print_data_acquirer_names(self):
         """Print all publisher keys."""
         keys = self.get_publisher_keys()
-        manaprint(f"INFO: Publishers ({len(keys)}): {keys}")
+        maniparenaprint(f"INFO: Publishers ({len(keys)}): {keys}")
 
     def print_control_names(self):
         """Print all subscriber keys."""
         keys = self.get_subscriber_keys()
-        manaprint(f"INFO: Subscribers ({len(keys)}): {keys}")
+        maniparenaprint(f"INFO: Subscribers ({len(keys)}): {keys}")
 
     def check_data_aquire_callback(self, data_acquirer):
         """Check if all publishers have corresponding data acquire callbacks."""
@@ -177,4 +177,4 @@ class RosCommunicator(Node, ABC):
 
         if rclpy.ok():
             rclpy.shutdown()
-            manaprint("INFO: ROS2 Bridge publishers shutdown")
+            maniparenaprint("INFO: ROS2 Bridge publishers shutdown")

@@ -1,6 +1,6 @@
-"""EX001 SDK ROS 2 topic names.
+"""QUANTA_X1 SDK ROS 2 topic names.
 
-These names match ``ROS2_SDK_Mapping_EX001.md``.
+These names match ``ROS2_SDK_Mapping_QUANTA_X1.md``.
 
 Meaning of remapped names (do not reuse a name for a different quantity):
 
@@ -15,7 +15,7 @@ Meaning of remapped names (do not reuse a name for a different quantity):
 
 from __future__ import annotations
 
-EX001_SDK_PUBLISH_TOPICS: frozenset[str] = frozenset(
+QUANTA_X1_SDK_PUBLISH_TOPICS: frozenset[str] = frozenset(
     {
         "/head/joint_states",
         "/odom",
@@ -39,7 +39,7 @@ EX001_SDK_PUBLISH_TOPICS: frozenset[str] = frozenset(
     }
 )
 
-EX001_SDK_SUBSCRIBE_TOPICS: frozenset[str] = frozenset(
+QUANTA_X1_SDK_SUBSCRIBE_TOPICS: frozenset[str] = frozenset(
     {
         "/head_position_controller/commands",
         "/chassis/cmd_vel",

@@ -1,4 +1,4 @@
-# EX001 使用指南
+# QUANTA_X1 使用指南
 
 # 遥操作采集
 
@@ -14,16 +14,16 @@
 | `put_bottle_on_woodshelf` | 桌面取瓶放到木架（静态场景；资产在 `assets/put_bottle_on_woodshelf/`） |
 
 桌面任务场景使用 `assets/green_booth/green_booth_mesh_ground.usd` 展台（材质在
-`assets/green_booth/materials/`，2D lidar 在 `assets/ex001/sensors/`，均已本地化，无远程引用）。
+`assets/green_booth/materials/`，2D lidar 在 `assets/quanta_x1/sensors/`，均已本地化，无远程引用）。
 `put_bottle_on_woodshelf` 使用独立 booth/桌/架/瓶资产（`assets/put_bottle_on_woodshelf/`）。
 
 底盘差速使用仿真有效几何：`wheel_radius=0.084`、`wheel_track_width=0.458`
-（见 `embodiment/robots/ex001.py`）。Wall-X 全身推理（21D，含 head/lift/底盘）入口：
+（见 `embodiment/robots/quanta_x1.py`）。Wall-X 全身推理（21D，含 head/lift/底盘）入口：
 
 ```bash
 python scripts/eval.py \
-  --robot ex001 --task put_bottle_on_woodshelf \
-  --config configs/eval/ex001_put_bottle.yaml \
+  --robot quanta_x1 --task put_bottle_on_woodshelf \
+  --config configs/eval/quanta_x1_put_bottle.yaml \
   --viz kit
 ```
 
@@ -35,7 +35,7 @@ Isaac Lab / Sim **6.0** 默认无界面；需要 Kit 视口时加 `--viz kit`（
 
 ```bash
 python scripts/collect.py \
-  --robot ex001 \
+  --robot quanta_x1 \
   --task fruits_to_basket \
   --control-mode keyboard \
   --config configs/collect/keyboard.yaml \
@@ -48,7 +48,7 @@ python scripts/collect.py \
 
 ```bash
 python scripts/collect.py \
-  --robot ex001 \
+  --robot quanta_x1 \
   --task fruits_to_basket \
   --control-mode vuer \
   --config configs/collect/vuer.yaml \
@@ -108,16 +108,16 @@ teleop_config:
 
 ## 录制输出
 
-- 默认目录：`~/maniparena_output/recordings/ex001_<task>_collect/`
+- 默认目录：`~/maniparena_output/recordings/quanta_x1_<task>_collect/`
 - 格式：HDF5 episode + sidecar MP4（左腕 / 右腕 / 头 / 底盘相机）
 - 帧率：由配置 `step_hz` 决定，当前统一为 **20 Hz**
 
 示例：
 
 ```text
-~/maniparena_output/recordings/ex001_fruits_to_basket_collect/
-  ex001_fruits_to_basket_collect_vuer_episode0.hdf5
-  ex001_fruits_to_basket_collect_vuer_episode0_videos/
+~/maniparena_output/recordings/quanta_x1_fruits_to_basket_collect/
+  quanta_x1_fruits_to_basket_collect_vuer_episode0.hdf5
+  quanta_x1_fruits_to_basket_collect_vuer_episode0_videos/
     ...
 ```
 
@@ -125,11 +125,11 @@ teleop_config:
 
 Vuer 遥操作 `fruits_to_basket` 三相机拼接预览（左腕 / 头部 / 右腕）：
 
-![ex001 vuer fruits_to_basket](ex001_vuer_fruits_to_basket.gif)
+![quanta_x1 vuer fruits_to_basket](quanta_x1_vuer_fruits_to_basket.gif)
 
 ---
 
-# ROS2 导航
+# SDK ROS2
 
 ## ROS 环境配置
 
@@ -142,8 +142,8 @@ ROS2 桥依赖 Isaac Sim 的 `isaacsim.ros2.bridge` 扩展，需先按官方指�
 装好 ROS 环境并 `source` 后：
 
 ```bash
-python scripts/navigate_ros2.py \
-  --config configs/navigate/ex001_nav.yaml \
+python scripts/sdk_ros2.py \
+  --config configs/sdk_ros2/quanta_x1_sdk_ros2.yaml \
   --enable_cameras \
   --viz kit
 ```
@@ -160,7 +160,7 @@ python scripts/navigate_ros2.py \
 
 ## ROS2 话题
 
-SDK 话题合同见 `src/maniparena_sim/ros/ex001_sdk_topics.py`。
+SDK 话题合同见 `src/maniparena_sim/ros/quanta_x1_sdk_topics.py`。
 
 | Topic Name | Message Type |
 |------------|--------------|
@@ -191,10 +191,10 @@ SDK 话题合同见 `src/maniparena_sim/ros/ex001_sdk_topics.py`。
 
 ## 演示
 
-`nav_f16` 场景中的 EX001 仿真：
+`nav_f16` 场景中的 QUANTA_X1 仿真：
 
-![ex001 ros2 nav sim](ex001_ros2_nav_sim.png)
+![quanta_x1 SDK ROS2 sim](quanta_x1_sdk_ros2_sim.png)
 
 RViz 中点云、`/scan` 与 TF 可视化：
 
-![ex001 ros2 nav rviz](ex001_ros2_nav_rviz.png)
+![quanta_x1 SDK ROS2 RViz](quanta_x1_sdk_ros2_rviz.png)

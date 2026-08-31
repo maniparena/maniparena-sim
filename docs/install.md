@@ -4,7 +4,7 @@
 
 Approach **A** (approved): consume unmodified [IsaacLab-Arena](https://github.com/isaac-sim/IsaacLab-Arena) as a git submodule; Isaac Lab comes from Arena's nested `submodules/IsaacLab`; Isaac Sim is installed as **binary wheels** (no Sim source build).
 
-Default install is a **lean sim stack** for teleop collection and ROS2 navigation. It does **not** use Arena's fat `uv sync` default (`isaaclab-from-source` + `openpi`).
+Default install is a **lean sim stack** for teleop collection and SDK ROS2. It does **not** use Arena's fat `uv sync` default (`isaaclab-from-source` + `openpi`).
 
 | Component | Location | Pin |
 |-----------|----------|-----|
@@ -14,14 +14,14 @@ Default install is a **lean sim stack** for teleop collection and ROS2 navigatio
 
 Lab **must** stay on Arena's recorded SHA. `develop` tip moved `isaaclab_tasks.manager_based.*` → `contrib.*`, which breaks Arena `main` imports (e.g. Agibot). Override only if you know you need it: `source ./install.sh --lab-branch develop`.
 
-**Offline / black viewport (EX001):** all USD asset refs must stay under `assets/`
-(no `omniverse://`, S3, or `../` MDL module paths). EX001 booth marble is vendored at
+**Offline / black viewport (QUANTA_X1):** all USD asset refs must stay under `assets/`
+(no `omniverse://`, S3, or `../` MDL module paths). QUANTA_X1 booth marble is vendored at
 `assets/green_booth/materials/stone/`; the 2D lidar USD is at
-`assets/ex001/sensors/Example_Rotary_2D.usda`. Keep OCIO tonemap enabled in
+`assets/quanta_x1/sensors/Example_Rotary_2D.usda`. Keep OCIO tonemap enabled in
 `assets/rendering_settings/green_booth.settings.usda`
 (`rtx:post:tonemap:ocio:enabled = 1`); turning it off causes an overexposed viewport.
 
-The installer also applies lean Arena import patches so EX001 teleop/nav does not need the fat multi-robot / RL stack:
+The installer also applies lean Arena import patches so QUANTA_X1 teleop/SDK ROS2 does not need the fat multi-robot / RL stack:
 
 - `embodiments/__init__.py` → no-op (skip agibot/g1/... / onnxruntime)
 - `policy/__init__.py` → skip optional `rsl_rl_action_policy` (needs `rsl-rl-lib`)
@@ -53,7 +53,7 @@ vuer, pydantic, scipy, pandas  # Arena teleop / config types
 
 | Skipped | Why |
 |---------|-----|
-| `openpi` / `openpi-client` | Policy client; not used by collect/nav |
+| `openpi` / `openpi-client` | Policy client; not used by collect/SDK ROS2 |
 | GR00T / DreamZero / Cosmos Arena extras | Policy backends |
 | `isaaclab_mimic` | Imitation-learning tooling |
 | `isaaclab_rl` / RSL-RL stack | RL training |

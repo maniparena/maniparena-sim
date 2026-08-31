@@ -1,4 +1,4 @@
-"""Green booth mesh-ground background for ex001 tabletop tasks."""
+"""Green booth mesh-ground background for quanta_x1 tabletop tasks."""
 
 from __future__ import annotations
 

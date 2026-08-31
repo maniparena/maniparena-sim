@@ -11,7 +11,7 @@
 #   source ./install.sh --full-arena-stack      # Arena upstream fat uv sync (NOT recommended)
 #   source ./install.sh --lab-branch develop    # bleeding Lab tip (may break Arena)
 #
-# Default install (sim / teleop / ROS2 nav):
+# Default install (sim / teleop / SDK ROS2):
 #   IN:  isaaclab(+isaacsim wheels), isaaclab_assets/physx/newton/ov/ovphysx,
 #        isaaclab_tasks, isaaclab_teleop, isaaclab_visualizers[kit] (--viz kit),
 #        isaaclab_rl[rsl-rl], isaaclab_arena with upstream runtime dependencies,
@@ -216,7 +216,7 @@ _pip() {
 }
 
 _install_lean_stack() {
-  # Minimal packages required to import ArenaEnvBuilder + run maniparena teleop/nav.
+  # Minimal packages required to import ArenaEnvBuilder + run ManipArena teleop/SDK ROS2.
   # Avoid Arena's fat uv group while preserving dependencies required by its
   # unmodified eager imports.
   local lab_pkgs=(
@@ -387,7 +387,7 @@ Optional smoke (needs display or headless AppLauncher setup):
 
 Collect example (Lab/Sim 6.0 needs --viz kit for the Kit UI):
 
-  python scripts/collect.py --robot ex001 --task fruits_to_basket \\
+  python scripts/collect.py --robot quanta_x1 --task fruits_to_basket \\
     --control-mode keyboard --config configs/collect/keyboard.yaml --viz kit
 
 Details: docs/install.md

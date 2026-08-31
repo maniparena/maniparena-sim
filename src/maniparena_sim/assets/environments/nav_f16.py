@@ -1,4 +1,4 @@
-"""nav_f16 open-scene background for ex001 teleop and navigation."""
+"""nav_f16 open-scene background for quanta_x1 teleop and SDK ROS2."""
 
 from __future__ import annotations
 

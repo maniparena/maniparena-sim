@@ -1,4 +1,4 @@
-"""EX001 whole-body embodiment (mobile base + dual 6-DOF arms + grippers + lift + head).
+"""QUANTA_X1 whole-body embodiment (mobile base + dual 6-DOF arms + grippers + lift + head).
 
 Separate robot from the desktop BimanualEmbodiment. Joint/link names:
 arms ``*_arm_joint[1-6]``, grippers ``*_arm_gripper`` ([0, 1.89]), EE
@@ -46,6 +46,7 @@ from isaaclab_arena.utils.pose import Pose
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
 from maniparena_sim.assets import ASSETS_DIR
+from maniparena_sim.embodiment.actions.safe_effort_overlay import SafeEffortOverlayActionCfg
 from maniparena_sim.embodiment.sensors.update_camera import (
     OpenCVFisheyeCameraCfg,
     OpenCVPinholeCameraCfg,
@@ -56,27 +57,32 @@ from maniparena_sim.embodiment.teleop_devices.differential_drive_keyboard_contro
 
 # Depth RenderProduct + Kit viewport: Lab default clipping is "none" (returns inf),
 # which blacks the main viewport on Sim6. Clip to the far plane instead.
-_EX001_DEPTH_RENDERER_CFG = IsaacRtxRendererCfg(depth_clipping_behavior="max")
+_QUANTA_X1_DEPTH_RENDERER_CFG = IsaacRtxRendererCfg(depth_clipping_behavior="max")
 
-_EX001_GRIPPER_OPEN = 1.89
-_EX001_GRIPPER_CLOSE = 0.0
+_QUANTA_X1_GRIPPER_OPEN = 1.89
+_QUANTA_X1_GRIPPER_CLOSE = 0.0
 
 # Prismatic lift joint travel (meters), from the USD joint limits.
-_EX001_LIFT_LOWER = 0.0
-_EX001_LIFT_UPPER = 0.78
+_QUANTA_X1_LIFT_LOWER = 0.0
+_QUANTA_X1_LIFT_UPPER = 0.78
+_QUANTA_X1_LIFT_KP = 10000.0
+_QUANTA_X1_LIFT_KD = 2000.0
+_QUANTA_X1_LIFT_GRAVITY_FF_N = 145.0
+_QUANTA_X1_LIFT_GRAVITY_FF_MAX_N = 250.0
+_QUANTA_X1_LIFT_GRAVITY_FF_RAMP_S = 0.4
 
-# Sim-effective EX001 wheel geometry. Older nominal 0.078 / 0.48 over-drives
+# Sim-effective QUANTA_X1 wheel geometry. Older nominal 0.078 / 0.48 over-drives
 # the simulated base.
-EX001_WHEEL_RADIUS_M = 0.084
-EX001_WHEEL_TRACK_WIDTH_M = 0.458
+QUANTA_X1_WHEEL_RADIUS_M = 0.084
+QUANTA_X1_WHEEL_TRACK_WIDTH_M = 0.458
 
-EX001_DIFF_DRIVE_KEYBOARD_CFG = DifferentialDriveKeyboardControllerCfg(
-    mode_name="ex001_differential",
+QUANTA_X1_DIFF_DRIVE_KEYBOARD_CFG = DifferentialDriveKeyboardControllerCfg(
+    mode_name="quanta_x1_differential",
     linear_velocity=0.5,
     angular_velocity=2.0,
     wheel_joint_names=("left_wheel_joint", "right_wheel_joint"),
-    wheel_radius=EX001_WHEEL_RADIUS_M,
-    wheel_track_width=EX001_WHEEL_TRACK_WIDTH_M,
+    wheel_radius=QUANTA_X1_WHEEL_RADIUS_M,
+    wheel_track_width=QUANTA_X1_WHEEL_TRACK_WIDTH_M,
 )
 
 
@@ -84,8 +90,8 @@ def twist_to_wheel_vel(
     linear_x: float,
     angular_z: float,
     *,
-    wheel_radius: float = EX001_WHEEL_RADIUS_M,
-    wheel_track_width: float = EX001_WHEEL_TRACK_WIDTH_M,
+    wheel_radius: float = QUANTA_X1_WHEEL_RADIUS_M,
+    wheel_track_width: float = QUANTA_X1_WHEEL_TRACK_WIDTH_M,
 ) -> tuple[float, float]:
     """Convert planar twist to left/right wheel angular velocities."""
     radius = max(float(wheel_radius), 1e-6)
@@ -115,21 +121,21 @@ class ClampedRawGripperActionCfg(JointPositionActionCfg):
 
     class_type: type[ActionTerm] = ClampedRawGripperAction
 
-    clamp_min: float = _EX001_GRIPPER_CLOSE
-    clamp_max: float = _EX001_GRIPPER_OPEN
+    clamp_min: float = _QUANTA_X1_GRIPPER_CLOSE
+    clamp_max: float = _QUANTA_X1_GRIPPER_OPEN
 
 
 @register_asset
-class EX001Embodiment(EmbodimentBase):
-    """EX001 whole-body mobile manipulator."""
+class QuantaX1Embodiment(EmbodimentBase):
+    """QUANTA_X1 whole-body mobile manipulator."""
 
-    name = "ex001"
+    name = "quanta_x1"
 
     @configclass
     class SceneCfg:
         robot: ArticulationCfg = ArticulationCfg(
             spawn=sim_utils.UsdFileCfg(
-                usd_path=os.path.join(ASSETS_DIR, "ex001", "ex001.usd"),
+                usd_path=os.path.join(ASSETS_DIR, "quanta_x1", "quanta_x1.usd"),
                 activate_contact_sensors=True,
                 rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=False),
                 articulation_props=sim_utils.ArticulationRootPropertiesCfg(
@@ -151,7 +157,10 @@ class EX001Embodiment(EmbodimentBase):
                 ),
                 "lift_acts": ImplicitActuatorCfg(
                     joint_names_expr=["lift_joint"],
-                    effort_limit=2000.0, velocity_limit=100.0, stiffness=5000.0, damping=1000.0,
+                    effort_limit_sim=2000.0,
+                    velocity_limit_sim=5.0,
+                    stiffness=_QUANTA_X1_LIFT_KP,
+                    damping=_QUANTA_X1_LIFT_KD,
                 ),
                 "left_arm_acts": ImplicitActuatorCfg(joint_names_expr=["left_arm_joint[1-6]"], effort_limit_sim=200.0, stiffness=1500.0, damping=150.0),
                 "right_arm_acts": ImplicitActuatorCfg(joint_names_expr=["right_arm_joint[1-6]"], effort_limit_sim=200.0, stiffness=1500.0, damping=150.0),
@@ -208,7 +217,7 @@ class EX001Embodiment(EmbodimentBase):
             # with depth is handled separately via ensure_kit_viewport_color_render.
             depth_clipping_behavior="max",
             spawn=OpenCVPinholeCameraCfg(clipping_range=(0.03, 1.0e5)),
-            renderer_cfg=_EX001_DEPTH_RENDERER_CFG,
+            renderer_cfg=_QUANTA_X1_DEPTH_RENDERER_CFG,
         )
         # CAMERA_END_MARKER
 
@@ -279,11 +288,11 @@ class EX001Embodiment(EmbodimentBase):
         )
 
     @configclass
-    class ActionsCfgNav:
-        """Joint-position arms/lift/grippers + diff-drive wheel velocity (ROS2 nav).
+    class ActionsCfgSdkRos2:
+        """Joint-position arms/lift/grippers + diff-drive wheel velocity (SDK ROS2).
 
         ``joint_pos`` covers every non-wheel joint with ABSOLUTE position targets
-        (``use_default_offset=False``); the nav loop seeds the action vector with
+        (``use_default_offset=False``); the SDK ROS2 loop seeds the action vector with
         the robot's default joint positions so an idle command holds the pose and
         SDK ``*_controller/commands`` topics write absolute targets directly.
         ``base_action`` drives the two wheels by velocity (summed keyboard +
@@ -295,6 +304,14 @@ class EX001Embodiment(EmbodimentBase):
             joint_names=["^(?!left_wheel_joint$|right_wheel_joint$).*"],
             scale=1.0,
             use_default_offset=False,
+        )
+        lift_gravity_overlay: ActionTermCfg = SafeEffortOverlayActionCfg(
+            asset_name="robot",
+            enabled=True,
+            joint_names=("lift_joint",),
+            effort_n=_QUANTA_X1_LIFT_GRAVITY_FF_N,
+            max_effort_n=_QUANTA_X1_LIFT_GRAVITY_FF_MAX_N,
+            ramp_s=_QUANTA_X1_LIFT_GRAVITY_FF_RAMP_S,
         )
         base_action: ActionTermCfg = JointVelocityActionCfg(
             asset_name="robot",
@@ -353,6 +370,7 @@ class EX001Embodiment(EmbodimentBase):
             left_wrist_cam = ObsTerm(func=mdp_isaac_lab.image, params={"sensor_cfg": SceneEntityCfg("left_wrist_camera"), "data_type": "rgb", "normalize": False})
             right_wrist_cam = ObsTerm(func=mdp_isaac_lab.image, params={"sensor_cfg": SceneEntityCfg("right_wrist_camera"), "data_type": "rgb", "normalize": False})
             head_cam = ObsTerm(func=mdp_isaac_lab.image, params={"sensor_cfg": SceneEntityCfg("head_camera"), "data_type": "rgb", "normalize": False})
+            head_depth_cam: ObsTerm | None = None
             chassis_cam = ObsTerm(
                 func=mdp_isaac_lab.image,
                 params={
@@ -376,7 +394,24 @@ class EX001Embodiment(EmbodimentBase):
         self.action_config = self.ActionsCfgAbsIK()
         self.observation_config = self.StateObservationsCfg()
         self._camera_observation_config = self.CameraObservationsCfg()
-        self.diff_drive_keyboard_controller_cfg = EX001_DIFF_DRIVE_KEYBOARD_CFG
+        self.diff_drive_keyboard_controller_cfg = QUANTA_X1_DIFF_DRIVE_KEYBOARD_CFG
+
+    def enable_head_depth(self) -> None:
+        """SDK-only: expose depth from the existing head RGB camera."""
+        if not self.enable_cameras or self.camera_config is None:
+            return
+        data_types = list(self.camera_config.head_camera.data_types or [])
+        if "depth" not in data_types:
+            data_types.append("depth")
+            self.camera_config.head_camera.data_types = data_types
+        self._camera_observation_config.camera_obs.head_depth_cam = ObsTerm(
+            func=mdp_isaac_lab.image,
+            params={
+                "sensor_cfg": SceneEntityCfg("head_camera"),
+                "data_type": "depth",
+                "normalize": False,
+            },
+        )
 
     def get_observation_cfg(self):
         if self.enable_cameras:
@@ -385,8 +420,8 @@ class EX001Embodiment(EmbodimentBase):
 
     def get_vr_gripper_clamp(self) -> dict[str, tuple[float, float]]:
         return {
-            "left_arm_gripper": (_EX001_GRIPPER_CLOSE, _EX001_GRIPPER_OPEN),
-            "right_arm_gripper": (_EX001_GRIPPER_CLOSE, _EX001_GRIPPER_OPEN),
+            "left_arm_gripper": (_QUANTA_X1_GRIPPER_CLOSE, _QUANTA_X1_GRIPPER_OPEN),
+            "right_arm_gripper": (_QUANTA_X1_GRIPPER_CLOSE, _QUANTA_X1_GRIPPER_OPEN),
         }
 
     def get_vr_gripper_joint_names(self) -> tuple[str, str]:
@@ -399,4 +434,4 @@ class EX001Embodiment(EmbodimentBase):
         return "lift_joint"
 
     def get_vr_lift_limits(self) -> tuple[float, float]:
-        return _EX001_LIFT_LOWER, _EX001_LIFT_UPPER
+        return _QUANTA_X1_LIFT_LOWER, _QUANTA_X1_LIFT_UPPER

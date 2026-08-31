@@ -13,7 +13,7 @@ _BIMANUAL_BG_POSE = Pose(
     position_xyz=(-1.0, -0.562, 0.0),
     rotation_xyzw=(0.0, 0.0, -0.999, 0.04457),
 )
-_EX001_BG_POSE = Pose(
+_QUANTA_X1_BG_POSE = Pose(
     position_xyz=(-0.452, -0.271, -0.985),
     rotation_xyzw=(0.0, 0.0, -0.704, 0.709),
 )
@@ -58,8 +58,8 @@ _PUT_BOTTLE_BOTTLE_POSE = (
     (1.505, -0.95, _PUT_BOTTLE_BOTTLE_ROOT_Z),
     (-0.01837, 0.007908, 0.000433, 0.9998),
 )
-PUT_BOTTLE_EX001_INIT_POS = (-0.31154, -0.30644, 0.0)
-PUT_BOTTLE_EX001_INIT_QUAT_XYZW = (0.0, 0.0, 0.0, 1.0)  # yaw=0
+PUT_BOTTLE_QUANTA_X1_INIT_POS = (-0.31154, -0.30644, 0.0)
+PUT_BOTTLE_QUANTA_X1_INIT_QUAT_XYZW = (0.0, 0.0, 0.0, 1.0)  # yaw=0
 
 
 def _apply_semantic_tags(asset) -> None:
@@ -73,9 +73,9 @@ def _pose_at(position_xyz: tuple[float, float, float], rotation_xyzw=_IDENTITY_R
 
 def _spawn_background(registry: AssetRegistry, robot: str):
     """Pick background USD + pose. Robot only affects the booth asset, not objects."""
-    if robot == "ex001":
+    if robot == "quanta_x1":
         background = registry.get_asset_by_name("green_booth_mesh_ground")()
-        background.set_initial_pose(_EX001_BG_POSE)
+        background.set_initial_pose(_QUANTA_X1_BG_POSE)
         return background
     background = registry.get_asset_by_name("green_booth")()
     background.set_initial_pose(_BIMANUAL_BG_POSE)
@@ -173,10 +173,10 @@ def build_scene(task_name: str, *, robot: str = "bimanual"):
 
     Object poses depend only on the task. ``robot`` selects the background booth
     USD and its world pose (``green_booth`` for bimanual,
-    ``green_booth_mesh_ground`` for ex001). Robot base pose is set on the
+    ``green_booth_mesh_ground`` for quanta_x1). Robot base pose is set on the
     embodiment, not here.
     """
-    if robot not in ("bimanual", "ex001"):
+    if robot not in ("bimanual", "quanta_x1"):
         raise ValueError(f"Unsupported robot '{robot}' for scene assembly.")
     bootstrap_arena_registry()
     registry = AssetRegistry()

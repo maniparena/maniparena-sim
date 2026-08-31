@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""EX001 ROS2 navigation: 2D-lidar bridge + keyboard/cmd_vel co-controlled base.
+"""QUANTA_X1 SDK ROS2: 2D-lidar bridge + keyboard/cmd_vel co-controlled base.
 
 The dummy_task open scene (nav_f16 background) is loaded WITHOUT any recorder —
-navigation does not record data. The chassis is driven by the SUM of two
+the SDK ROS2 runtime does not record data. The chassis is driven by the SUM of two
 sources, so the keyboard and an external ROS2 nav stack can drive it together:
 
   * keyboard: W/S forward/back, A/D (or Q/E) yaw, R reset, T randomize (no-op).
@@ -12,7 +12,7 @@ nav_mode (2d) and cameras (on) are fixed in code; the ``ros`` YAML block only
 carries runtime knobs (use_sim_time, control_rate_hz, cmd_vel_timeout_s).
 
 Usage:
-    python scripts/navigate_ros2.py --config configs/navigate/ex001_nav.yaml --enable_cameras
+    python scripts/sdk_ros2.py --config configs/sdk_ros2/quanta_x1_sdk_ros2.yaml --enable_cameras
 """
 
 from __future__ import annotations
@@ -32,9 +32,9 @@ def load_yaml(path: str) -> dict:
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="EX001 ROS2 navigation.")
+    parser = argparse.ArgumentParser(description="QUANTA_X1 SDK ROS2.")
     AppLauncher.add_app_launcher_args(parser)
-    parser.add_argument("--config", default="configs/navigate/ex001_nav.yaml")
+    parser.add_argument("--config", default="configs/sdk_ros2/quanta_x1_sdk_ros2.yaml")
     # RTX cameras/lidar still render on the NVIDIA GPU.  Keep PhysX tensors on
     # CPU by default because this Sim/Lab stack can otherwise fall back to CPU
     # PhysX while leaving Warp on CUDA, producing ProxyArray type mismatches.
@@ -123,14 +123,14 @@ def main(args: argparse.Namespace | None = None) -> int:
 
     import torch
 
-    from maniparena_sim.environment.builder import build_ex001_nav_gym_env
+    from maniparena_sim.environment.builder import build_quanta_x1_sdk_ros2_gym_env
     from maniparena_sim.environment.registry import bootstrap_arena_registry
-    from maniparena_sim.ros.ex001_joint_mapping import build_action_slot_map
-    from maniparena_sim.ros.ros2_config import EX001RosConfig
+    from maniparena_sim.ros.quanta_x1_joint_mapping import build_action_slot_map
+    from maniparena_sim.ros.ros2_config import QuantaX1RosConfig
     from maniparena_sim.ros.ros_bridge import RosBridgeExtension, load_ros_bridge_cfg
 
     bootstrap_arena_registry()
-    gym_env, _embodiment = build_ex001_nav_gym_env(
+    gym_env, _embodiment = build_quanta_x1_sdk_ros2_gym_env(
         payload,
         headless=bool(getattr(args, "headless", False)),
         device=getattr(args, "device", "cuda:0"),
@@ -168,7 +168,7 @@ def main(args: argparse.Namespace | None = None) -> int:
         gym_env.close()
         raise
 
-    cc = EX001RosConfig.CHASSIS_CONTROL_CONFIG
+    cc = QuantaX1RosConfig.CHASSIS_CONTROL_CONFIG
     wheel_radius = float(cc["wheel_radius"])
     wheel_track = float(cc["wheel_track_width"])
 
@@ -182,7 +182,7 @@ def main(args: argparse.Namespace | None = None) -> int:
         linear_velocity=float(kb_cfg.get("linear_velocity", 0.5)),
         angular_velocity=float(kb_cfg.get("angular_velocity", 2.0)),
     )
-    print("[INFO] nav controls: W/S move, A/D or Q/E yaw, R reset; external /chassis/cmd_vel also drives base.")
+    print("[INFO] SDK ROS2 controls: W/S move, A/D or Q/E yaw, R reset; external /chassis/cmd_vel also drives base.")
 
     simulation_app = globals().get("_APP")
     if simulation_app is None:

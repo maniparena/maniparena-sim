@@ -1,6 +1,6 @@
-"""EX001 control callbacks for the SDK ROS2 bridge.
+"""QUANTA_X1 control callbacks for the SDK ROS2 bridge.
 
-Nav uses ``ActionsCfgNav`` (one ``joint_pos`` term + wheel velocity). Callbacks
+SDK ROS2 uses ``ActionsCfgSdkRos2`` (one ``joint_pos`` term + wheel velocity). Callbacks
 write absolute joint targets into the shared action buffer via *slot_map*
 (``joint_name -> action slot``). Gripper commands use the simulation-native
 ``0–1.89`` range directly.
@@ -49,7 +49,7 @@ def _required_slots(slot_map: dict[str, int], names: tuple[str, ...] | list[str]
     """Resolve required action slots once while registering callbacks."""
     missing = [name for name in names if name not in slot_map]
     if missing:
-        raise ValueError(f"Missing EX001 action slots: {missing}")
+        raise ValueError(f"Missing QUANTA_X1 action slots: {missing}")
     return [int(slot_map[name]) for name in names]
 
 
@@ -108,9 +108,9 @@ def fill_control_callbacks(
 ):
     """Register SDK control callbacks into *control_callbacks* dict."""
     if action_buffer is None:
-        raise ValueError("EX001 action_buffer is required")
+        raise ValueError("QUANTA_X1 action_buffer is required")
     if cmd_vel_buffer is None:
-        raise ValueError("EX001 cmd_vel_buffer is required")
+        raise ValueError("QUANTA_X1 cmd_vel_buffer is required")
 
     left_arm = _required_slots(slot_map, _LEFT_ARM_JOINTS)
     right_arm = _required_slots(slot_map, _RIGHT_ARM_JOINTS)

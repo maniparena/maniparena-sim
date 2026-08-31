@@ -1,9 +1,9 @@
-"""EX001 Wall-X whole-body closed-loop policy (21D).
+"""QUANTA_X1 Wall-X whole-body closed-loop policy (21D).
 
 Wire action layout (``ActionsCfgWallxWholebody``):
 ``[L_pose7, Lg, R_pose7, Rg, L_wheel, R_wheel, lift, head_yaw, head_pitch]``.
 
-Wall-X EX001 pose contract (``wire_pose_reference: init_ee_pose``):
+Wall-X QUANTA_X1 pose contract (``wire_pose_reference: init_ee_pose``):
 - Request ``follow1/2_pos`` is root-local, relative to home EE, with lift
   ΔZ removed from the Z channel.
 - Response uses the same relative wire; client composes
@@ -28,9 +28,9 @@ from isaaclab.utils.math import (
 )
 from scipy.spatial.transform import Rotation
 
-from maniparena_sim.embodiment.robots.ex001 import (
-    EX001_WHEEL_RADIUS_M,
-    EX001_WHEEL_TRACK_WIDTH_M,
+from maniparena_sim.embodiment.robots.quanta_x1 import (
+    QUANTA_X1_WHEEL_RADIUS_M,
+    QUANTA_X1_WHEEL_TRACK_WIDTH_M,
     twist_to_wheel_vel,
 )
 from maniparena_sim.policy.robot_policy import RobotClosedloopPolicy, RobotPolicyConfig
@@ -63,9 +63,9 @@ def _to_torch_f32(value: Any, device: torch.device | str | None = None) -> torch
 
 
 @dataclass
-class Ex001WallxPolicyConfig(RobotPolicyConfig):
-    wheel_radius: float = EX001_WHEEL_RADIUS_M
-    wheel_track_width: float = EX001_WHEEL_TRACK_WIDTH_M
+class QuantaX1WallxPolicyConfig(RobotPolicyConfig):
+    wheel_radius: float = QUANTA_X1_WHEEL_RADIUS_M
+    wheel_track_width: float = QUANTA_X1_WHEEL_TRACK_WIDTH_M
     lift_joint_name: str = "lift_joint"
     head_yaw_joint_name: str = "head_yaw_joint"
     head_pitch_joint_name: str = "head_pitch_joint"
@@ -78,16 +78,16 @@ class Ex001WallxPolicyConfig(RobotPolicyConfig):
     ee_pose_normalize: bool = False
 
 
-class Ex001WallxPolicy(RobotClosedloopPolicy):
-    """Closed-loop Wall-X policy driving EX001 ``ActionsCfgWallxWholebody``."""
+class QuantaX1WallxPolicy(RobotClosedloopPolicy):
+    """Closed-loop Wall-X policy driving QUANTA_X1 ``ActionsCfgWallxWholebody``."""
 
     ACTION_DIM = 21
     _LEFT_REF_KEY = "_left_ee_ref"
     _RIGHT_REF_KEY = "_right_ee_ref"
 
-    def __init__(self, config: Ex001WallxPolicyConfig):
+    def __init__(self, config: QuantaX1WallxPolicyConfig):
         super().__init__(config)
-        self.cfg: Ex001WallxPolicyConfig = config
+        self.cfg: QuantaX1WallxPolicyConfig = config
 
     def reset(self, env_ids: Any = None) -> None:
         super().reset(env_ids)
@@ -270,7 +270,7 @@ class Ex001WallxPolicy(RobotClosedloopPolicy):
             f2 = f2.reshape(1, -1)
         if f1.shape[-1] < 7 or f2.shape[-1] < 7:
             print(
-                "[Ex001WallxPolicy] Invalid response shape: "
+                "[QuantaX1WallxPolicy] Invalid response shape: "
                 f"follow1={f1.shape}, follow2={f2.shape}",
             )
             return None
@@ -388,9 +388,9 @@ class Ex001WallxPolicy(RobotClosedloopPolicy):
         try:
             response = self._client.predict(model_input)
         except Exception as e:
-            print(f"[Ex001WallxPolicy] Inference failed: {e}")
+            print(f"[QuantaX1WallxPolicy] Inference failed: {e}")
             return None
         if "error" in response:
-            print(f"[Ex001WallxPolicy] Server error: {response['error']}")
+            print(f"[QuantaX1WallxPolicy] Server error: {response['error']}")
             return None
         return self._response_to_action_chunk(response, env, device)

@@ -1,7 +1,7 @@
 """Shared bimanual SE(3) keyboard teleop device.
 
 One keyboard device for every robot in the runtime (desktop bimanual arm and
-ex001 whole-body). Base/chassis control is opt-in: pass a
+quanta_x1 whole-body). Base/chassis control is opt-in: pass a
 ``DifferentialDriveKeyboardControllerCfg`` (via the embodiment's
 ``diff_drive_keyboard_controller_cfg``) to enable a third "base" target.
 
@@ -198,7 +198,7 @@ class BimanualSe3Keyboard:
         """Convert desired base linear/angular velocity into wheel velocities."""
         if self._differential_cfg is None:
             return np.zeros(2, dtype=float)
-        from maniparena_sim.embodiment.robots.ex001 import twist_to_wheel_vel
+        from maniparena_sim.embodiment.robots.quanta_x1 import twist_to_wheel_vel
 
         linear_velocity, angular_velocity = self._base_delta
         left_wheel_velocity, right_wheel_velocity = twist_to_wheel_vel(

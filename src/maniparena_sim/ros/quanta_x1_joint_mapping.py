@@ -1,13 +1,13 @@
-"""EX001 robot joint index mapping for ROS data publishing."""
+"""QUANTA_X1 robot joint index mapping for ROS data publishing."""
 
 LEFT_ARM_JOINT_PATTERN = "left_arm_joint.*"
 RIGHT_ARM_JOINT_PATTERN = "right_arm_joint.*"
 
 
-class EX001JointIndexMapping:
+class QuantaX1JointIndexMapping:
     """Pre-compute joint indices for efficient ROS data publishing.
 
-    Stores joint and body indices for all controlled joints of the EX001
+    Stores joint and body indices for all controlled joints of the QUANTA_X1
     robot so that data acquirers can publish ``JointState`` messages
     efficiently without string lookups every step.
     """

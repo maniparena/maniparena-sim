@@ -1,4 +1,4 @@
-"""EX001 data acquirer functions for the SDK ROS2 bridge.
+"""QUANTA_X1 data acquirer functions for the SDK ROS2 bridge.
 
 Each acquirer has the signature ``(obs, extras, ...) -> ROS msg`` and is
 registered by :func:`fill_data_acquirer` into the communicator's data-acquirer
@@ -8,12 +8,12 @@ dict. Camera *scene* keys stay ManipArena-local; SDK *topic* names are fixed.
 from typing import Any, Callable
 
 from maniparena_sim.ros.message_builder import MessageBuilder
-from maniparena_sim.ros.ros2_config import EX001RosConfig
+from maniparena_sim.ros.ros2_config import QuantaX1RosConfig
 from maniparena_sim.ros.sim_utils import camera_cache
 
-_ODOM_CFG = EX001RosConfig.ODOM_CONFIG["chassis_odom"]
-_IMU_CFG = EX001RosConfig.IMU_CONFIG["chassis_imu"]
-_CAMERA_CONFIG = EX001RosConfig.CAMERA_CONFIG
+_ODOM_CFG = QuantaX1RosConfig.ODOM_CONFIG["chassis_odom"]
+_IMU_CFG = QuantaX1RosConfig.IMU_CONFIG["chassis_imu"]
+_CAMERA_CONFIG = QuantaX1RosConfig.CAMERA_CONFIG
 
 
 def bind_with_dynamic_stamp(
@@ -85,11 +85,11 @@ def acquirer_camera3_image_compressed(obs, extras, stamp):
 
 
 def acquirer_camera_head_front_color_compressed(obs, extras, stamp):
-    return MessageBuilder.compressed_rgb(obs, "head_front_color_camera", stamp, _CAMERA_CONFIG)
+    return MessageBuilder.compressed_rgb(obs, "head_camera", stamp, _CAMERA_CONFIG)
 
 
 def acquirer_camera_head_front_depth_compressed(obs, extras, stamp):
-    return MessageBuilder.compressed_depth(obs, "head_front_depth_camera", stamp, _CAMERA_CONFIG, camera_cache)
+    return MessageBuilder.compressed_depth(obs, "head_camera", stamp, _CAMERA_CONFIG, camera_cache)
 
 
 def acquirer_chassis_scan(obs, extras, lidar_2d, stamp):

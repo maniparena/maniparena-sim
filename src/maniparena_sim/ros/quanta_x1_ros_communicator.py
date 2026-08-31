@@ -1,4 +1,4 @@
-"""ROS2 publisher for the EX001 navigation robot (SDK topic surface)."""
+"""ROS2 publisher for the QUANTA_X1 SDK topic surface."""
 
 from geometry_msgs.msg import PoseStamped, Twist
 from nav_msgs.msg import Odometry
@@ -9,13 +9,13 @@ from sensor_msgs.msg import JointState, LaserScan, PointCloud2
 from std_msgs.msg import Float64MultiArray
 from tf2_msgs.msg import TFMessage
 
-from maniparena_sim.ros.ex001_sdk_topics import EX001_SDK_PUBLISH_TOPICS, EX001_SDK_SUBSCRIBE_TOPICS
+from maniparena_sim.ros.quanta_x1_sdk_topics import QUANTA_X1_SDK_PUBLISH_TOPICS, QUANTA_X1_SDK_SUBSCRIBE_TOPICS
 from maniparena_sim.ros.ros2_config import ROS_QOS_CONFIG
 from maniparena_sim.ros.ros_communicator import RosCommunicator
 
 
-class EX001RosCommunicator(RosCommunicator):
-    """ROS bridge implementation for EX001 SDK topic names."""
+class QuantaX1RosCommunicator(RosCommunicator):
+    """ROS bridge implementation for QUANTA_X1 SDK topic names."""
 
     FAST_TOPICS = frozenset(
         {
@@ -81,7 +81,7 @@ class EX001RosCommunicator(RosCommunicator):
         "/chassis/cmd_vel": Twist,
     }
 
-    _ex001_sampling_rate = {
+    _quanta_x1_sampling_rate = {
         "default": 25,
         "/joint_states": 50,
         "/left_arm/joint_states": 50,
@@ -105,8 +105,8 @@ class EX001RosCommunicator(RosCommunicator):
     }
 
     def _initRobotPublisher(self):
-        if set(self.PUBLISHERS) != EX001_SDK_PUBLISH_TOPICS:
-            raise ValueError("EX001RosCommunicator.PUBLISHERS must match EX001 SDK publish topics")
+        if set(self.PUBLISHERS) != QUANTA_X1_SDK_PUBLISH_TOPICS:
+            raise ValueError("QuantaX1RosCommunicator.PUBLISHERS must match QUANTA_X1 SDK publish topics")
         for topic, msg_type in self.PUBLISHERS.items():
             if topic in self.DEDICATED_PUBLISHERS:
                 continue
@@ -129,8 +129,8 @@ class EX001RosCommunicator(RosCommunicator):
             self._clock_publisher = None
 
     def _initRobotSubscriber(self):
-        if set(self.SUBSCRIBERS) != EX001_SDK_SUBSCRIBE_TOPICS:
-            raise ValueError("EX001RosCommunicator.SUBSCRIBERS must match EX001 SDK subscribe topics")
+        if set(self.SUBSCRIBERS) != QUANTA_X1_SDK_SUBSCRIBE_TOPICS:
+            raise ValueError("QuantaX1RosCommunicator.SUBSCRIBERS must match QUANTA_X1 SDK subscribe topics")
         for topic, msg_type in self.SUBSCRIBERS.items():
             cb = self._control_callbacks.get(topic)
             if cb is None or not callable(cb):
@@ -154,12 +154,12 @@ class EX001RosCommunicator(RosCommunicator):
     ) -> None:
         self._use_sim_time = use_sim_time
         if sampling_rate is None:
-            sampling_rate = EX001RosCommunicator._ex001_sampling_rate
+            sampling_rate = QuantaX1RosCommunicator._quanta_x1_sampling_rate
         super().__init__(
             control_callbacks=control_callbacks,
             data_acquirer=data_acquirer,
             sampling_rate=sampling_rate,
-            node_name="ex001_ros_communicator",
+            node_name="quanta_x1_ros_communicator",
         )
         if enabled_publishers is not None:
             enabled_publishers = set(enabled_publishers)

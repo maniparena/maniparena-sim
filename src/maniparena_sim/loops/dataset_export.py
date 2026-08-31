@@ -136,14 +136,14 @@ def finalize_bimanual_recorder(
         os.remove(boot_f)
 
 
-def finalize_ex001_recorder(
+def finalize_quanta_x1_recorder(
     gym_env: Any,
     layout: RecordingLayout,
     payload: dict,
     *,
     export_on_reset: bool = False,
 ) -> None:
-    """Install EX001 streaming recorder stack (same as ex001 collect)."""
+    """Install QUANTA_X1 streaming recorder stack (same as quanta_x1 collect)."""
     from isaaclab.managers import DatasetExportMode
 
     from maniparena_sim.terms.recorders.streaming.install import (

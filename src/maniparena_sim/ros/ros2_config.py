@@ -1,13 +1,12 @@
-"""ROS message-building configuration for the EX001 navigation robot.
+"""ROS message-building configuration for the QUANTA_X1 SDK ROS2 interface.
 
-Camera ``rgb_key`` / ``depth_key`` map to the embodiment's ``camera_obs`` keys
-(``left_wrist_cam``, ``right_wrist_cam``, ``head_cam`` RGB, ``chassis_cam``
-depth). The logical camera names below are keyed by the ROS topic they feed.
+Camera ``rgb_key`` / ``depth_key`` map to the embodiment's ``camera_obs`` keys.
+The head RGB and depth streams share one physical and logical camera.
 """
 
 
-class EX001RosConfig:
-    """Config bundle for the EX001 robot."""
+class QuantaX1RosConfig:
+    """Config bundle for the QUANTA_X1 robot."""
 
     CAMERA_CONFIG = {
         # /camera1/usb_cam1/image_raw/image_compressed  <- left wrist RGB
@@ -31,24 +30,14 @@ class EX001RosConfig:
             "pointcloud_downsample": 1,
         },
         # /camera_head_front/color/image_raw/compressed  <- head RGB
-        "head_front_color_camera": {
+        "head_camera": {
             "scene_entity": "head_camera",
             "rgb_key": "head_cam",
-            "depth_key": None,
+            "depth_key": "head_depth_cam",
             "frame_id": "camera_head_front_color_optical_frame",
             "compress_fmt": "jpeg",
             "compress_quality": 80,
-            "pointcloud_downsample": 1,
-        },
-        # /camera_head_front/depth/image_raw/compressedDepth
-        # Requires head_camera depth in camera_obs; otherwise acquirer returns None.
-        "head_front_depth_camera": {
-            "scene_entity": "head_camera",
-            "rgb_key": None,
-            "depth_key": "head_depth_cam",
-            "frame_id": "camera_head_front_depth_optical_frame",
-            "compress_fmt": "png",
-            "compress_quality": None,
+            "depth_compress_fmt": "png",
             "pointcloud_downsample": 1,
         },
         # /camera_chassis_front/depth/points  <- chassis depth
@@ -95,7 +84,7 @@ class EX001RosConfig:
     CHASSIS_CONTROL_CONFIG = {
         "control_mode": "differential",
         "wheel_joint_names": ("left_wheel_joint", "right_wheel_joint"),
-        # Sim-effective EX001 geometry (older nominal 0.078 / 0.48 over-drives).
+        # Sim-effective QUANTA_X1 geometry (older nominal 0.078 / 0.48 over-drives).
         "wheel_radius": 0.084,
         "wheel_track_width": 0.458,
     }
@@ -106,7 +95,7 @@ class EX001RosConfig:
     }
 
 
-EX001RosConfig = EX001RosConfig()
+QuantaX1RosConfig = QuantaX1RosConfig()
 
 ROS_QOS_CONFIG = {
     "default_publisher_depth": 10,

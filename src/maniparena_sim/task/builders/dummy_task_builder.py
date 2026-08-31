@@ -1,4 +1,4 @@
-"""Builder for the empty dummy runtime task (teleop / navigation bring-up)."""
+"""Builder for the empty dummy runtime task (teleop / SDK ROS2 bring-up)."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Numpy XYZW-quaternion / pose helpers for the ROS2 navigation bridge.
+"""Numpy XYZW-quaternion / pose helpers for the SDK ROS2 bridge.
 
 Self-contained: implementations inlined so the ``ros`` subpackage has no
 external dependency. Lab 3 / Arena quaternions are XYZW.
@@ -90,6 +90,6 @@ def compute_relative_pose(
     return rel_pos, rel_quat
 
 
-def meters_to_mm(meters: float) -> float:
-    """Convert metres to millimetres."""
-    return float(meters) * 1000.0
+def meters_to_mm(meters: float | np.ndarray) -> float | np.ndarray:
+    """Convert metres to millimetres for either scalars or depth arrays."""
+    return meters * 1000.0
