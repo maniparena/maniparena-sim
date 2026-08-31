@@ -92,11 +92,6 @@ def acquirer_camera_head_front_depth_compressed(obs, extras, stamp):
     return MessageBuilder.compressed_depth(obs, "head_front_depth_camera", stamp, _CAMERA_CONFIG, camera_cache)
 
 
-def acquirer_tf_static(obs, extras, stamp):
-    # Published by StaticTransformBroadcaster in RosBridgeExtension.
-    return None
-
-
 def acquirer_chassis_scan(obs, extras, lidar_2d, stamp):
     """Build ``/scan`` from RTX GenericModelOutput using the bridge stamp."""
     del obs, extras
@@ -148,7 +143,6 @@ def fill_data_acquirer(
     data_acquirer["/right_arm/end_pose"] = bind_with_dynamic_stamp(acquirer_arm_end_pose, s, int(right_ee[0]))
     data_acquirer["/odom"] = bind_with_dynamic_stamp(acquirer_odom, s, odom_origin)
     data_acquirer["/tracked_pose"] = bind_with_dynamic_stamp(acquirer_tracked_pose, s)
-    data_acquirer["/tf_static"] = bind_with_dynamic_stamp(acquirer_tf_static, s)
     data_acquirer["/hal/chassis/imu"] = bind_with_dynamic_stamp(acquirer_chassis_imu, s)
     if lidar_2d is not None:
         data_acquirer["/scan"] = bind_with_dynamic_stamp(acquirer_chassis_scan, s, lidar_2d)

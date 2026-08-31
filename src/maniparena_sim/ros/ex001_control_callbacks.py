@@ -45,69 +45,47 @@ class CmdVelCommandBuffer:
             return self.sequence, (self.linear_x, self.linear_y, self.angular_z)
 
 
-def _slots_for_names(slot_map: dict[str, int], names: tuple[str, ...] | list[str]) -> list[int]:
-    slots: list[int] = []
-    for name in names:
-        slot = slot_map.get(name)
-        if slot is not None:
-            slots.append(int(slot))
-    return slots
+def _required_slots(slot_map: dict[str, int], names: tuple[str, ...] | list[str]) -> list[int]:
+    """Resolve required action slots once while registering callbacks."""
+    missing = [name for name in names if name not in slot_map]
+    if missing:
+        raise ValueError(f"Missing EX001 action slots: {missing}")
+    return [int(slot_map[name]) for name in names]
 
 
 def _write_joint_targets(action_buffer, indices, values) -> None:
-    if action_buffer is None:
-        return
     for joint_idx, value in zip(indices, values):
-        if 0 <= int(joint_idx) < action_buffer.shape[1]:
-            action_buffer[0, int(joint_idx)] = float(value)
+        action_buffer[0, int(joint_idx)] = float(value)
 
 
 def control_arm_joint_commands(msg, joint_indices, action_buffer):
-    try:
-        data = list(msg.data)
-    except Exception:
-        return
+    data = list(msg.data)
     indices = list(joint_indices)
-    if not indices or len(data) < len(indices):
-        return
-    _write_joint_targets(action_buffer, indices, data[: len(indices)])
+    if len(data) != len(indices):
+        raise ValueError(f"Expected {len(indices)} arm commands, got {len(data)}")
+    _write_joint_targets(action_buffer, indices, data)
 
 
-def control_head_position_commands(msg, slot_map, action_buffer):
+def control_head_position_commands(msg, pitch_slot, yaw_slot, action_buffer):
     """Handle head position controller commands ([head_pitch, head_yaw])."""
-    try:
-        data = list(msg.data)
-    except Exception:
-        return
-    if len(data) < 2 or action_buffer is None:
-        return
-    pitch_slot = slot_map.get("head_pitch_joint")
-    yaw_slot = slot_map.get("head_yaw_joint")
-    if pitch_slot is not None:
-        action_buffer[0, pitch_slot] = float(data[0])
-    if yaw_slot is not None:
-        action_buffer[0, yaw_slot] = float(data[1])
+    data = list(msg.data)
+    if len(data) != 2:
+        raise ValueError(f"Expected 2 head commands, got {len(data)}")
+    action_buffer[0, pitch_slot] = float(data[0])
+    action_buffer[0, yaw_slot] = float(data[1])
 
 
-def control_lift_position_commands(msg, slot_map, action_buffer):
-    try:
-        data = list(msg.data)
-    except Exception:
-        return
-    if not data or action_buffer is None:
-        return
-    lift_slot = slot_map.get("lift_joint")
-    if lift_slot is not None:
-        action_buffer[0, lift_slot] = float(data[0])
+def control_lift_position_commands(msg, lift_slot, action_buffer):
+    data = list(msg.data)
+    if len(data) != 1:
+        raise ValueError(f"Expected 1 lift command, got {len(data)}")
+    action_buffer[0, lift_slot] = float(data[0])
 
 
 def control_gripper_commands(msg, joint_slot, action_buffer):
-    try:
-        data = list(msg.data)
-    except Exception:
-        return
-    if not data or joint_slot is None or action_buffer is None:
-        return
+    data = list(msg.data)
+    if len(data) != 1:
+        raise ValueError(f"Expected 1 gripper command, got {len(data)}")
     action_buffer[0, int(joint_slot)] = float(data[0])
 
 
@@ -118,8 +96,7 @@ def control_chassis_cmd_vel(msg, cmd_vel_buffer=None, verbose=False):
     angular_z = float(msg.angular.z)
     if verbose:
         print(f"[ROS] cmd_vel: vx={linear_x:.3f}, vy={linear_y:.3f}, wz={angular_z:.3f}")
-    if cmd_vel_buffer is not None:
-        cmd_vel_buffer.update(linear_x, linear_y, angular_z)
+    cmd_vel_buffer.update(linear_x, linear_y, angular_z)
 
 
 def fill_control_callbacks(
@@ -130,10 +107,23 @@ def fill_control_callbacks(
     verbose=False,
 ):
     """Register SDK control callbacks into *control_callbacks* dict."""
-    left_arm = _slots_for_names(slot_map, _LEFT_ARM_JOINTS)
-    right_arm = _slots_for_names(slot_map, _RIGHT_ARM_JOINTS)
-    left_gripper = slot_map.get("left_arm_gripper")
-    right_gripper = slot_map.get("right_arm_gripper")
+    if action_buffer is None:
+        raise ValueError("EX001 action_buffer is required")
+    if cmd_vel_buffer is None:
+        raise ValueError("EX001 cmd_vel_buffer is required")
+
+    left_arm = _required_slots(slot_map, _LEFT_ARM_JOINTS)
+    right_arm = _required_slots(slot_map, _RIGHT_ARM_JOINTS)
+    pitch_slot, yaw_slot, lift_slot, left_gripper, right_gripper = _required_slots(
+        slot_map,
+        [
+            "head_pitch_joint",
+            "head_yaw_joint",
+            "lift_joint",
+            "left_arm_gripper",
+            "right_arm_gripper",
+        ],
+    )
 
     control_callbacks["/left_arm_joint_controller/commands"] = partial(
         control_arm_joint_commands,
@@ -147,12 +137,13 @@ def fill_control_callbacks(
     )
     control_callbacks["/head_position_controller/commands"] = partial(
         control_head_position_commands,
-        slot_map=slot_map,
+        pitch_slot=pitch_slot,
+        yaw_slot=yaw_slot,
         action_buffer=action_buffer,
     )
     control_callbacks["/lift_position_controller/commands"] = partial(
         control_lift_position_commands,
-        slot_map=slot_map,
+        lift_slot=lift_slot,
         action_buffer=action_buffer,
     )
     control_callbacks["/left_gripper_controller/commands"] = partial(
