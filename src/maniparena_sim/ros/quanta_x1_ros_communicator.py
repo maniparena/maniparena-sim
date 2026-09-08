@@ -159,7 +159,7 @@ class QuantaX1RosCommunicator(RosCommunicator):
             control_callbacks=control_callbacks,
             data_acquirer=data_acquirer,
             sampling_rate=sampling_rate,
-            node_name="quanta_x1_ros_communicator",
+            node_name="sx001_ros_communicator",
         )
         if enabled_publishers is not None:
             enabled_publishers = set(enabled_publishers)

@@ -139,9 +139,12 @@ ROS2 桥依赖 Isaac Sim 的 `isaacsim.ros2.bridge` 扩展，需先按官方指�
 
 ## 启动命令
 
-装好 ROS 环境并 `source` 后：
+先按主 [README](../README.md) 激活仿真环境，再 source ROS 2，最后启动：
 
 ```bash
+source 3rd/isaaclabarena/.venv/bin/activate
+export OMNI_KIT_ACCEPT_EULA=YES ACCEPT_EULA=Y
+source /opt/ros/jazzy/local_setup.bash
 python scripts/sdk_ros2.py \
   --config configs/sdk_ros2/quanta_x1_sdk_ros2.yaml \
   --enable_cameras \
@@ -160,7 +163,7 @@ python scripts/sdk_ros2.py \
 
 ## ROS2 话题
 
-SDK 话题合同见 `src/maniparena_sim/ros/quanta_x1_sdk_topics.py`。
+ROS 节点名为 `sx001_ros_communicator`，话题合同见 `src/maniparena_sim/ros/quanta_x1_sdk_topics.py`。
 
 | Topic Name | Message Type |
 |------------|--------------|
