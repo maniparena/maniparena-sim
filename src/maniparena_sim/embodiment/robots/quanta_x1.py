@@ -322,6 +322,65 @@ class QuantaX1Embodiment(EmbodimentBase):
         )
 
     @configclass
+    class ActionsCfgSdkEe:
+        """SDK Cartesian arms plus shared gripper/lift/head/wheels."""
+
+        arm_action: ActionTermCfg = DifferentialInverseKinematicsActionCfg(
+            asset_name="robot",
+            joint_names=["left_arm_joint[1-6]"],
+            body_name="left_arm_gripper_base_link",
+            controller=DifferentialIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="dls"),
+            scale=1.0,
+        )
+        right_arm_action: ActionTermCfg = DifferentialInverseKinematicsActionCfg(
+            asset_name="robot",
+            joint_names=["right_arm_joint[1-6]"],
+            body_name="right_arm_gripper_base_link",
+            controller=DifferentialIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="dls"),
+            scale=1.0,
+        )
+        left_gripper: ActionTermCfg = JointPositionActionCfg(
+            asset_name="robot",
+            joint_names=["left_arm_gripper"],
+            scale=1.0,
+            use_default_offset=False,
+        )
+        right_gripper: ActionTermCfg = JointPositionActionCfg(
+            asset_name="robot",
+            joint_names=["right_arm_gripper"],
+            scale=1.0,
+            use_default_offset=False,
+        )
+        head_action: ActionTermCfg = JointPositionActionCfg(
+            asset_name="robot",
+            joint_names=["head_pitch_joint", "head_yaw_joint"],
+            scale=1.0,
+            use_default_offset=False,
+            preserve_order=True,
+        )
+        lift_action: ActionTermCfg = JointPositionActionCfg(
+            asset_name="robot",
+            joint_names=["lift_joint"],
+            scale=1.0,
+            use_default_offset=False,
+        )
+        lift_gravity_overlay: ActionTermCfg = SafeEffortOverlayActionCfg(
+            asset_name="robot",
+            enabled=True,
+            joint_names=("lift_joint",),
+            effort_n=_QUANTA_X1_LIFT_GRAVITY_FF_N,
+            max_effort_n=_QUANTA_X1_LIFT_GRAVITY_FF_MAX_N,
+            ramp_s=_QUANTA_X1_LIFT_GRAVITY_FF_RAMP_S,
+        )
+        base_action: ActionTermCfg = JointVelocityActionCfg(
+            asset_name="robot",
+            joint_names=["left_wheel_joint", "right_wheel_joint"],
+            scale=1.0,
+            use_default_offset=False,
+            preserve_order=True,
+        )
+
+    @configclass
     class ActionsCfgRelIK:
         """16D relative-IK + diff-drive base, used by KEYBOARD teleop.
 

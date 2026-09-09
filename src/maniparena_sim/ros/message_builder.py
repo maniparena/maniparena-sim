@@ -268,6 +268,52 @@ class MessageBuilder:
         )
         return msg
 
+    @staticmethod
+    def ee_pose_in_arm_base(obs, body_idx, base_idx=None):
+        """Return gripper ``(pos, quat_xyzw)`` in the arm-base frame."""
+        from maniparena_sim.ros.math_utils import compute_relative_pose
+        from maniparena_sim.ros.sim_utils import get_body_pose, get_root_pose
+
+        body_pos, body_quat = get_body_pose(obs, body_idx)
+        if body_pos is None or body_quat is None or len(body_pos) < 3 or len(body_quat) < 4:
+            return None
+        if base_idx is None:
+            base_pos, base_quat = get_root_pose(obs)
+        else:
+            base_pos, base_quat = get_body_pose(obs, base_idx)
+            if base_pos is None or base_quat is None or len(base_pos) < 3 or len(base_quat) < 4:
+                return None
+        return compute_relative_pose(body_pos, body_quat, base_pos, base_quat)
+
+    @staticmethod
+    def pose_stamped_ee_from_home(obs, body_idx, stamp, home_pos, home_quat, base_idx=None, frame_id="lift_link"):
+        """Build gripper PoseStamped relative to the home EE pose."""
+        from geometry_msgs.msg import Point
+        from geometry_msgs.msg import Pose as RosPose
+        from geometry_msgs.msg import PoseStamped, Quaternion
+
+        from maniparena_sim.ros.math_utils import quat_inverse, quat_multiply
+
+        current = MessageBuilder.ee_pose_in_arm_base(obs, body_idx, base_idx)
+        if current is None or home_pos is None or home_quat is None:
+            return None
+        pos_b, quat_b = current
+        rel_pos = np.asarray(pos_b, dtype=np.float32) - np.asarray(home_pos, dtype=np.float32)
+        rel_quat = quat_multiply(quat_b, quat_inverse(home_quat))
+
+        msg = PoseStamped()
+        copy_stamp(msg.header.stamp, stamp)
+        msg.header.frame_id = frame_id
+        msg.pose = RosPose()
+        msg.pose.position = Point(x=float(rel_pos[0]), y=float(rel_pos[1]), z=float(rel_pos[2]))
+        msg.pose.orientation = Quaternion(
+            x=float(rel_quat[0]),
+            y=float(rel_quat[1]),
+            z=float(rel_quat[2]),
+            w=float(rel_quat[3]),
+        )
+        return msg
+
     # ── 3D LiDAR ─────────────────────────────────────────────────────────────
 
     @staticmethod

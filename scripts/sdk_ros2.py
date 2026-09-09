@@ -8,8 +8,10 @@ sources, so the keyboard and an external ROS2 nav stack can drive it together:
   * keyboard: W/S forward/back, A/D (or Q/E) yaw, R reset, T randomize (no-op).
   * ROS topic: /chassis/cmd_vel (geometry_msgs/Twist).
 
-nav_mode (2d) and cameras (on) are fixed in code; the ``ros`` YAML block only
-carries runtime knobs (use_sim_time, control_rate_hz, cmd_vel_timeout_s).
+nav_mode (2d) and cameras (on) are fixed in code; the ``ros`` YAML block
+carries runtime knobs (use_sim_time, control_rate_hz, cmd_vel_timeout_s,
+arm_control). ``arm_control: ee`` (default) subscribes to Cartesian
+``pose_cmd`` topics; ``joint`` uses 6-D joint commands.
 
 Usage:
     python scripts/sdk_ros2.py --config configs/sdk_ros2/quanta_x1_sdk_ros2.yaml --enable_cameras
@@ -147,7 +149,7 @@ def main(args: argparse.Namespace | None = None) -> int:
 
     slot_map = build_action_slot_map(gym_env.action_manager)
 
-    # Seed non-wheel slots with default joint positions so an idle action holds.
+    # Seed non-wheel joint slots so an idle action holds.
     default_q = robot.data.default_joint_pos[0]
     joint_name_to_idx = {n: i for i, n in enumerate(robot.data.joint_names)}
     wheel_names = ("left_wheel_joint", "right_wheel_joint")
@@ -163,6 +165,7 @@ def main(args: argparse.Namespace | None = None) -> int:
     ros_ext = RosBridgeExtension(ros_cfg)
     try:
         ros_ext.setup(gym_env, robot, action_buffer=actions)
+        ros_ext.seed_ee_hold(robot)
     except Exception:
         ros_ext.shutdown()
         gym_env.close()
@@ -198,9 +201,11 @@ def main(args: argparse.Namespace | None = None) -> int:
                     if right_wheel_slot is not None:
                         actions[0, right_wheel_slot] = 0.0
                     gym_env.reset()
+                    ros_ext.seed_ee_hold(robot)
                     print("[INFO] reset: robot returned to initial pose.")
                     continue
 
+                ros_ext.project_ee_pose_commands(robot)
                 # Sum keyboard twist + latest /chassis/cmd_vel (with timeout) -> wheels.
                 k_lin, _, k_ang = kb.twist()
                 sim_t = float(getattr(ros_ext, "_sim_time_acc", 0.0)) + float(gym_env.step_dt)

@@ -184,13 +184,20 @@ ROS 节点名为 `sx001_ros_communicator`，话题合同见 `src/maniparena_sim/
 | `/camera1/...` / `/camera3/...` | 左右腕 RGB |
 | `/camera_head_front/color/image_raw/compressed` | 头 RGB |
 | **SUBSCRIBERS** | |
-| `/left_arm_joint_controller/commands` | `Float64MultiArray` |
-| `/right_arm_joint_controller/commands` | `Float64MultiArray` |
+| `/left_arm_cartesian_controller/pose_cmd` / `/right_arm_cartesian_controller/pose_cmd` | `PoseStamped`（`ros.arm_control: ee`） |
+| `/left_arm_joint_controller/commands` / `/right_arm_joint_controller/commands` | `Float64MultiArray`（`ros.arm_control: joint`） |
 | `/left_gripper_controller/commands` | `Float64MultiArray`（0–1.89） |
 | `/right_gripper_controller/commands` | `Float64MultiArray`（0–1.89） |
 | `/head_position_controller/commands` | `Float64MultiArray` |
 | `/lift_position_controller/commands` | `Float64MultiArray` |
 | `/chassis/cmd_vel` | `Twist`（超时 0.25 s 清零） |
+
+双臂控制由 YAML `ros.arm_control` 选择，默认 **`ee`**：
+
+```yaml
+ros:
+  arm_control: ee    # 或 joint
+```
 
 ## 演示
 

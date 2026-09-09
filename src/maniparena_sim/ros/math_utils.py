@@ -9,23 +9,24 @@ from __future__ import annotations
 from typing import Any
 
 import numpy as np
-import torch
+
+
+def _as_numpy(val: Any) -> np.ndarray:
+    if hasattr(val, "detach"):
+        val = val.detach().cpu().numpy()
+    return np.asarray(val)
 
 
 def to_numpy(val: Any) -> np.ndarray:
     """Convert tensor / array-like to a flattened numpy array."""
-    if isinstance(val, torch.Tensor):
-        val = val.detach().cpu().numpy()
-    return np.asarray(val).flatten()
+    return _as_numpy(val).flatten()
 
 
 def to_numpy_2d(val: Any) -> np.ndarray | None:
     """Convert tensor / array-like to numpy without changing shape (None-safe)."""
     if val is None:
         return None
-    if isinstance(val, torch.Tensor):
-        val = val.detach().cpu().numpy()
-    return np.asarray(val)
+    return _as_numpy(val)
 
 
 def quat_inverse(q: np.ndarray) -> np.ndarray:
@@ -88,6 +89,49 @@ def compute_relative_pose(
     rel_pos = quat_rotate_inverse(origin_quat, pos_diff)
     rel_quat = quat_multiply(quat_inverse(origin_quat), np.asarray(quat, dtype=np.float32))
     return rel_pos, rel_quat
+
+
+def quat_rotate(q: np.ndarray, v: np.ndarray) -> np.ndarray:
+    """Rotate a 3-vector by an XYZW quaternion."""
+    q = np.asarray(q, dtype=np.float32)
+    q_v = np.array([v[0], v[1], v[2], 0.0], dtype=np.float32)
+    result = quat_multiply(quat_multiply(q, q_v), quat_inverse(q))
+    return result[:3]
+
+
+def compose_pose(
+    origin_pos: np.ndarray,
+    origin_quat: np.ndarray,
+    rel_pos: np.ndarray,
+    rel_quat: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Apply a relative pose on top of *origin* (numpy, XYZW)."""
+    world_pos = np.asarray(origin_pos, dtype=np.float32) + quat_rotate(origin_quat, rel_pos)
+    world_quat = quat_multiply(np.asarray(origin_quat, dtype=np.float32), np.asarray(rel_quat, dtype=np.float32))
+    return world_pos, world_quat
+
+
+def lift_joint_pose_to_root(
+    cmd_pos,
+    cmd_quat,
+    lift_joint: float,
+    rest_pos,
+    rest_quat,
+    axis=(0.0, 0.0, 1.0),
+) -> tuple[np.ndarray, np.ndarray]:
+    """Map an EE pose in ``lift_link`` into root using measured ``lift_joint``.
+
+    ``rest_pos`` / ``rest_quat`` are ``lift_link`` in the root frame at
+    ``lift_joint = 0``. The live lift signal is the prismatic joint value.
+    """
+    axis_n = np.asarray(axis, dtype=np.float32).reshape(3)
+    lift_pos, lift_quat = compose_pose(
+        rest_pos,
+        rest_quat,
+        axis_n * float(lift_joint),
+        (0.0, 0.0, 0.0, 1.0),
+    )
+    return compose_pose(lift_pos, lift_quat, cmd_pos, cmd_quat)
 
 
 def meters_to_mm(meters: float | np.ndarray) -> float | np.ndarray:

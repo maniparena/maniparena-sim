@@ -30,6 +30,11 @@ class QuantaX1JointIndexMapping:
 
         self.left_gripper_body = robot.find_bodies("left_arm_gripper_base_link")[0]
         self.right_gripper_body = robot.find_bodies("right_arm_gripper_base_link")[0]
+        arm_base = robot.find_bodies("lift_link")[0]
+        if len(arm_base) != 1:
+            raise RuntimeError("QUANTA_X1 end_pose needs one lift_link body; refuse chassis-root EE")
+        self.arm_base_body = arm_base
+        self.arm_base_frame_id = "lift_link"
 
         # Optionally set by main script when base_velocity action term exists
         self.base_velocity_start = None
@@ -54,4 +59,16 @@ def build_action_slot_map(action_manager) -> dict:
                 slot_map[jn] = offset + i
         offset += dim
     return slot_map
+
+
+def action_term_slots(action_manager, term_name: str) -> list[int]:
+    """Return action-buffer indices owned by one named action term."""
+    start = 0
+    for name in action_manager.active_terms:
+        term = action_manager.get_term(name)
+        dim = int(term.action_dim)
+        if name == term_name:
+            return list(range(start, start + dim))
+        start += dim
+    raise RuntimeError(f"Action term {term_name!r} is not in the action manager")
 

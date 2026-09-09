@@ -9,7 +9,11 @@ from sensor_msgs.msg import JointState, LaserScan, PointCloud2
 from std_msgs.msg import Float64MultiArray
 from tf2_msgs.msg import TFMessage
 
-from maniparena_sim.ros.quanta_x1_sdk_topics import QUANTA_X1_SDK_PUBLISH_TOPICS, QUANTA_X1_SDK_SUBSCRIBE_TOPICS
+from maniparena_sim.ros.quanta_x1_sdk_topics import (
+    QUANTA_X1_SDK_PUBLISH_TOPICS,
+    normalize_arm_control,
+    sdk_subscribe_topics,
+)
 from maniparena_sim.ros.ros2_config import ROS_QOS_CONFIG
 from maniparena_sim.ros.ros_communicator import RosCommunicator
 
@@ -80,6 +84,11 @@ class QuantaX1RosCommunicator(RosCommunicator):
         "/lift_position_controller/commands": Float64MultiArray,
         "/chassis/cmd_vel": Twist,
     }
+    _EE_ARM_SUBSCRIBERS = {
+        "/left_arm_cartesian_controller/pose_cmd": PoseStamped,
+        "/right_arm_cartesian_controller/pose_cmd": PoseStamped,
+    }
+    _ALL_SUBSCRIBER_TYPES = {**SUBSCRIBERS, **_EE_ARM_SUBSCRIBERS}
 
     _quanta_x1_sampling_rate = {
         "default": 25,
@@ -129,7 +138,8 @@ class QuantaX1RosCommunicator(RosCommunicator):
             self._clock_publisher = None
 
     def _initRobotSubscriber(self):
-        if set(self.SUBSCRIBERS) != QUANTA_X1_SDK_SUBSCRIBE_TOPICS:
+        expected = sdk_subscribe_topics(getattr(self, "_arm_control", "ee"))
+        if set(self.SUBSCRIBERS) != expected:
             raise ValueError("QuantaX1RosCommunicator.SUBSCRIBERS must match QUANTA_X1 SDK subscribe topics")
         for topic, msg_type in self.SUBSCRIBERS.items():
             cb = self._control_callbacks.get(topic)
@@ -151,8 +161,14 @@ class QuantaX1RosCommunicator(RosCommunicator):
         sampling_rate=None,
         use_sim_time: bool = False,
         enabled_publishers=None,
+        arm_control: str = "ee",
     ) -> None:
         self._use_sim_time = use_sim_time
+        self._arm_control = normalize_arm_control(arm_control)
+        self.SUBSCRIBERS = {
+            topic: QuantaX1RosCommunicator._ALL_SUBSCRIBER_TYPES[topic]
+            for topic in sdk_subscribe_topics(self._arm_control)
+        }
         if sampling_rate is None:
             sampling_rate = QuantaX1RosCommunicator._quanta_x1_sampling_rate
         super().__init__(

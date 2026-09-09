@@ -56,8 +56,25 @@ def acquirer_gripper_joint_states(obs, extras, joint_index, joint_name, stamp):
     return MessageBuilder.joint_states(obs, [joint_index], [joint_name], stamp)
 
 
-def acquirer_arm_end_pose(obs, extras, body_index, stamp):
-    return MessageBuilder.pose_stamped_from_body(obs, body_index, stamp)
+def acquirer_arm_end_pose(obs, extras, body_index, base_index, frame_id, home_ref, side, stamp):
+    home = None if home_ref is None else home_ref.get(side)
+    if home is None:
+        current = MessageBuilder.ee_pose_in_arm_base(obs, body_index, base_index)
+        if current is None or home_ref is None:
+            return None
+        home_ref.set_side(side, current[0], current[1])
+        home = home_ref.get(side)
+    if home is None:
+        return None
+    return MessageBuilder.pose_stamped_ee_from_home(
+        obs,
+        body_index,
+        stamp,
+        home[0],
+        home[1],
+        base_idx=base_index,
+        frame_id=frame_id,
+    )
 
 
 def acquirer_chassis_imu(obs, extras, stamp):
@@ -106,6 +123,7 @@ def fill_data_acquirer(
     stamp_holder,
     odom_origin,
     lidar_2d=None,
+    home_ref=None,
 ):
     """Register SDK data acquirer callbacks into *data_acquirer* dict.
 
@@ -139,8 +157,14 @@ def fill_data_acquirer(
     )
     left_ee = getattr(joint_mapping, "left_gripper_body", [0])
     right_ee = getattr(joint_mapping, "right_gripper_body", [0])
-    data_acquirer["/left_arm/end_pose"] = bind_with_dynamic_stamp(acquirer_arm_end_pose, s, int(left_ee[0]))
-    data_acquirer["/right_arm/end_pose"] = bind_with_dynamic_stamp(acquirer_arm_end_pose, s, int(right_ee[0]))
+    arm_base = getattr(joint_mapping, "arm_base_body", [None])
+    arm_frame = getattr(joint_mapping, "arm_base_frame_id", "lift_link")
+    data_acquirer["/left_arm/end_pose"] = bind_with_dynamic_stamp(
+        acquirer_arm_end_pose, s, int(left_ee[0]), arm_base[0], arm_frame, home_ref, "left"
+    )
+    data_acquirer["/right_arm/end_pose"] = bind_with_dynamic_stamp(
+        acquirer_arm_end_pose, s, int(right_ee[0]), arm_base[0], arm_frame, home_ref, "right"
+    )
     data_acquirer["/odom"] = bind_with_dynamic_stamp(acquirer_odom, s, odom_origin)
     data_acquirer["/tracked_pose"] = bind_with_dynamic_stamp(acquirer_tracked_pose, s)
     data_acquirer["/hal/chassis/imu"] = bind_with_dynamic_stamp(acquirer_chassis_imu, s)

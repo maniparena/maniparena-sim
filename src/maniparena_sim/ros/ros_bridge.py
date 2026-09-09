@@ -18,7 +18,6 @@ from typing import Any
 
 import yaml
 
-from maniparena_sim.ros.sim_utils import build_robot_state_snapshot
 from maniparena_sim.utils.debug_print import maniparenaprint
 
 CAMERA_TOPICS: set[str] = {
@@ -38,9 +37,12 @@ class RosBridgeCfg:
     use_sim_time: bool = False
     control_rate_hz: float = 10.0
     cmd_vel_timeout_s: float = 0.25
+    arm_control: str = "ee"
 
 
 def load_ros_bridge_cfg(config_path: str | Path) -> RosBridgeCfg:
+    from maniparena_sim.ros.quanta_x1_sdk_topics import normalize_arm_control
+
     raw = yaml.safe_load(Path(config_path).read_text(encoding="utf-8")) or {}
     ros = raw.get("ros") or {}
     return RosBridgeCfg(
@@ -48,6 +50,7 @@ def load_ros_bridge_cfg(config_path: str | Path) -> RosBridgeCfg:
         use_sim_time=bool(ros.get("use_sim_time", False)),
         control_rate_hz=float(ros.get("control_rate_hz", 10.0)),
         cmd_vel_timeout_s=float(ros.get("cmd_vel_timeout_s", 0.25)),
+        arm_control=normalize_arm_control(ros.get("arm_control", "ee")),
     )
 
 
@@ -72,6 +75,15 @@ class RosBridgeExtension:
         self._cmd_vel_held: tuple[float, float, float] = (0.0, 0.0, 0.0)
         self._cmd_vel_zero_sent: bool = False
         self._lidar_2d: Any = None
+        self._ee_pose_buffer: Any = None
+        self._ee_home: Any = None
+        self._left_ee_slots: list[int] = []
+        self._right_ee_slots: list[int] = []
+        self._lift_joint_idx: int | None = None
+        self._lift_body_idx: int | None = None
+        self._lift_rest_pos: Any = None
+        self._lift_rest_quat: Any = None
+        self._action_buffer: Any = None
         self._enabled_publishers: set[str] = set()
         self._fast_topics: set[str] = set()
         self._slow_topics: set[str] = set()
@@ -109,20 +121,32 @@ class RosBridgeExtension:
 
         from tf2_ros import StaticTransformBroadcaster, TransformBroadcaster
 
-        from maniparena_sim.ros.quanta_x1_control_callbacks import CmdVelCommandBuffer, fill_control_callbacks
+        from maniparena_sim.ros.quanta_x1_control_callbacks import (
+            CmdVelCommandBuffer,
+            EePoseCommandBuffer,
+            HomeEeRef,
+            fill_control_callbacks,
+        )
         from maniparena_sim.ros.quanta_x1_data_acquirers import fill_data_acquirer
-        from maniparena_sim.ros.quanta_x1_joint_mapping import QuantaX1JointIndexMapping, build_action_slot_map
+        from maniparena_sim.ros.quanta_x1_joint_mapping import (
+            QuantaX1JointIndexMapping,
+            action_term_slots,
+            build_action_slot_map,
+        )
         from maniparena_sim.ros.quanta_x1_ros_communicator import QuantaX1RosCommunicator
-        from maniparena_sim.ros.quanta_x1_sdk_topics import QUANTA_X1_SDK_PUBLISH_TOPICS, QUANTA_X1_SDK_SUBSCRIBE_TOPICS
+        from maniparena_sim.ros.quanta_x1_sdk_topics import QUANTA_X1_SDK_PUBLISH_TOPICS, sdk_subscribe_topics
         from maniparena_sim.ros.prim_paths import QUANTA_X1_PATHS
         from maniparena_sim.ros.ros2_config import QuantaX1RosConfig
-        from maniparena_sim.ros.sim_utils import get_root_pose, get_ros_time, init_camera_cache
+        from maniparena_sim.ros.sim_utils import (
+            build_robot_state_snapshot,
+            get_root_pose,
+            get_ros_time,
+            init_camera_cache,
+        )
         from maniparena_sim.ros.tf_publisher import OdomOrigin, TfPublisher
 
         if set(QuantaX1RosCommunicator.PUBLISHERS) != QUANTA_X1_SDK_PUBLISH_TOPICS:
             raise RuntimeError("QuantaX1RosCommunicator.PUBLISHERS drifted from QUANTA_X1_SDK_PUBLISH_TOPICS")
-        if set(QuantaX1RosCommunicator.SUBSCRIBERS) != QUANTA_X1_SDK_SUBSCRIBE_TOPICS:
-            raise RuntimeError("QuantaX1RosCommunicator.SUBSCRIBERS drifted from QUANTA_X1_SDK_SUBSCRIBE_TOPICS")
 
         self._get_ros_time = get_ros_time
         self._robot = robot
@@ -167,24 +191,52 @@ class RosBridgeExtension:
 
         # -- Acquirers / callbacks -----------------------------------------
         data_acquirer = {t: None for t in QuantaX1RosCommunicator.PUBLISHERS}
-        control_callbacks = {t: None for t in QuantaX1RosCommunicator.SUBSCRIBERS}
+        arm_control = self._cfg.arm_control
+        control_callbacks = {t: None for t in sdk_subscribe_topics(arm_control)}
 
+        self._ee_home = HomeEeRef()
         fill_data_acquirer(
             data_acquirer,
             joint_mapping,
             self._stamp_holder,
             odom_origin,
             self._lidar_2d,
+            home_ref=self._ee_home,
         )
         shared_action_buffer = action_buffer
         if shared_action_buffer is None:
             shared_action_buffer = torch.zeros(env.num_envs, env.action_manager.total_action_dim, device=env.device)
+        self._action_buffer = shared_action_buffer
+        self._ee_pose_buffer = None
+        self._left_ee_slots = []
+        self._right_ee_slots = []
+        self._lift_joint_idx = int(joint_mapping.lift[0])
+        self._lift_body_idx = int(joint_mapping.arm_base_body[0])
+        self._lift_rest_pos = None
+        self._lift_rest_quat = None
+        left_ee_slots = None
+        right_ee_slots = None
+        if arm_control == "ee":
+            self._ee_pose_buffer = EePoseCommandBuffer()
+            left_ee_slots = action_term_slots(env.action_manager, "arm_action")
+            right_ee_slots = action_term_slots(env.action_manager, "right_arm_action")
+            if len(left_ee_slots) < 7 or len(right_ee_slots) < 7:
+                raise RuntimeError("ee arm terms must be 7-D pose")
+            self._left_ee_slots = left_ee_slots[:7]
+            self._right_ee_slots = right_ee_slots[:7]
+            self._calibrate_lift_rest(robot, self._lift_body_idx)
+        if self._ee_home is not None and self._lift_body_idx is not None:
+            self._ee_home.capture_from_robot(robot, self._lift_body_idx)
 
         fill_control_callbacks(
             control_callbacks,
             slot_map,
             shared_action_buffer,
             cmd_vel_buffer=self._cmd_vel_buffer,
+            arm_control=arm_control,
+            ee_pose_buffer=self._ee_pose_buffer,
+            left_ee_slots=left_ee_slots,
+            right_ee_slots=right_ee_slots,
         )
 
         # -- Communicator & TF ---------------------------------------------
@@ -197,6 +249,7 @@ class RosBridgeExtension:
             data_acquirer=data_acquirer,
             use_sim_time=self._cfg.use_sim_time,
             enabled_publishers=enabled_publishers,
+            arm_control=arm_control,
         )
         self._enabled_publishers = set(enabled_publishers)
         self._fast_topics = QuantaX1RosCommunicator.FAST_TOPICS & self._enabled_publishers
@@ -212,7 +265,52 @@ class RosBridgeExtension:
             f"INFO: [ROS] Initialized: nav_mode={nav_mode}  "
             f"chassis_input={self._cfg.chassis_input}  "
             f"use_sim_time={self._cfg.use_sim_time}  "
-            f"control_rate_hz={self._cfg.control_rate_hz:.2f}"
+            f"control_rate_hz={self._cfg.control_rate_hz:.2f}  "
+            f"arm_control={arm_control}"
+        )
+
+    def _calibrate_lift_rest(self, robot, lift_body_idx: int) -> None:
+        """Cache ``lift_link`` in root at ``lift_joint=0`` (USD mount only)."""
+        from maniparena_sim.ros.math_utils import compute_relative_pose, to_numpy
+
+        if self._lift_joint_idx is None:
+            return
+        lift_q = float(to_numpy(robot.data.joint_pos[0, int(self._lift_joint_idx)]).reshape(-1)[0])
+        root_pos = to_numpy(robot.data.root_pos_w[0])
+        root_quat = to_numpy(robot.data.root_quat_w[0])
+        lift_pos = to_numpy(robot.data.body_pos_w[0, int(lift_body_idx)])
+        lift_quat = to_numpy(robot.data.body_quat_w[0, int(lift_body_idx)])
+        rel_pos, rel_quat = compute_relative_pose(lift_pos, lift_quat, root_pos, root_quat)
+        axis = rel_pos.copy()
+        axis[:] = (0.0, 0.0, 1.0)
+        self._lift_rest_pos = rel_pos - axis * lift_q
+        self._lift_rest_quat = rel_quat
+
+    def seed_ee_hold(self, robot) -> None:
+        """Recapture home EE and clear pending pose commands."""
+        buf = self._ee_pose_buffer
+        if buf is None or self._ee_home is None or self._lift_body_idx is None:
+            return
+        self._ee_home.capture_from_robot(robot, self._lift_body_idx)
+        buf.clear()
+        self.project_ee_pose_commands(robot)
+
+    def project_ee_pose_commands(self, robot) -> None:
+        """Write current EE commands into the DiffIK action slots."""
+        from maniparena_sim.ros.quanta_x1_control_callbacks import project_ee_pose_commands
+
+        if self._ee_pose_buffer is None or self._lift_joint_idx is None:
+            return
+        project_ee_pose_commands(
+            self._ee_pose_buffer,
+            self._action_buffer,
+            self._left_ee_slots,
+            self._right_ee_slots,
+            robot,
+            self._lift_joint_idx,
+            self._lift_rest_pos,
+            self._lift_rest_quat,
+            home_ref=self._ee_home,
         )
 
     def latest_cmd_vel(self, sim_time_s: float) -> tuple[float, float, float]:
@@ -242,6 +340,8 @@ class RosBridgeExtension:
 
     def update(self, dt: float) -> None:
         """Call once per simulation step (after ``env.step``)."""
+        from maniparena_sim.ros.sim_utils import build_robot_state_snapshot
+
         if self._communicator is None:
             return
 
