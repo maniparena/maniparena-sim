@@ -144,10 +144,10 @@ ROS2 桥依赖 Isaac Sim 的 `isaacsim.ros2.bridge` 扩展，需先按官方指�
 ```bash
 source 3rd/isaaclabarena/.venv/bin/activate
 export OMNI_KIT_ACCEPT_EULA=YES ACCEPT_EULA=Y
+export ENABLE_CAMERAS=1
 source /opt/ros/jazzy/local_setup.bash
 python scripts/sdk_ros2.py \
   --config configs/sdk_ros2/quanta_x1_sdk_ros2.yaml \
-  --enable_cameras \
   --viz kit
 ```
 

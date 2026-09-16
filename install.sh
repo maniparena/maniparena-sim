@@ -149,15 +149,58 @@ _prepare_submodules() {
       git -C "${_ROOT}" submodule add -b "${_ARENA_BRANCH}" --depth 1 "${_ARENA_URL}" "${_ARENA_REL}"
     fi
   else
-    _log "updating Arena checkout to origin/${_ARENA_BRANCH}"
-    git -C "${_ARENA_DIR}" fetch --depth 1 origin "${_ARENA_BRANCH}"
-    git -C "${_ARENA_DIR}" checkout -B "${_ARENA_BRANCH}" "origin/${_ARENA_BRANCH}"
+    # Guard against a stale/wrong clone in the Arena dir. A common failure is a
+    # checkout of IsaacLab itself (not IsaacLab-Arena): its origin silently
+    # fetches the wrong repo, which has no submodules/IsaacLab entry, so the
+    # nested init below dies with a confusing "no Lab submodule SHA" error.
+    local arena_origin
+    arena_origin="$(git -C "${_ARENA_DIR}" remote get-url origin 2>/dev/null || true)"
+    if [[ "${arena_origin}" != "${_ARENA_URL}" ]]; then
+      _log "Arena checkout origin is '${arena_origin}'; correcting to ${_ARENA_URL}"
+      git -C "${_ARENA_DIR}" remote set-url origin "${_ARENA_URL}"
+      _log "updating Arena checkout to origin/${_ARENA_BRANCH}"
+      git -C "${_ARENA_DIR}" fetch --depth 1 origin "${_ARENA_BRANCH}"
+      git -C "${_ARENA_DIR}" checkout -B "${_ARENA_BRANCH}" "origin/${_ARENA_BRANCH}"
+      # Replace leftover files from the wrong repo. .venv is gitignored, so it
+      # survives the clean and the Python stack is not reinstalled.
+      git -C "${_ARENA_DIR}" reset --hard "${_ARENA_BRANCH}"
+      git -C "${_ARENA_DIR}" clean -fd
+    else
+      _log "updating Arena checkout to origin/${_ARENA_BRANCH}"
+      git -C "${_ARENA_DIR}" fetch --depth 1 origin "${_ARENA_BRANCH}"
+      git -C "${_ARENA_DIR}" checkout -B "${_ARENA_BRANCH}" "origin/${_ARENA_BRANCH}"
+    fi
   fi
 
   # Only Isaac Lab is required for ManipArena; skip Isaac-GR00T and friends.
   _log "initializing nested Isaac Lab submodule (skip GR00T)"
+  # Confirm the Arena checkout actually records a nested Isaac Lab submodule
+  # before syncing; a wrong-repo checkout (e.g. IsaacLab itself) has no entry.
+  # git ls-tree exits 0 even for missing paths, so check the output instead.
+  local _arena_lab_tree
+  _arena_lab_tree="$(git -C "${_ARENA_DIR}" ls-tree HEAD submodules/IsaacLab 2>/dev/null || true)"
+  if [[ -z "${_arena_lab_tree}" ]]; then
+    _die "Arena checkout at ${_ARENA_DIR} has no submodules/IsaacLab entry. \
+It is likely a clone of the wrong repo. Remove it and re-run: rm -rf ${_ARENA_DIR} && source ./install.sh"
+  fi
+  # Re-apply the SSH→HTTPS rewrite now that the Arena repo actually exists.
+  # _prefer_https_github ran at the top of this function, before the Arena repo
+  # was cloned/updated, so the Arena config never got the insteadOf entry and
+  # the nested submodule clone below would use git@github.com (needs SSH keys).
+  _prefer_https_github
   git -C "${_ARENA_DIR}" submodule sync -- "submodules/IsaacLab"
+  # submodule sync writes the SSH URL from .gitmodules into config; override it
+  # to HTTPS so the clone does not require SSH keys.
+  git -C "${_ARENA_DIR}" config --local "submodule.submodules/IsaacLab.url" \
+    "https://github.com/isaac-sim/IsaacLab.git"
   git -C "${_ARENA_DIR}" submodule update --init --depth 1 -- "submodules/IsaacLab"
+
+  # git submodule update may return 0 even when the clone fails (error on
+  # stderr only), so verify the Lab checkout actually exists.
+  if [[ ! -e "${_LAB_DIR}/.git" && ! -f "${_LAB_DIR}/.git" ]]; then
+    _die "nested Isaac Lab submodule clone failed at ${_LAB_DIR}. \
+Check network access to https://github.com/isaac-sim/IsaacLab.git and re-run: source ./install.sh"
+  fi
 
   git -C "${_LAB_DIR}" remote set-url origin "https://github.com/isaac-sim/IsaacLab.git"
   if [[ "${_LAB_BRANCH}" == "arena-pin" || "${_LAB_BRANCH}" == "pinned" ]]; then
@@ -177,11 +220,11 @@ _prepare_submodules() {
     git -C "${_LAB_DIR}" checkout -B "${_LAB_BRANCH}" FETCH_HEAD
   fi
 
-  # Prior develop checkouts leave gitignored package trees (contrib/core) that
-  # confuse debugging; remove them when pinning to Arena's Lab layout.
-  rm -rf \
-    "${_LAB_DIR}/source/isaaclab_tasks/isaaclab_tasks/contrib" \
-    "${_LAB_DIR}/source/isaaclab_tasks/isaaclab_tasks/core"
+  # Restore any tracked files removed by prior runs and drop untracked leftovers
+  # from develop checkouts. Do NOT rm -rf contrib/core — at some Lab SHAs they
+  # are tracked directories that Arena imports (isaaclab_tasks.contrib.*).
+  git -C "${_LAB_DIR}" checkout -- .
+  git -C "${_LAB_DIR}" clean -fd
 
   if [[ -f "${_LAB_DIR}/VERSION" ]]; then
     _log "Isaac Lab VERSION=$(tr -d '\n' <"${_LAB_DIR}/VERSION") @ $(git -C "${_LAB_DIR}" rev-parse --short HEAD)"
@@ -247,19 +290,27 @@ _install_lean_stack() {
   _pip "coverage==7.4.4"
 
   for pkg in "${lab_pkgs[@]}"; do
-    _log "lean stack: editable ${pkg}"
-    _pip -e "${_LAB_SRC}/${pkg}"
+    if [[ -d "${_LAB_SRC}/${pkg}" ]]; then
+      _log "lean stack: editable ${pkg}"
+      _pip -e "${_LAB_SRC}/${pkg}"
+    else
+      _log "lean stack: skipping ${pkg} (not in this Lab checkout)"
+    fi
   done
 
   # Arena imports its RSL-RL policy at package import time.
-  _log "lean stack: editable isaaclab_rl[rsl-rl]"
-  _pip -e "${_LAB_SRC}/isaaclab_rl[rsl-rl]"
+  if [[ -d "${_LAB_SRC}/isaaclab_rl" ]]; then
+    _log "lean stack: editable isaaclab_rl[rsl-rl]"
+    _pip -e "${_LAB_SRC}/isaaclab_rl[rsl-rl]"
+  fi
 
   # Lab 6 --viz kit requires isaaclab_visualizers.kit (KitVisualizerCfg).
   # Extra [kit] has no extra wheels; skip newton/rerun/viser backends.
-  _log "lean stack: editable isaaclab_visualizers[kit] (for --viz kit)"
-  _pip -e "${_LAB_SRC}/isaaclab_visualizers[kit]"
-  _pip "coverage==7.4.4"
+  if [[ -d "${_LAB_SRC}/isaaclab_visualizers" ]]; then
+    _log "lean stack: editable isaaclab_visualizers[kit] (for --viz kit)"
+    _pip -e "${_LAB_SRC}/isaaclab_visualizers[kit]"
+    _pip "coverage==7.4.4"
+  fi
 
   _log "lean stack: common runtime wheels used by Lab/Arena/ManipArena"
   # hydra-core: required by isaaclab_tasks.utils.parse_env_cfg (ArenaEnvBuilder).
@@ -280,7 +331,11 @@ _install_lean_stack() {
     "pyyaml>=6.0" \
     "filelock" \
     "pillow" \
-    "pyarrow>=14"
+    "pyarrow>=14" \
+    "lazy_loader>=0.4" \
+    "rich" \
+    "pin-pink==3.3.0" \
+    "rsl-rl-lib"
 
   _log "lean stack: isaaclab_arena editable with upstream runtime dependencies"
   _pip -e "${_ARENA_DIR}"

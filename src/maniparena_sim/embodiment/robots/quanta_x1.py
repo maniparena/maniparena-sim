@@ -71,6 +71,14 @@ _QUANTA_X1_LIFT_GRAVITY_FF_N = 145.0
 _QUANTA_X1_LIFT_GRAVITY_FF_MAX_N = 250.0
 _QUANTA_X1_LIFT_GRAVITY_FF_RAMP_S = 0.4
 
+# Head pitch settles ~0.00616 rad below the commanded target whether kp is
+# 1500 or 5000. Do not add a head effort overlay (it couples into yaw).
+# Shift the pitch position command by that measured offset instead.
+_QUANTA_X1_HEAD_KP = 1500.0
+_QUANTA_X1_HEAD_KD = 150.0
+_QUANTA_X1_HEAD_PITCH_CMD_OFFSET = 0.00616
+_QUANTA_X1_HEAD_CMD_OFFSET = {"head_pitch_joint": _QUANTA_X1_HEAD_PITCH_CMD_OFFSET}
+
 # Sim-effective QUANTA_X1 wheel geometry. Older nominal 0.078 / 0.48 over-drives
 # the simulated base.
 QUANTA_X1_WHEEL_RADIUS_M = 0.084
@@ -168,7 +176,7 @@ class QuantaX1Embodiment(EmbodimentBase):
                 "right_gripper_acts": ImplicitActuatorCfg(joint_names_expr=["right_arm_gripper"], effort_limit_sim=200.0, stiffness=200.0, damping=30.0),
                 "head_acts": ImplicitActuatorCfg(
                     joint_names_expr=["head_yaw_joint", "head_pitch_joint"],
-                    effort_limit_sim=200.0, stiffness=1500.0, damping=150.0,
+                    effort_limit_sim=200.0, stiffness=_QUANTA_X1_HEAD_KP, damping=_QUANTA_X1_HEAD_KD,
                 ),
             },
         )
@@ -283,6 +291,7 @@ class QuantaX1Embodiment(EmbodimentBase):
             asset_name="robot",
             joint_names=["head_yaw_joint", "head_pitch_joint"],
             scale=1.0,
+            offset=_QUANTA_X1_HEAD_CMD_OFFSET,
             use_default_offset=False,
             preserve_order=True,
         )
@@ -303,6 +312,7 @@ class QuantaX1Embodiment(EmbodimentBase):
             asset_name="robot",
             joint_names=["^(?!left_wheel_joint$|right_wheel_joint$).*"],
             scale=1.0,
+            offset=_QUANTA_X1_HEAD_CMD_OFFSET,
             use_default_offset=False,
         )
         lift_gravity_overlay: ActionTermCfg = SafeEffortOverlayActionCfg(
@@ -355,6 +365,7 @@ class QuantaX1Embodiment(EmbodimentBase):
             asset_name="robot",
             joint_names=["head_pitch_joint", "head_yaw_joint"],
             scale=1.0,
+            offset=_QUANTA_X1_HEAD_CMD_OFFSET,
             use_default_offset=False,
             preserve_order=True,
         )

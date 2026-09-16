@@ -50,17 +50,24 @@ class SafeEffortOverlayAction(ActionTerm):
         )
         limit = abs(float(self.cfg.max_effort_n))
         effort = (scale * float(self.cfg.effort_n)).clamp(-limit, limit)
-        target = self._asset.data.joint_effort_target.clone()
-        target[:, self._joint_ids] = effort.to(dtype=target.dtype).reshape(-1, 1)
-        self._asset.set_joint_effort_target(target)
+        effort_tensor = effort.reshape(-1, 1).expand(
+            self.num_envs, len(self._joint_ids)
+        ).clone()
+        self._asset.set_joint_effort_target_index(
+            target=effort_tensor, joint_ids=self._joint_ids
+        )
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         rows = slice(None) if env_ids is None else torch.as_tensor(env_ids, dtype=torch.long, device=self.device)
         self._elapsed_s[rows] = 0.0
         if self._joint_ids:
-            target = self._asset.data.joint_effort_target.clone()
-            target[rows, self._joint_ids] = 0.0
-            self._asset.set_joint_effort_target(target)
+            zero_tensor = torch.zeros(
+                self.num_envs, len(self._joint_ids),
+                device=self.device,
+            )
+            self._asset.set_joint_effort_target_index(
+                target=zero_tensor, joint_ids=self._joint_ids
+            )
 
 
 @configclass
