@@ -39,7 +39,7 @@ ManipArena-Sim is the simulation environment for [**ManipArena**](https://manipa
 - **NVIDIA Driver**: 570+ (recommended)
 - **[uv](https://docs.astral.sh/uv/)** (installed automatically by `install.sh` if missing)
 - Stack pulled by the installer:
-  - [IsaacLab-Arena](https://github.com/isaac-sim/IsaacLab-Arena) `main`
+  - [IsaacLab-Arena](https://github.com/isaac-sim/IsaacLab-Arena) at this repo's recorded submodule SHA
   - Arena-pinned [Isaac Lab](https://github.com/isaac-sim/IsaacLab)
   - Isaac Sim 6.x binary wheels
 

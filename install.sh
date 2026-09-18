@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # ManipArena-Sim one-click installer (Approach A, lean sim stack).
 #
-# Pulls IsaacLab-Arena (GitHub main), pins nested Isaac Lab to the SHA recorded
-# by Arena's submodule (Lab 3.0 compatible with Arena imports), then installs a
-# *minimal* editable Lab + Isaac Sim wheels + Arena + this package.
+# Checks out IsaacLab-Arena at the SHA recorded by this repo (not upstream
+# main). Pins nested Isaac Lab to the SHA recorded by that Arena commit
+# (Lab 3.0 compatible with Arena imports), then installs a *minimal* editable
+# Lab + Isaac Sim wheels + Arena + this package.
 #
 # Usage:
 #   source ./install.sh
@@ -40,6 +41,12 @@ _LAB_DIR="${_ROOT}/${_LAB_REL}"
 _LAB_SRC="${_LAB_DIR}/source"
 _ARENA_URL="${MANIPARENA_ARENA_URL:-https://github.com/isaac-sim/IsaacLab-Arena.git}"
 _ARENA_BRANCH="${MANIPARENA_ARENA_BRANCH:-main}"
+# Follow origin/<branch> only when the caller opts in. Default is the SHA
+# recorded by this repo's submodule pointer (see _prepare_submodules).
+_FOLLOW_ARENA_TIP=0
+if [[ -n "${MANIPARENA_ARENA_BRANCH:-}" ]]; then
+  _FOLLOW_ARENA_TIP=1
+fi
 # Default "arena-pin": keep the Lab commit recorded by Arena's submodule.
 # Lab develop tip reorganized isaaclab_tasks (manager_based → contrib) and breaks
 # Arena main imports such as isaaclab_tasks.manager_based.manipulation.pick_place.
@@ -69,6 +76,7 @@ while [[ $# -gt 0 ]]; do
     --arena-branch)
       [[ $# -ge 2 ]] || _die "--arena-branch requires a value"
       _ARENA_BRANCH="$2"
+      _FOLLOW_ARENA_TIP=1
       shift 2
       ;;
     -h|--help)
@@ -135,13 +143,40 @@ _preflight() {
   fi
 }
 
+_recorded_arena_sha() {
+  git -C "${_ROOT}" ls-tree HEAD "${_ARENA_REL}" | awk '{print $3}'
+}
+
+_checkout_arena_sha() {
+  local sha="$1"
+  [[ -n "${sha}" ]] || _die "parent repo does not record a SHA for ${_ARENA_REL}"
+  if ! git -C "${_ARENA_DIR}" cat-file -e "${sha}^{commit}" 2>/dev/null; then
+    _log "fetching recorded Arena SHA ${sha}"
+    git -C "${_ARENA_DIR}" fetch --depth 1 origin "${sha}"
+  fi
+  local current
+  current="$(git -C "${_ARENA_DIR}" rev-parse HEAD)"
+  if [[ "${current}" == "${sha}" ]]; then
+    _log "Arena already at recorded SHA ${sha}"
+    return 0
+  fi
+  _log "checking out recorded Arena SHA ${sha} (not origin/${_ARENA_BRANCH})"
+  git -C "${_ARENA_DIR}" checkout --detach "${sha}"
+}
+
+_follow_arena_tip() {
+  _log "updating Arena checkout to origin/${_ARENA_BRANCH} (--arena-branch override)"
+  git -C "${_ARENA_DIR}" fetch --depth 1 origin "${_ARENA_BRANCH}"
+  git -C "${_ARENA_DIR}" checkout -B "${_ARENA_BRANCH}" "origin/${_ARENA_BRANCH}"
+}
+
 _prepare_submodules() {
   _prefer_https_github
   mkdir -p "${_ROOT}/3rd"
 
   if [[ ! -e "${_ARENA_DIR}/.git" && ! -f "${_ARENA_DIR}/.git" ]]; then
     if [[ -f "${_ROOT}/.gitmodules" ]] && git -C "${_ROOT}" config -f .gitmodules --get-regexp path 2>/dev/null | grep -q "${_ARENA_REL}"; then
-      _log "initializing submodule ${_ARENA_REL} (${_ARENA_BRANCH})"
+      _log "initializing submodule ${_ARENA_REL} at the SHA recorded by this repo"
       git -C "${_ROOT}" submodule sync -- "${_ARENA_REL}"
       git -C "${_ROOT}" submodule update --init --depth 1 -- "${_ARENA_REL}"
     else
@@ -158,17 +193,17 @@ _prepare_submodules() {
     if [[ "${arena_origin}" != "${_ARENA_URL}" ]]; then
       _log "Arena checkout origin is '${arena_origin}'; correcting to ${_ARENA_URL}"
       git -C "${_ARENA_DIR}" remote set-url origin "${_ARENA_URL}"
-      _log "updating Arena checkout to origin/${_ARENA_BRANCH}"
-      git -C "${_ARENA_DIR}" fetch --depth 1 origin "${_ARENA_BRANCH}"
-      git -C "${_ARENA_DIR}" checkout -B "${_ARENA_BRANCH}" "origin/${_ARENA_BRANCH}"
+    fi
+    if [[ "${_FOLLOW_ARENA_TIP}" -eq 1 ]]; then
+      _follow_arena_tip
+    else
+      _checkout_arena_sha "$(_recorded_arena_sha)"
+    fi
+    if [[ "${arena_origin}" != "${_ARENA_URL}" ]]; then
       # Replace leftover files from the wrong repo. .venv is gitignored, so it
       # survives the clean and the Python stack is not reinstalled.
-      git -C "${_ARENA_DIR}" reset --hard "${_ARENA_BRANCH}"
+      git -C "${_ARENA_DIR}" reset --hard HEAD
       git -C "${_ARENA_DIR}" clean -fd
-    else
-      _log "updating Arena checkout to origin/${_ARENA_BRANCH}"
-      git -C "${_ARENA_DIR}" fetch --depth 1 origin "${_ARENA_BRANCH}"
-      git -C "${_ARENA_DIR}" checkout -B "${_ARENA_BRANCH}" "origin/${_ARENA_BRANCH}"
     fi
   fi
 
@@ -193,7 +228,9 @@ It is likely a clone of the wrong repo. Remove it and re-run: rm -rf ${_ARENA_DI
   # to HTTPS so the clone does not require SSH keys.
   git -C "${_ARENA_DIR}" config --local "submodule.submodules/IsaacLab.url" \
     "https://github.com/isaac-sim/IsaacLab.git"
-  git -C "${_ARENA_DIR}" submodule update --init --depth 1 -- "submodules/IsaacLab"
+  if ! git -C "${_ARENA_DIR}" submodule update --init --depth 1 -- "submodules/IsaacLab"; then
+    _log "Lab submodule update missed the recorded SHA; will fetch it next"
+  fi
 
   # git submodule update may return 0 even when the clone fails (error on
   # stderr only), so verify the Lab checkout actually exists.

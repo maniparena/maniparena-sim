@@ -8,11 +8,11 @@ Default install is a **lean sim stack** for teleop collection and SDK ROS2. It d
 
 | Component | Location | Pin |
 |-----------|----------|-----|
-| IsaacLab-Arena | `3rd/isaaclabarena` | GitHub `main` |
+| IsaacLab-Arena | `3rd/isaaclabarena` | SHA recorded by this repo (not Arena `main` tip) |
 | Isaac Lab | `3rd/isaaclabarena/submodules/IsaacLab` | Arena submodule SHA (Lab 3.0; not `develop` tip) |
 | Isaac Sim | wheels `isaacsim[all,extscache]==6.0.1.0` | 6.0.x |
 
-Lab **must** stay on Arena's recorded SHA. `develop` tip moved `isaaclab_tasks.manager_based.*` → `contrib.*`, which breaks Arena `main` imports (e.g. Agibot). Override only if you know you need it: `source ./install.sh --lab-branch develop`.
+`install.sh` checks out the Arena SHA recorded by this repo, then pins Lab to that Arena commit's Isaac Lab SHA. It does **not** follow Arena `main`. Override only if you know you need it: `source ./install.sh --arena-branch main` or `source ./install.sh --lab-branch develop`.
 
 **Offline / black viewport (QUANTA_X1):** all USD asset refs must stay under `assets/`
 (no `omniverse://`, S3, or `../` MDL module paths). QUANTA_X1 booth marble is vendored at
