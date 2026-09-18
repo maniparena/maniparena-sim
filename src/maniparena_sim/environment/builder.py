@@ -44,7 +44,7 @@ def _arena_builder_cfg(
 
 
 def _apply_viewer_cfg_override(task: Any, payload: dict) -> None:
-    """Override task viewer eye/lookat from eval YAML ``viewer_cfg``."""
+    """Override task viewer eye/lookat from YAML ``viewer_cfg``."""
     viewer = payload.get('viewer_cfg')
     if not viewer:
         return
@@ -54,11 +54,18 @@ def _apply_viewer_cfg_override(task: Any, payload: dict) -> None:
         return
     from isaaclab.envs.common import ViewerCfg
 
-    task.viewer_cfg = ViewerCfg(
-        eye=tuple(float(x) for x in eye),
-        lookat=tuple(float(x) for x in lookat),
-        origin_type=str(viewer.get('origin_type', 'world')),
-    )
+    kwargs: dict[str, Any] = {
+        'eye': tuple(float(x) for x in eye),
+        'lookat': tuple(float(x) for x in lookat),
+        'origin_type': str(viewer.get('origin_type', 'world')),
+    }
+    asset_name = viewer.get('asset_name')
+    if asset_name:
+        kwargs['asset_name'] = str(asset_name)
+    body_name = viewer.get('body_name')
+    if body_name:
+        kwargs['body_name'] = str(body_name)
+    task.viewer_cfg = ViewerCfg(**kwargs)
 
 
 def _apply_video_recorder_cfg(env_cfg: Any, payload: dict) -> None:
@@ -94,14 +101,31 @@ def _make_unwrapped_gym_env(
     (QUANTA_X1 chassis) otherwise black the Kit viewport under ``--viz kit``.
     """
     import gymnasium as gym
-    from isaaclab_arena.utils.isaaclab_utils.simulation_app import reapply_viewer_cfg
 
     env = gym.make(
         reg_name, cfg=env_cfg, render_mode=render_mode, **env_kwargs,
     )
-    reapply_viewer_cfg(env)
+    _reapply_viewer_after_make(env)
     ensure_kit_viewport_color_render()
     return env.unwrapped
+
+
+def _reapply_viewer_after_make(env: Any) -> None:
+    """Re-apply viewer after KitVisualizer init; resolve asset-relative origins."""
+    from isaaclab_arena.utils.isaaclab_utils.simulation_app import reapply_viewer_cfg
+
+    unwrapped = getattr(env, 'unwrapped', env)
+    vcc = getattr(unwrapped, 'viewport_camera_controller', None)
+    cfg = getattr(vcc, 'cfg', None) if vcc is not None else None
+    origin = getattr(cfg, 'origin_type', None)
+    asset_name = getattr(cfg, 'asset_name', None)
+    if origin == 'asset_root' and asset_name and vcc is not None:
+        try:
+            vcc.update_view_to_asset_root(asset_name)
+            return
+        except Exception:
+            pass
+    reapply_viewer_cfg(env)
 
 
 @dataclass
@@ -816,6 +840,7 @@ def build_quanta_x1_sdk_ros2_gym_env(
     else:
         embodiment.action_config = embodiment.ActionsCfgSdkRos2()
     task = build_task_runtime('dummy_task', scene)
+    _apply_viewer_cfg_override(task, payload)
 
     env_name = 'quanta_x1_sdk_ros2'
     arena_env = IsaacLabArenaEnvironment(

@@ -15,5 +15,10 @@ class DummyTaskBuilder:
             raise ValueError("DummyTask needs a background asset")
         task = DummyTask(background_scene=bg)
         task.termination_cfg = DummyTaskTerminationsCfg()
-        task.viewer_cfg = ViewerCfg()
+        # Static opening view aimed at the floor-spawned robot; does not follow.
+        task.viewer_cfg = ViewerCfg(
+            eye=(-2.92, 1.74, 1.6),
+            lookat=(-0.52, -0.26, 0.8),
+            origin_type='world',
+        )
         return task

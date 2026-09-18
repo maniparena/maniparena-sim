@@ -1,5 +1,12 @@
 # QUANTA_X1 SDK ROS2 (2D lidar and cameras enabled). No data recording.
 
+# Kit Perspective: static opening view (world-frame metres). Does not follow the robot.
+# Robot spawn is about (-0.72, -0.26, 0).
+viewer_cfg:
+  origin_type: world
+  eye: [0, 1.74, 1.6]
+  lookat: [-0.52, -0.26, 0.8]
+
 # Keyboard chassis sensitivity (summed with /chassis/cmd_vel).
 keyboard:
   linear_velocity: 0.5

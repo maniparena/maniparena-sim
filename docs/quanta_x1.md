@@ -133,9 +133,9 @@ Vuer 遥操作 `fruits_to_basket` 三相机拼接预览（左腕 / 头部 / 右�
 
 ## ROS 环境配置
 
-ROS2 桥依赖 Isaac Sim 的 `isaacsim.ros2.bridge` 扩展，需先按官方指南装好 ROS2 环境：
+ROS2 桥依赖 Isaac Sim 的 `isaacsim.ros2.bridge` 扩展。当前为 Isaac Sim **6.0**（Python 3.12），按官方 ROS 2 Jazzy 安装即可：
 
-参考：<https://docs.isaacsim.omniverse.nvidia.com/5.1.0/installation/install_ros.html>
+参考：<https://docs.ros.org/en/jazzy/Installation.html>
 
 ## 启动命令
 
@@ -150,6 +150,9 @@ python scripts/sdk_ros2.py \
   --config configs/sdk_ros2/quanta_x1_sdk_ros2.yaml \
   --viz kit
 ```
+
+初始 Kit 视口对准机器人一次（`viewer_cfg.origin_type: world`），之后不跟车。可在
+`configs/sdk_ros2/quanta_x1_sdk_ros2.yaml` 改 `eye` / `lookat`（世界系，单位米）。
 
 启动后键盘控制（先点击 Isaac Sim 视口获取焦点）：
 
