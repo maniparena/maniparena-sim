@@ -1,27 +1,21 @@
 #!/usr/bin/env python3
-"""QUANTA_X1 SDK ROS2: 2D-lidar bridge + keyboard/cmd_vel co-controlled base.
+"""ROS2 SDK runtime for QUANTA_X1, quanta_x2 and ArtiXon Arm-6A.
 
-The dummy_task open scene (nav_f16 background) is loaded WITHOUT any recorder —
-the SDK ROS2 runtime does not record data. The chassis is driven by the SUM of two
-sources, so the keyboard and an external ROS2 nav stack can drive it together:
-
-  * keyboard: W/S forward/back, A/D (or Q/E) yaw, R reset, T randomize (no-op).
-  * ROS topic: /chassis/cmd_vel (geometry_msgs/Twist).
-
-nav_mode (2d) and cameras (on) are fixed in code; the ``ros`` YAML block
-carries runtime knobs (use_sim_time, control_rate_hz, cmd_vel_timeout_s,
-arm_control). ``arm_control: ee`` (default) subscribes to Cartesian
-``pose_cmd`` topics; ``joint`` uses 6-D joint commands.
+SDK environments run without recorders. Mobile bases combine keyboard and ROS
+velocity commands. Each robot profile defines its joint order, Cartesian
+frames, sensors and gripper range. ``ros.arm_control`` selects ``ee`` or ``joint``.
 
 Usage:
-    python scripts/sdk_ros2.py --config configs/sdk_ros2/quanta_x1_sdk_ros2.yaml --enable_cameras
+    python scripts/sdk_ros2.py --robot artixon_arm_6a --viz kit
 """
 
 from __future__ import annotations
 
 import argparse
+import inspect
 import os
 import sys
+import traceback
 from pathlib import Path
 
 import yaml
@@ -34,14 +28,20 @@ def load_yaml(path: str) -> dict:
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="QUANTA_X1 SDK ROS2.")
+    parser = argparse.ArgumentParser(description="ManipArena ROS2 SDK.")
     AppLauncher.add_app_launcher_args(parser)
-    parser.add_argument("--config", default="configs/sdk_ros2/quanta_x1_sdk_ros2.yaml")
+    parser.add_argument("--config", default=None)
+    parser.add_argument("--robot", choices=("quanta_x1", "quanta_x2", "artixon_arm_6a"), default=None)
     # RTX cameras/lidar still render on the NVIDIA GPU.  Keep PhysX tensors on
     # CPU by default because this Sim/Lab stack can otherwise fall back to CPU
     # PhysX while leaving Warp on CUDA, producing ProxyArray type mismatches.
     parser.set_defaults(device="cpu")
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.config is None:
+        args.config = str(
+            Path(__file__).resolve().parents[1] / "configs" / "sdk_ros2" / f"{args.robot or 'quanta_x1'}_sdk_ros2.yaml"
+        )
+    return args
 
 
 def _ensure_isaac_ros2_runtime() -> None:
@@ -67,7 +67,6 @@ class _KeyboardTwist:
         self._lin = float(linear_velocity)
         self._ang = float(angular_velocity)
         self._pressed: set[str] = set()
-        self.randomize_requested = False
         self.reset_requested = False
         self._carb = carb
         self._app_window = omni.appwindow.get_default_app_window()
@@ -87,9 +86,7 @@ class _KeyboardTwist:
             key = self._key_name(event)
             if key is None:
                 return True
-            if key == "T":
-                self.randomize_requested = True
-            elif key == "R":
+            if key == "R":
                 self.reset_requested = True
             else:
                 self._pressed.add(key)
@@ -122,17 +119,20 @@ class _KeyboardTwist:
 def main(args: argparse.Namespace | None = None) -> int:
     args = args if args is not None else parse_args()
     payload = load_yaml(args.config)
+    robot_cfg = payload.setdefault("robot", {})
+    profile = args.robot or robot_cfg.get("type", "quanta_x1")
+    robot_cfg["type"] = profile
 
     import torch
 
-    from maniparena_sim.environment.builder import build_quanta_x1_sdk_ros2_gym_env
     from maniparena_sim.environment.registry import bootstrap_arena_registry
+    from maniparena_sim.environment.sdk_builder import build_sdk_ros2_gym_env
     from maniparena_sim.ros.quanta_x1_joint_mapping import build_action_slot_map
     from maniparena_sim.ros.ros2_config import QuantaX1RosConfig
     from maniparena_sim.ros.ros_bridge import RosBridgeExtension, load_ros_bridge_cfg
 
     bootstrap_arena_registry()
-    gym_env, _embodiment = build_quanta_x1_sdk_ros2_gym_env(
+    gym_env, _embodiment = build_sdk_ros2_gym_env(
         payload,
         headless=bool(getattr(args, "headless", False)),
         device=getattr(args, "device", "cuda:0"),
@@ -149,11 +149,12 @@ def main(args: argparse.Namespace | None = None) -> int:
 
     slot_map = build_action_slot_map(gym_env.action_manager)
 
-    # Seed non-wheel joint slots so an idle action holds.
+    # QUANTA_X1 retains its original hold setup. The other profiles seed through
+    # the bridge, which distinguishes 7-D Cartesian actions from 7-joint arms.
     default_q = robot.data.default_joint_pos[0]
     joint_name_to_idx = {n: i for i, n in enumerate(robot.data.joint_names)}
     wheel_names = ("left_wheel_joint", "right_wheel_joint")
-    for jn, slot in slot_map.items():
+    for jn, slot in slot_map.items() if profile == "quanta_x1" else ():
         if jn in wheel_names:
             continue
         gi = joint_name_to_idx.get(jn)
@@ -162,16 +163,28 @@ def main(args: argparse.Namespace | None = None) -> int:
     left_wheel_slot = slot_map.get("left_wheel_joint")
     right_wheel_slot = slot_map.get("right_wheel_joint")
 
-    ros_ext = RosBridgeExtension(ros_cfg)
+    if profile == "quanta_x1":
+        ros_ext = RosBridgeExtension(ros_cfg)
+    else:
+        from maniparena_sim.ros.sdk_bridge import SdkRosBridge
+
+        ros_ext = SdkRosBridge(ros_cfg, profile)
     try:
         ros_ext.setup(gym_env, robot, action_buffer=actions)
-        ros_ext.seed_ee_hold(robot)
+        if profile == "quanta_x1":
+            ros_ext.seed_ee_hold(robot)
+        else:
+            ros_ext.reset()
     except Exception:
         ros_ext.shutdown()
         gym_env.close()
         raise
 
-    cc = QuantaX1RosConfig.CHASSIS_CONTROL_CONFIG
+    cc = (
+        QuantaX1RosConfig.CHASSIS_CONTROL_CONFIG
+        if profile == "quanta_x1"
+        else {"wheel_radius": 0.078, "wheel_track_width": 0.48}
+    )
     wheel_radius = float(cc["wheel_radius"])
     wheel_track = float(cc["wheel_track_width"])
 
@@ -181,11 +194,17 @@ def main(args: argparse.Namespace | None = None) -> int:
         return left, right
 
     kb_cfg = payload.get("keyboard") or {}
-    kb = _KeyboardTwist(
-        linear_velocity=float(kb_cfg.get("linear_velocity", 0.5)),
-        angular_velocity=float(kb_cfg.get("angular_velocity", 2.0)),
-    )
-    print("[INFO] SDK ROS2 controls: W/S move, A/D or Q/E yaw, R reset; external /chassis/cmd_vel also drives base.")
+    kb = None
+    import omni.appwindow
+
+    if omni.appwindow.get_default_app_window() is not None:
+        kb = _KeyboardTwist(
+            linear_velocity=float(kb_cfg.get("linear_velocity", 0.5)),
+            angular_velocity=float(kb_cfg.get("angular_velocity", 2.0)),
+        )
+    print(f"[INFO] {profile} SDK ROS2 ready ({ros_cfg.arm_control} arm control).")
+    if kb is not None:
+        print("[INFO] Keyboard: R reset; W/S and A/D drive mobile bases alongside /chassis/cmd_vel.")
 
     simulation_app = globals().get("_APP")
     if simulation_app is None:
@@ -194,20 +213,23 @@ def main(args: argparse.Namespace | None = None) -> int:
         while simulation_app.is_running():
             with torch.no_grad():
                 # R resets the episode (robot back to its initial pose).
-                if kb.reset_requested:
+                if kb is not None and kb.reset_requested:
                     kb.reset_requested = False
                     if left_wheel_slot is not None:
                         actions[0, left_wheel_slot] = 0.0
                     if right_wheel_slot is not None:
                         actions[0, right_wheel_slot] = 0.0
                     gym_env.reset()
-                    ros_ext.seed_ee_hold(robot)
+                    if profile == "quanta_x1":
+                        ros_ext.seed_ee_hold(robot)
+                    else:
+                        ros_ext.reset()
                     print("[INFO] reset: robot returned to initial pose.")
                     continue
 
                 ros_ext.project_ee_pose_commands(robot)
                 # Sum keyboard twist + latest /chassis/cmd_vel (with timeout) -> wheels.
-                k_lin, _, k_ang = kb.twist()
+                k_lin, _, k_ang = kb.twist() if kb is not None else (0.0, 0.0, 0.0)
                 sim_t = float(getattr(ros_ext, "_sim_time_acc", 0.0)) + float(gym_env.step_dt)
                 c_lin, _c_y, c_ang = ros_ext.latest_cmd_vel(sim_t)
                 lw, rw = _twist_to_wheels(k_lin + c_lin, k_ang + c_ang)
@@ -221,7 +243,8 @@ def main(args: argparse.Namespace | None = None) -> int:
     except KeyboardInterrupt:
         print("[INFO] interrupted")
     finally:
-        kb.shutdown()
+        if kb is not None:
+            kb.shutdown()
         ros_ext.shutdown()
         gym_env.close()
     return 0
@@ -233,5 +256,20 @@ if __name__ == "__main__":
     sys.argv += ["--enable", "isaacsim.ros2.bridge"]
     _app_launcher = AppLauncher(_args)
     _APP = _app_launcher.app
-    main(_args)
-    _APP.close()
+    try:
+        main(_args)
+    except BaseException:
+        # Kit can terminate the process during close(), before Python prints
+        # an unhandled exception. Preserve both the diagnostic and exit status.
+        traceback.print_exc()
+        if "exit_code" in inspect.signature(_APP.close).parameters:
+            _APP.close(exit_code=1)
+        else:
+            import carb.settings
+
+            _APP.config["fast_shutdown"] = False
+            carb.settings.get_settings().set_bool("/app/fastShutdown", False)
+            _APP.close()
+        raise
+    else:
+        _APP.close()

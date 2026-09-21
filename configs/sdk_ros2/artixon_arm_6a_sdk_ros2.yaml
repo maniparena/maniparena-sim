@@ -1,0 +1,19 @@
+# ArtiXon Arm-6A ROS2 SDK with the fruit tabletop scene and an empty task.
+robot:
+  type: artixon_arm_6a
+
+enable_cameras: true
+simulation:
+  physics_dt: 0.008333333333333333
+  decimation: 6
+  render_interval: 2
+
+viewer_cfg:
+  origin_type: world
+  eye: [1.8, 1.8, 1.5]
+  lookat: [0.0, 0.0, 0.8]
+
+ros:
+  use_sim_time: true
+  control_rate_hz: 20.0
+  arm_control: ee

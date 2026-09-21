@@ -1,0 +1,25 @@
+# quanta_x2 ROS2 SDK with the bundled robot and an empty navigation task.
+robot:
+  type: quanta_x2
+  usd_path: assets/quanta_x2/quanta_x2.usd
+
+enable_cameras: true
+simulation:
+  physics_dt: 0.008333333333333333
+  decimation: 6
+  render_interval: 2
+
+viewer_cfg:
+  origin_type: world
+  eye: [0.0, 1.74, 1.6]
+  lookat: [-0.52, -0.26, 0.8]
+
+keyboard:
+  linear_velocity: 0.5
+  angular_velocity: 2.0
+
+ros:
+  use_sim_time: true
+  control_rate_hz: 20.0
+  cmd_vel_timeout_s: 0.25
+  arm_control: ee
