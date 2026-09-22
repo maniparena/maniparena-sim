@@ -17,6 +17,12 @@ python scripts/sdk_ros2.py --robot artixon_arm_6a --viz kit
 配置：`configs/sdk_ros2/artixon_arm_6a_sdk_ros2.yaml`。可用 `--config PATH` 指定自定义配置。
 无界面运行使用 `--viz none`；窗口聚焦后按 R 重置，关闭窗口或 Ctrl-C 退出。
 
+## 演示
+
+抓水果桌面场景中的 ArtiXon Arm-6A 仿真：
+
+![ArtiXon Arm-6A SDK ROS2 sim](../media/artixon_arm_6a_sdk_ros2_sim.png)
+
 ## 控制与状态
 
 默认 `ros.arm_control: ee`；切换为 `joint` 后使用关节指令。两种模式互斥。

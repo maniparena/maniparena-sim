@@ -24,6 +24,12 @@ python scripts/sdk_ros2.py --robot quanta_x2 --viz kit
 `[-90, 90, 90, -90, 0, 0, 0]°`，右臂为 `[-90, -90, 90, -90, 0, 0, 0]°`。
 此处角度用于说明姿态，ROS 关节指令仍使用弧度。
 
+## 演示
+
+空导航场景中的 quanta_x2 仿真：
+
+![quanta_x2 SDK ROS2 sim](../media/quanta_x2_sdk_ros2_sim.png)
+
 ## 控制与状态
 
 `ros.arm_control: ee` 为默认模式；改为 `joint` 后订阅关节指令。

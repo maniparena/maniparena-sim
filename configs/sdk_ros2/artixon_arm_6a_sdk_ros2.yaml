@@ -10,8 +10,8 @@ simulation:
 
 viewer_cfg:
   origin_type: world
-  eye: [1.8, 1.8, 1.5]
-  lookat: [0.0, 0.0, 0.8]
+  eye: [0.7, 0.8, 0.7]
+  lookat: [0.3, 0.2, 0.2]
 
 ros:
   use_sim_time: true

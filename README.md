@@ -8,19 +8,19 @@ ManipArena-Sim is the simulation environment for [**ManipArena**](https://manipa
 
 ### Robot Overview
 
-![Robot Overview](docs/bimanual_robot_overview.gif)
+![Robot Overview](media/bimanual_robot_overview.gif)
 
 ### Sort Blocks
 
-![Sort Blocks](docs/sort_blocks_demo.gif)
+![Sort Blocks](media/sort_blocks_demo.gif)
 
 ### Buttons Contact
 
-![Buttons Contact](docs/buttons_contact_demo.gif)
+![Buttons Contact](media/buttons_contact_demo.gif)
 
 ### Fruits to Basket
 
-![Fruits to Basket](docs/fruits_to_basket_demo.gif)
+![Fruits to Basket](media/fruits_to_basket_demo.gif)
 
 ## Features
 
@@ -71,6 +71,8 @@ maniparena-sim/
 ├── 3rd/isaaclabarena/      # IsaacLab-Arena submodule
 ├── assets/                 # USD scene and object assets (Git LFS)
 ├── configs/                # Collection, evaluation, replay and task configs
+├── docs/                   # Markdown guides only
+├── media/                  # README and doc screenshots, GIFs, source MP4s
 ├── scripts/                # Collection, evaluation and replay entry points
 └── src/maniparena_sim/     # Simulation package
     ├── embodiment/         # Bimanual robot, actions and sensors

@@ -125,7 +125,7 @@ teleop_config:
 
 Vuer 遥操作 `fruits_to_basket` 三相机拼接预览（左腕 / 头部 / 右腕）：
 
-![quanta_x1 vuer fruits_to_basket](quanta_x1_vuer_fruits_to_basket.gif)
+![quanta_x1 vuer fruits_to_basket](../media/quanta_x1_vuer_fruits_to_basket.gif)
 
 ---
 
@@ -206,8 +206,8 @@ ros:
 
 `nav_f16` 场景中的 QUANTA_X1 仿真：
 
-![quanta_x1 SDK ROS2 sim](quanta_x1_sdk_ros2_sim.png)
+![quanta_x1 SDK ROS2 sim](../media/quanta_x1_sdk_ros2_sim.png)
 
 RViz 中点云、`/scan` 与 TF 可视化：
 
-![quanta_x1 SDK ROS2 RViz](quanta_x1_sdk_ros2_rviz.png)
+![quanta_x1 SDK ROS2 RViz](../media/quanta_x1_sdk_ros2_rviz.png)
