@@ -29,6 +29,7 @@ from isaaclab.utils.configclass import configclass
 from isaaclab_arena.embodiments.embodiment_base import EmbodimentBase
 from isaaclab_arena.utils.cameras import ArenaCameraCfg
 
+from maniparena_sim.embodiment.actions.safe_effort_overlay import SafeEffortOverlayActionCfg
 from maniparena_sim.embodiment.robots.bimanual import ClampedRawGripperActionCfg
 from maniparena_sim.embodiment.sensors.update_camera import OpenCVFisheyeCameraCfg, OpenCVPinholeCameraCfg
 
@@ -44,6 +45,16 @@ ARM_JOINT_SUFFIXES = (
 LEFT_ARM_JOINTS = tuple(f"left_{name}" for name in ARM_JOINT_SUFFIXES)
 RIGHT_ARM_JOINTS = tuple(f"right_{name}" for name in ARM_JOINT_SUFFIXES)
 WAIST_JOINTS = ("bow_pitch_joint_01", "bow_pitch_joint_02", "bow_pitch_joint_03", "bow_yaw_joint")
+# Folding waist: implicit PD plus home gravity FF. Full manaenv FF (-147/-96)
+# coupled ~1000 N·m into pitch_02 on this CPU-PhysX stack (idle 0.036 rad).
+# 25% FF plus kp=32000 keeps all four joints under 0.01 rad.
+_QUANTA_X2_WAIST_KP = 32000.0
+_QUANTA_X2_WAIST_KD = 2000.0
+_QUANTA_X2_WAIST_PITCH01_GRAVITY_FF_N = -37.0
+_QUANTA_X2_WAIST_PITCH01_GRAVITY_FF_MAX_N = 250.0
+_QUANTA_X2_WAIST_PITCH03_GRAVITY_FF_N = -24.0
+_QUANTA_X2_WAIST_PITCH03_GRAVITY_FF_MAX_N = 200.0
+_QUANTA_X2_WAIST_GRAVITY_FF_RAMP_S = 0.4
 
 
 @configclass
@@ -101,6 +112,22 @@ class QuantaX2SdkActionsCfg:
         use_default_offset=False,
         preserve_order=True,
     )
+    waist_pitch01_gravity_overlay: ActionTermCfg = SafeEffortOverlayActionCfg(
+        asset_name="robot",
+        enabled=True,
+        joint_names=("bow_pitch_joint_01",),
+        effort_n=_QUANTA_X2_WAIST_PITCH01_GRAVITY_FF_N,
+        max_effort_n=_QUANTA_X2_WAIST_PITCH01_GRAVITY_FF_MAX_N,
+        ramp_s=_QUANTA_X2_WAIST_GRAVITY_FF_RAMP_S,
+    )
+    waist_pitch03_gravity_overlay: ActionTermCfg = SafeEffortOverlayActionCfg(
+        asset_name="robot",
+        enabled=True,
+        joint_names=("bow_pitch_joint_03",),
+        effort_n=_QUANTA_X2_WAIST_PITCH03_GRAVITY_FF_N,
+        max_effort_n=_QUANTA_X2_WAIST_PITCH03_GRAVITY_FF_MAX_N,
+        ramp_s=_QUANTA_X2_WAIST_GRAVITY_FF_RAMP_S,
+    )
 
 
 @configclass
@@ -156,8 +183,8 @@ class QuantaX2SceneCfg:
                 joint_names_expr=list(WAIST_JOINTS),
                 effort_limit_sim=5000.0,
                 velocity_limit_sim=5.0,
-                stiffness=5000.0,
-                damping=1000.0,
+                stiffness=_QUANTA_X2_WAIST_KP,
+                damping=_QUANTA_X2_WAIST_KD,
             ),
             "head": ImplicitActuatorCfg(
                 joint_names_expr=["head_pitch_joint", "head_yaw_joint"],

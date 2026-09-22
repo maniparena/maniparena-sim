@@ -48,6 +48,8 @@ class SdkControl:
         for name in env.action_manager.active_terms:
             term = env.action_manager.get_term(name)
             size = int(term.action_dim)
+            if size == 0:
+                continue
             slots = list(range(offset, offset + size))
             if name in ("arm_action", "right_arm_action") and self.mode == "ee":
                 if size != 7:
