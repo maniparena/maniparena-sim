@@ -2,11 +2,9 @@
 
 # 遥操作采集
 
-采集入口为 `scripts/collect.py`，配置文件按控制方式区分（`keyboard` / `vuer`）。
+采集入口为 `scripts/collect.py`，配置文件按控制方式区分（`keyboard` / `vuer` / `vr`）。
 
 ## 支持的任务
-
-远程数采场景配置对齐说明见 [quanta_x1_task_alignment.md](quanta_x1_task_alignment.md)。
 
 | Task | 底盘 | 说明 |
 |------|------|------|
@@ -16,7 +14,7 @@
 | `move_fruit_to_basket` | 移动 | 将水果桌上的水果放入另一张桌上的篮子 |
 | `put_bottle_on_woodshelf` | 移动 | 将桌上的瓶子放到木架上 |
 
-物体位置每回合随机，移动任务的机器人起点同样随机。成功条件为物体放入目标后双臂回到初始姿态。`buttons_contact` 仅支持 bimanual。
+物体位置每回合随机，移动任务的机器人起点同样随机。成功条件为物体放入目标后双臂回到初始姿态。五个 QUANTA_X1 任务都支持键盘、Vuer WebXR 和 `vr` 别名；`--control-mode vr` 与 `--control-mode vuer` 使用同一条 Vuer 控制链。`buttons_contact` 仅支持 bimanual。
 
 固定底盘任务使用 `assets/green_booth/`，移动任务使用 `assets/put_bottle_on_woodshelf/` 和 `assets/mobile_manip/`（垃圾桶、瓶子、水果、篮子，成员见 `assets/mobile_manip/pools.json`）。
 
@@ -114,15 +112,16 @@ teleop_config:
 ## 录制输出
 
 - 默认目录：`~/maniparena_output/recordings/quanta_x1_<task>_collect/`
-- 格式：HDF5 episode + sidecar MP4（左腕 / 右腕 / 头 / 底盘相机）
+- 格式：HDF5 episode + sidecar MP4（左腕 / 右腕 / 头部 RGB 相机；底盘深度相机不写入 MP4）
+- HDF5 每帧保存 action、processed action、机器人状态、物体状态和观测；QUANTA_X1 遥操 action 为 19D，评测 action 为 21D
 - 帧率：由配置 `step_hz` 决定，当前统一为 **20 Hz**
 
 示例：
 
 ```text
 ~/maniparena_output/recordings/quanta_x1_fruits_to_basket_collect/
-  quanta_x1_fruits_to_basket_collect_vuer_episode0.hdf5
-  quanta_x1_fruits_to_basket_collect_vuer_episode0_videos/
+  quanta_x1_fruits_to_basket_collect_vr_episode0.hdf5
+  quanta_x1_fruits_to_basket_collect_vr_episode0_videos/
     ...
 ```
 

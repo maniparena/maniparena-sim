@@ -28,7 +28,7 @@ ManipArena-Sim is the simulation environment for [**ManipArena**](https://manipa
 - **5 QUANTA_X1 data-collection tasks**: `sort_blocks`, `fruits_to_basket`,
   `move_bottle_to_bin`, `move_fruit_to_basket`, `put_bottle_on_woodshelf`
 - **3 desktop tabletop tasks**: `sort_blocks`, `fruits_to_basket`, `buttons_contact`
-- **3 teleoperation modes**: keyboard, Vuer (Pico WebXR), master-slave
+- **3 teleoperation modes**: keyboard, Vuer (Pico WebXR; `vuer` / `vr`), master-slave
 - **Trajectory replay**: state / joint / end-effector modes from HDF5 or LeRobot datasets
 - **Policy evaluation**: closed-loop inference via WebSocket server-client architecture
 - **Data export**: `bimanual_lerobot` (Parquet + video) and `hdf5` formats
