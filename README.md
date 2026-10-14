@@ -31,7 +31,7 @@ ManipArena-Sim is the simulation environment for [**ManipArena**](https://manipa
 - **3 teleoperation modes**: keyboard, Vuer (Pico WebXR; `vuer` / `vr`), master-slave
 - **Trajectory replay**: state / joint / end-effector modes from HDF5 or LeRobot datasets
 - **Policy evaluation**: closed-loop inference via WebSocket server-client architecture
-- **Data export**: `bimanual_lerobot` (Parquet + video) and `hdf5` formats
+- **Data export**: bimanual `bimanual_lerobot` (Parquet + video); QUANTA_X1 HDF5 episodes with MP4 camera sidecars
 
 ## Prerequisites
 
