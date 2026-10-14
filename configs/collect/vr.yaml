@@ -1,4 +1,4 @@
-# Deprecated alias of vuer.yaml. OpenXR is removed; --control-mode vr now uses Vuer.
+# VR alias: --control-mode vr uses the same Vuer WebXR planner and port.
 enable_cameras: true
 num_envs: 1
 num_demos: 10
