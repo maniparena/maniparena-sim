@@ -25,7 +25,9 @@ ManipArena-Sim is the simulation environment for [**ManipArena**](https://manipa
 ## Features
 
 - **Bimanual** robot with SE(3) differential-IK and joint-position action spaces
-- **3 tabletop tasks**: `sort_blocks`, `fruits_to_basket`, `buttons_contact`
+- **5 QUANTA_X1 data-collection tasks**: `sort_blocks`, `fruits_to_basket`,
+  `move_bottle_to_bin`, `move_fruit_to_basket`, `put_bottle_on_woodshelf`
+- **3 desktop tabletop tasks**: `sort_blocks`, `fruits_to_basket`, `buttons_contact`
 - **3 teleoperation modes**: keyboard, Vuer (Pico WebXR), master-slave
 - **Trajectory replay**: state / joint / end-effector modes from HDF5 or LeRobot datasets
 - **Policy evaluation**: closed-loop inference via WebSocket server-client architecture
@@ -249,8 +251,11 @@ All runtime parameters are driven by YAML files under `configs/`:
 
 | Task | Description |
 |------|-------------|
-| `sort_blocks` | Sort colored blocks onto matching colored papers |
-| `fruits_to_basket` | Pick fruits and place them into a basket |
+| `sort_blocks` | Fixed-base QUANTA_X1: sort colored blocks onto matching papers |
+| `fruits_to_basket` | Fixed-base QUANTA_X1: put apple, banana and pear into the basket; leave bread |
+| `move_bottle_to_bin` | Mobile QUANTA_X1: move the sampled bottle from the source table into the bin |
+| `move_fruit_to_basket` | Mobile QUANTA_X1: move one sampled fruit from the source table into the basket |
+| `put_bottle_on_woodshelf` | Mobile QUANTA_X1: move the bottle from the table onto the wooden shelf |
 | `buttons_contact` | Press all three colored buttons in sequence |
 
 ## License

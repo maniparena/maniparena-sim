@@ -2,12 +2,32 @@
 
 from __future__ import annotations
 
+import random
+
 from isaaclab_arena.assets.registries import AssetRegistry
 from isaaclab_arena.scene.scene import Scene
 from isaaclab_arena.utils.pose import Pose
 
 from maniparena_sim.environment.registry import bootstrap_arena_registry
 from maniparena_sim.environment.render_settings import load_render_settings
+from maniparena_sim.task.mobile_layouts import (
+    BASKET_TABLE_POSE,
+    BIN_BOTTLE_LOAD_POSE,
+    BIN_POSE,
+    BIN_TABLE_POSE,
+    FRUIT_RESET,
+    FRUIT_TABLE_POSE,
+    SHELF_BOTTLE_LOAD_POSE,
+    SHELF_POSE,
+    SHELF_TABLE_POSE,
+    TABLETOP_LOCAL_Z,
+)
+from maniparena_sim.task.quanta_tabletop_layouts import (
+    FRUIT_NOMINAL_LOAD_POSES,
+    QUANTA_BASKET_POSE,
+    SORT_BRICK_LOAD_POSES,
+    SORT_PAPER_POSES,
+)
 
 _BIMANUAL_BG_POSE = Pose(
     position_xyz=(-1.0, -0.562, 0.0),
@@ -44,20 +64,11 @@ _BUTTON_POSES = [
 ]
 
 # Arena Pose / Lab 3 ArticulationCfg.init_state.rot use XYZW.
-#
-# Raise table root so tabletop plane is world z=0.75 (was ~0.7067, Δz=0.0433).
-_PUT_BOTTLE_TABLETOP_Z = 0.75
-_PUT_BOTTLE_TABLE_ROOT_Z = 0.0433
-_PUT_BOTTLE_BOTTLE_ROOT_Z = 0.8833  # keep prior clearance above the plane
-_PUT_BOTTLE_TABLE_POSE = (
-    (1.5, -0.95, _PUT_BOTTLE_TABLE_ROOT_Z),
-    (0.0, 0.0, 0.707107, 0.707107),
-)
-_PUT_BOTTLE_SHELF_POSE = ((0.63, -1.7907, 0.0), (0.0, 0.0, 1.0, 0.0))  # z-180
-_PUT_BOTTLE_BOTTLE_POSE = (
-    (1.505, -0.95, _PUT_BOTTLE_BOTTLE_ROOT_Z),
-    (-0.01837, 0.007908, 0.000433, 0.9998),
-)
+# Woodshelf layout follows the collected demonstrations (task/mobile_layouts.py): table root z=0,
+# tabletop plane z=0.7067, bottle dropped from root z=0.84 by the reset event.
+_PUT_BOTTLE_TABLE_POSE = SHELF_TABLE_POSE
+_PUT_BOTTLE_SHELF_POSE = SHELF_POSE
+_PUT_BOTTLE_BOTTLE_POSE = SHELF_BOTTLE_LOAD_POSE
 PUT_BOTTLE_QUANTA_X1_INIT_POS = (-0.31154, -0.30644, 0.0)
 PUT_BOTTLE_QUANTA_X1_INIT_QUAT_XYZW = (0.0, 0.0, 0.0, 1.0)  # yaw=0
 
@@ -95,13 +106,16 @@ def _build_sort_blocks_scene(registry: AssetRegistry, robot: str) -> Scene:
         registry.get_asset_by_name("green_brick")(),
         registry.get_asset_by_name("red_brick")(),
     ]
-    destinations = [
-        registry.get_asset_by_name("yellow_paper")(),
-        registry.get_asset_by_name("green_paper")(),
-        registry.get_asset_by_name("pink_paper")(),
-    ]
-    _place_assets(blocks, _SORT_BLOCK_POSES)
-    _place_assets(destinations, _SORT_DEST_POSES, rotation_xyzw=_PAPER_ROT)
+    paper_names = ("yellow_paper", "green_paper", "pink_paper")
+    if robot == "quanta_x1":  # fixed (kinematic) papers
+        paper_names = tuple(name.replace("_paper", "_paper_2") for name in paper_names)
+    destinations = [registry.get_asset_by_name(name)() for name in paper_names]
+    if robot == "quanta_x1":  # bricks rest on the table, papers 1.5 mm above it
+        _place_assets(blocks, SORT_BRICK_LOAD_POSES)
+        _place_assets(destinations, SORT_PAPER_POSES, rotation_xyzw=_PAPER_ROT)
+    else:
+        _place_assets(blocks, _SORT_BLOCK_POSES)
+        _place_assets(destinations, _SORT_DEST_POSES, rotation_xyzw=_PAPER_ROT)
     return Scene(assets=[background, *blocks, *destinations])
 
 
@@ -113,10 +127,18 @@ def _build_fruits_to_basket_scene(registry: AssetRegistry, robot: str) -> Scene:
         registry.get_asset_by_name("banana")(),
         registry.get_asset_by_name("pear")(),
     ]
-    basket = registry.get_asset_by_name("platform_pink")()
-    basket.set_initial_pose(_pose_at(_BASKET_POSE, _PAPER_ROT))
+    if robot == "quanta_x1":  # 0.7-scale basket, centred between the arms
+        basket = registry.get_asset_by_name("platform_pink_2")()
+        basket.set_initial_pose(_pose_at(QUANTA_BASKET_POSE, _PAPER_ROT))
+    else:
+        basket = registry.get_asset_by_name("platform_pink")()
+        basket.set_initial_pose(_pose_at(_BASKET_POSE, _PAPER_ROT))
     _apply_semantic_tags(basket)
-    _place_assets(objects, _FRUIT_POSES)
+    if robot == "quanta_x1":  # objects = [bread, apple, banana, pear]
+        fruit_poses = [FRUIT_NOMINAL_LOAD_POSES[name] for name in ("bread", "apple", "banana", "pear")]
+    else:
+        fruit_poses = _FRUIT_POSES
+    _place_assets(objects, fruit_poses)
     return Scene(assets=[background, basket, *objects])
 
 
@@ -153,6 +175,74 @@ def _build_put_bottle_on_woodshelf_scene(registry: AssetRegistry) -> Scene:
     return Scene(assets=[background, table, shelf, bottle])
 
 
+def _choose_pool_member(kind: str, requested: str | None, rng: random.Random) -> str:
+    """Registered asset name of one pool member (``requested`` = pool name, or None/"random")."""
+    from maniparena_sim.assets.objects.mobile_manip import ASSET_PREFIX, POOLS_PATH, pool_asset_names
+
+    names = pool_asset_names(kind)
+    if not names:
+        raise FileNotFoundError(
+            f"No '{kind}' pool registered: {POOLS_PATH} is missing or empty. "
+            "The mobile pick-and-place assets are expected under assets/mobile_manip/."
+        )
+    if requested in (None, "", "random"):
+        return rng.choice(names)
+    candidate = requested if requested in names else ASSET_PREFIX + requested
+    if candidate not in names:
+        raise ValueError(f"Unknown {kind} pool member '{requested}'. Available: {names}")
+    return candidate
+
+
+def _floor_booth(registry: AssetRegistry):
+    background = registry.get_asset_by_name("put_bottle_on_woodshelf_green_booth")()
+    background.set_initial_pose(_pose_at((0.0, 0.0, 0.0)))
+    return background
+
+
+def _table(registry: AssetRegistry, name: str, pose):
+    table = registry.get_asset_by_name("put_bottle_on_woodshelf_table")(instance_name=name)
+    table.set_initial_pose(_pose_at(*pose))
+    return table
+
+
+def _build_move_bottle_to_bin_scene(registry: AssetRegistry, options: dict) -> Scene:
+    """Bottle on a table, bin on the floor (move_bottle_to_bin; episode resets re-sample)."""
+    rng = random.Random(options.get("seed"))
+    background = _floor_booth(registry)
+    table = _table(registry, "table", BIN_TABLE_POSE)
+    bin_asset = registry.get_asset_by_name("mobile_trash_can")(instance_name="bin")
+    bin_asset.set_initial_pose(_pose_at(*BIN_POSE), create_reset_event=False)
+    bottle_name = _choose_pool_member("bottles", options.get("bottle"), rng)
+    bottle = registry.get_asset_by_name(bottle_name)(instance_name="bottle")
+    bottle.set_initial_pose(_pose_at(*BIN_BOTTLE_LOAD_POSE), create_reset_event=False)
+    assets = (table, bin_asset, bottle)
+    for asset in assets:
+        _apply_semantic_tags(asset)
+    return Scene(assets=[background, *assets])
+
+
+def _build_move_fruit_to_basket_scene(registry: AssetRegistry, options: dict) -> Scene:
+    """Fruit on one table, basket on another (move_fruit_to_basket)."""
+    rng = random.Random(options.get("seed"))
+    background = _floor_booth(registry)
+    fruit_table = _table(registry, "fruit_table", FRUIT_TABLE_POSE)
+    basket_table = _table(registry, "basket_table", BASKET_TABLE_POSE)
+    fruit = registry.get_asset_by_name(_choose_pool_member("fruits", options.get("fruit"), rng))(
+        instance_name="fruit"
+    )
+    basket = registry.get_asset_by_name(_choose_pool_member("baskets", options.get("basket"), rng))(
+        instance_name="basket"
+    )
+    for table_pose, asset in ((FRUIT_TABLE_POSE, fruit), (BASKET_TABLE_POSE, basket)):
+        # Load pose = table-top centre; episode resets re-sample the XY.
+        root_z = TABLETOP_LOCAL_Z - float(asset.get_bounding_box().min_point[0, 2]) + FRUIT_RESET["root_clearance_m"]
+        asset.set_initial_pose(_pose_at((table_pose[0][0], table_pose[0][1], root_z)), create_reset_event=False)
+    assets = (fruit_table, basket_table, fruit, basket)
+    for asset in assets:
+        _apply_semantic_tags(asset)
+    return Scene(assets=[background, *assets])
+
+
 def _attach_render_settings(
     scene: Scene,
     settings_name: str = "green_booth",
@@ -168,18 +258,21 @@ def _attach_render_settings(
     return scene
 
 
-def build_scene(task_name: str, *, robot: str = "bimanual"):
+def build_scene(task_name: str, *, robot: str = "bimanual", scene_options: dict | None = None):
     """Assemble scene assets for *task_name*.
 
     Object poses depend only on the task. ``robot`` selects the background booth
     USD and its world pose (``green_booth`` for bimanual,
     ``green_booth_mesh_ground`` for quanta_x1). Robot base pose is set on the
-    embodiment, not here.
+    embodiment, not here. ``scene_options`` (quanta_x1 mobile tasks) selects pool
+    members (``bottle`` / ``fruit`` / ``basket``: pool name or "random") and the
+    sampling ``seed``; the chosen USD stays fixed for the process lifetime.
     """
     if robot not in ("bimanual", "quanta_x1"):
         raise ValueError(f"Unsupported robot '{robot}' for scene assembly.")
     bootstrap_arena_registry()
     registry = AssetRegistry()
+    options = dict(scene_options or {})
     if task_name == "sort_blocks":
         scene = _build_sort_blocks_scene(registry, robot)
     elif task_name == "fruits_to_basket":
@@ -190,7 +283,12 @@ def build_scene(task_name: str, *, robot: str = "bimanual"):
         scene = _build_dummy_task_scene(registry)
     elif task_name == "put_bottle_on_woodshelf":
         scene = _build_put_bottle_on_woodshelf_scene(registry)
+    elif task_name == "move_bottle_to_bin":
+        scene = _build_move_bottle_to_bin_scene(registry, options)
+    elif task_name == "move_fruit_to_basket":
+        scene = _build_move_fruit_to_basket_scene(registry, options)
     else:
         raise ValueError(f"Unsupported task '{task_name}' for scene assembly.")
     settings_name = "nav_f16" if task_name == "dummy_task" else "green_booth"
+    scene.scene_options = options
     return _attach_render_settings(scene, settings_name=settings_name)

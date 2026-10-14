@@ -68,6 +68,7 @@ def parse_args():
         choices=[
             'sort_blocks', 'fruits_to_basket',
             'buttons_contact', 'put_bottle_on_woodshelf',
+            'move_bottle_to_bin', 'move_fruit_to_basket',
         ],
     )
     parser.add_argument('--config', required=True)

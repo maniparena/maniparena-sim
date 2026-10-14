@@ -21,7 +21,3 @@ dependencies = [
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["maniparena_sim*"]
-
-[tool.pytest.ini_options]
-pythonpath = ["src"]
-testpaths = ["tests"]

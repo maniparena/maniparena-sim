@@ -1,0 +1,422 @@
+{
+  "bin": {
+    "name": "trash_can",
+    "usd": "mobile_manip/models/objects/trash_can/trash_can.usd",
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  "bottles": [
+    {
+      "name": "bottle_01",
+      "usd": "mobile_manip/models/objects/bottle/bottle_01.usd",
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "name": "bottle_02",
+      "usd": "mobile_manip/models/objects/bottle/bottle_02.usd",
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "name": "bottle_03",
+      "usd": "mobile_manip/models/objects/bottle/bottle_03.usd",
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "name": "bottle_04",
+      "usd": "put_bottle_on_woodshelf/models/objects/bottle/bottle_nongfuspring_s.usd",
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    }
+  ],
+  "fruits": [
+    {
+      "name": "peach_01",
+      "usd": "mobile_manip/fruits/peach_01/asset.usd",
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "name": "peach_02",
+      "usd": "mobile_manip/fruits/peach_02/asset.usd",
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "name": "apple_01",
+      "usd": "mobile_manip/fruits/apple_01/asset.usd",
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "name": "apple_02",
+      "usd": "mobile_manip/fruits/apple_02/asset.usd",
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "name": "apple_03",
+      "usd": "mobile_manip/fruits/apple_03/asset.usd",
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "name": "apple_04",
+      "usd": "mobile_manip/fruits/apple_04/asset.usd",
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "name": "strawberry_01",
+      "usd": "mobile_manip/fruits/strawberry_01/asset.usd",
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "name": "lemon_01",
+      "usd": "mobile_manip/fruits/lemon_01/asset.usd",
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "name": "lemon_02",
+      "usd": "mobile_manip/fruits/lemon_02/asset.usd",
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "name": "lemon_03",
+      "usd": "mobile_manip/fruits/lemon_03/asset.usd",
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "name": "lemon_04",
+      "usd": "mobile_manip/fruits/lemon_04/asset.usd",
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "name": "mangosteen_01",
+      "usd": "mobile_manip/fruits/mangosteen_01/asset.usd",
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "name": "mangosteen_02",
+      "usd": "mobile_manip/fruits/mangosteen_02/asset.usd",
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "name": "mangosteen_03",
+      "usd": "mobile_manip/fruits/mangosteen_03/asset.usd",
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "name": "mangosteen_04",
+      "usd": "mobile_manip/fruits/mangosteen_04/asset.usd",
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "name": "orange_01",
+      "usd": "mobile_manip/fruits/orange_01/asset.usd",
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "name": "orange_02",
+      "usd": "mobile_manip/fruits/orange_02/asset.usd",
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "name": "orange_03",
+      "usd": "mobile_manip/fruits/orange_03/asset.usd",
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "name": "orange_04",
+      "usd": "mobile_manip/fruits/orange_04/asset.usd",
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "name": "peach_03",
+      "usd": "mobile_manip/fruits/peach_03/asset.usd",
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "name": "peach_04",
+      "usd": "mobile_manip/fruits/peach_04/asset.usd",
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "name": "pear_01",
+      "usd": "mobile_manip/fruits/pear_01/asset.usd",
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "name": "pear_02",
+      "usd": "mobile_manip/fruits/pear_02/asset.usd",
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "name": "pear_03",
+      "usd": "mobile_manip/fruits/pear_03/asset.usd",
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "name": "pear_04",
+      "usd": "mobile_manip/fruits/pear_04/asset.usd",
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "name": "pitaya_01",
+      "usd": "mobile_manip/fruits/pitaya_01/asset.usd",
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "name": "pomegranate_01",
+      "usd": "mobile_manip/fruits/pomegranate_01/asset.usd",
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "name": "pomegranate_02",
+      "usd": "mobile_manip/fruits/pomegranate_02/asset.usd",
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "name": "pomegranate_03",
+      "usd": "mobile_manip/fruits/pomegranate_03/asset.usd",
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "name": "pomegranate_04",
+      "usd": "mobile_manip/fruits/pomegranate_04/asset.usd",
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    }
+  ],
+  "baskets": [
+    {
+      "name": "basket_01",
+      "usd": "mobile_manip/baskets/basket_01/asset.usd",
+      "scale": [
+        0.659961,
+        0.659961,
+        0.659961
+      ]
+    },
+    {
+      "name": "basket_02",
+      "usd": "mobile_manip/baskets/basket_02/asset.usd",
+      "scale": [
+        0.712342,
+        0.712342,
+        0.712342
+      ]
+    },
+    {
+      "name": "basket_03",
+      "usd": "mobile_manip/baskets/basket_03/asset.usd",
+      "scale": [
+        0.947174,
+        0.947174,
+        0.947174
+      ]
+    },
+    {
+      "name": "basket_04",
+      "usd": "mobile_manip/baskets/basket_04/asset.usd",
+      "scale": [
+        0.5957,
+        0.5957,
+        0.5957
+      ]
+    },
+    {
+      "name": "basket_05",
+      "usd": "mobile_manip/baskets/basket_05/asset.usd",
+      "scale": [
+        0.656184,
+        0.656184,
+        0.656184
+      ]
+    },
+    {
+      "name": "basket_06",
+      "usd": "mobile_manip/baskets/basket_06/asset.usd",
+      "scale": [
+        0.994603,
+        0.994603,
+        0.994603
+      ]
+    },
+    {
+      "name": "basket_07",
+      "usd": "mobile_manip/baskets/basket_07/asset.usd",
+      "scale": [
+        0.764503,
+        0.764503,
+        0.764503
+      ]
+    },
+    {
+      "name": "basket_08",
+      "usd": "mobile_manip/baskets/basket_08/asset.usd",
+      "scale": [
+        0.466209,
+        0.466209,
+        0.466209
+      ]
+    },
+    {
+      "name": "basket_09",
+      "usd": "mobile_manip/baskets/basket_09/asset.usd",
+      "scale": [
+        0.670368,
+        0.670368,
+        0.670368
+      ]
+    },
+    {
+      "name": "basket_10",
+      "usd": "mobile_manip/baskets/basket_10/asset.usd",
+      "scale": [
+        0.991877,
+        0.991877,
+        0.991877
+      ]
+    },
+    {
+      "name": "basket_11",
+      "usd": "mobile_manip/baskets/basket_11/asset.usd",
+      "scale": [
+        0.65236,
+        0.65236,
+        0.65236
+      ]
+    }
+  ]
+}

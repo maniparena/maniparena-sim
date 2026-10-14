@@ -21,6 +21,7 @@ from isaaclab_arena.tasks.task_base import TaskBase
 from isaaclab_arena.utils.configclass import make_configclass
 
 from maniparena_sim.task.base import TaskCFG
+from maniparena_sim.task.mobile_events import write_root_pose
 from maniparena_sim.task.utils import find_background
 
 _CASE_BANK_PATH = (
@@ -105,36 +106,6 @@ def _sample_robot_bottle_poses(
     return robot_pos, robot_quat, bottle_pos, bottle_quat, label
 
 
-def _write_root_pose(
-    asset: Any,
-    env: ManagerBasedEnv,
-    env_id: int,
-    position_xyz: list[float],
-    quat_xyzw: list[float],
-    *,
-    reset_joints_to_default: bool,
-) -> None:
-    env_ids = torch.as_tensor([int(env_id)], dtype=torch.long, device=env.device)
-    pose = torch.zeros(1, 7, dtype=torch.float32, device=env.device)
-    pose[0, :3] = torch.as_tensor(position_xyz, dtype=torch.float32, device=env.device)
-    pose[0, 3:7] = torch.as_tensor(quat_xyzw, dtype=torch.float32, device=env.device)
-    pose[:, :3] += env.scene.env_origins[env_ids]
-    asset.write_root_pose_to_sim(pose, env_ids=env_ids)
-    if hasattr(asset, "write_joint_state_to_sim") and hasattr(asset.data, "joint_pos"):
-        if reset_joints_to_default and hasattr(asset.data, "default_joint_pos"):
-            joint_pos = asset.data.default_joint_pos[env_ids].clone()
-        else:
-            joint_pos = asset.data.joint_pos[env_ids].clone()
-        if joint_pos.numel() > 0:
-            asset.write_joint_state_to_sim(
-                joint_pos, torch.zeros_like(joint_pos), env_ids=env_ids
-            )
-        _ = asset.data.body_link_pose_w[env_ids]
-    asset.write_root_velocity_to_sim(
-        torch.zeros(1, 6, device=env.device), env_ids=env_ids
-    )
-
-
 def sample_put_bottle_reset(
     env: ManagerBasedEnv,
     env_ids: torch.Tensor,
@@ -157,7 +128,7 @@ def sample_put_bottle_reset(
         robot_pos, robot_quat, bottle_pos, bottle_quat, label = _sample_robot_bottle_poses(
             rng, bank
         )
-        _write_root_pose(
+        write_root_pose(
             env.scene[_ROBOT_SCENE_KEY],
             env,
             env_id,
@@ -165,7 +136,7 @@ def sample_put_bottle_reset(
             robot_quat,
             reset_joints_to_default=True,
         )
-        _write_root_pose(
+        write_root_pose(
             env.scene[_BOTTLE_SCENE_KEY],
             env,
             env_id,
@@ -228,7 +199,7 @@ class PutBottleOnWoodshelfTask(TaskBase):
         return self.termination_cfg
 
     def get_prompt(self) -> str:
-        return "Pick the bottle from the table and place it on the wooden shelf."
+        return "Navigate to the source table, grasp the bottle on the table, navigate to the wooden shelf, place the bottle on the shelf, and retract the arm safely."
 
     def get_mimic_env_cfg(self, embodiment_name: str) -> Any:
         return None

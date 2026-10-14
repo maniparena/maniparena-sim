@@ -50,7 +50,7 @@ class SortBlocksTask(TaskBase):
         return self.termination_cfg
 
     def get_prompt(self) -> str:
-        return "Pick up the colored blocks and place them on their matching colored destinations."
+        return "Pick up each colored block, place it on the paper of the same color, then return both arms home."
 
     def get_mimic_env_cfg(self, embodiment_name: str) -> Any:
         return None

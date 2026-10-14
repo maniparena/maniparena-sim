@@ -6,16 +6,21 @@
 
 ## 支持的任务
 
-| Task | 说明 |
-|------|------|
-| `sort_blocks` | 将彩色方块放到对应彩纸上 |
-| `fruits_to_basket` | 将水果放入粉色篮子 |
-| `buttons_contact` | 依次触碰三个彩色按钮 |
-| `put_bottle_on_woodshelf` | 桌面取瓶放到木架（静态场景；资产在 `assets/put_bottle_on_woodshelf/`） |
+远程数采场景配置对齐说明见 [quanta_x1_task_alignment.md](quanta_x1_task_alignment.md)。
 
-桌面任务场景使用 `assets/green_booth/green_booth_mesh_ground.usd` 展台（材质在
-`assets/green_booth/materials/`，2D lidar 在 `assets/quanta_x1/sensors/`，均已本地化，无远程引用）。
-`put_bottle_on_woodshelf` 使用独立 booth/桌/架/瓶资产（`assets/put_bottle_on_woodshelf/`）。
+| Task | 底盘 | 说明 |
+|------|------|------|
+| `sort_blocks` | 固定 | 将三个彩色方块放到对应颜色的纸上 |
+| `fruits_to_basket` | 固定 | 将苹果、香蕉、梨放入篮子，面包为干扰物 |
+| `move_bottle_to_bin` | 移动 | 将桌上的瓶子放入垃圾桶 |
+| `move_fruit_to_basket` | 移动 | 将水果桌上的水果放入另一张桌上的篮子 |
+| `put_bottle_on_woodshelf` | 移动 | 将桌上的瓶子放到木架上 |
+
+物体位置每回合随机，移动任务的机器人起点同样随机。成功条件为物体放入目标后双臂回到初始姿态。`buttons_contact` 仅支持 bimanual。
+
+固定底盘任务使用 `assets/green_booth/`，移动任务使用 `assets/put_bottle_on_woodshelf/` 和 `assets/mobile_manip/`（垃圾桶、瓶子、水果、篮子，成员见 `assets/mobile_manip/pools.json`）。
+
+`move_bottle_to_bin` 和 `move_fruit_to_basket` 的瓶子、水果、篮子在一个进程内固定为池中的一个，默认随机选取，可在评测配置里通过 `scene_options`（`seed`、`bottle`、`fruit`、`basket`）指定。
 
 底盘差速使用仿真有效几何：`wheel_radius=0.084`、`wheel_track_width=0.458`
 （见 `embodiment/robots/quanta_x1.py`）。Wall-X 全身推理（21D，含 head/lift/底盘）入口：
@@ -42,7 +47,7 @@ python scripts/collect.py \
   --viz kit
 ```
 
-将 `fruits_to_basket` 换成 `sort_blocks` 或 `buttons_contact` 即可切换任务。
+将 `fruits_to_basket` 换成上表其他任务即可切换。
 
 ### Vuer（Pico WebXR）
 

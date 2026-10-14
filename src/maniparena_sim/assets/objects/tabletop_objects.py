@@ -144,3 +144,43 @@ class Banana(_TabletopObject):
     tags = ["object", "collect_target"]
     usd_path = _object_usd("banana", "banana.usd")
     scale = (0.8, 0.8, 0.8)
+
+
+class _KinematicMixin:
+    """Spawn the object as a kinematic (fixed) body."""
+
+    def __init__(self, prim_path: str | None = None, initial_pose: Pose | None = None):
+        import isaaclab.sim as sim_utils
+
+        Object.__init__(
+            self,
+            name=self.name,
+            prim_path=prim_path,
+            tags=self.tags,
+            usd_path=self.usd_path,
+            scale=self.scale,
+            initial_pose=initial_pose,
+            spawn_cfg_addon={"rigid_props": sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True)},
+        )
+
+
+# Fixed papers and the 0.7-scale basket of the quanta_x1 tabletop scenes.
+@register_asset
+class YellowPaper2(_KinematicMixin, YellowPaper):
+    name = "yellow_paper_2"
+
+
+@register_asset
+class GreenPaper2(_KinematicMixin, GreenPaper):
+    name = "green_paper_2"
+
+
+@register_asset
+class PinkPaper2(_KinematicMixin, PinkPaper):
+    name = "pink_paper_2"
+
+
+@register_asset
+class BasketB2(_KinematicMixin, BasketB):
+    name = "platform_pink_2"
+    scale = (0.7, 0.7, 0.7)
