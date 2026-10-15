@@ -19,6 +19,16 @@ python scripts/sdk_ros2.py --robot artixon_arm_6a --viz kit
 配置：`configs/sdk_ros2/artixon_arm_6a_sdk_ros2.yaml`。可用 `--config PATH` 指定自定义配置。
 无界面运行使用 `--viz none`；窗口聚焦后按 R 重置，关闭窗口或 Ctrl-C 退出。
 
+只启动一只 G 夹爪单臂：
+
+```bash
+python scripts/sdk_ros2.py --robot artixon_arm_6a_left --viz kit
+python scripts/sdk_ros2.py --robot artixon_arm_6a_right --viz kit
+```
+
+对应 USD 为 `bimanual_robot_G_left.usd` 和 `bimanual_robot_G_right.usd`。
+两个文件都以单臂根部的 `base_link` 为原点，不加载头部相机；左臂使用 `camera1`，右臂使用 `camera3`。
+
 ## 演示
 
 抓水果桌面场景中的 ArtiXon Arm-6A 仿真：
@@ -40,11 +50,16 @@ python scripts/sdk_ros2.py --robot artixon_arm_6a --viz kit
 | 夹爪状态 | `/left_gripper/joint_states`、`/right_gripper/joint_states` | `JointState` |
 | 全关节状态 | `/joint_states` | `JointState` |
 
+单臂模式只保留所选一侧的同名接口。例如左臂使用 `/left_arm_cartesian_controller/pose_cmd`、
+`/left_gripper_controller/commands`、`/left_arm/end_pose` 和 `/left_gripper/joint_states`；右臂将
+`left` 替换为 `right`。单臂 EE action 为 8 维（7 维位姿加 1 维夹爪），joint 模式为 7 维。
+
 末端为 `left_arm_link6` / `right_arm_link6` 法兰。位置单位米，四元数 **XYZW**。
 指令 `header.frame_id` 使用 `base_link`（空值也按该坐标系处理）；先读取 `/left_arm/end_pose`
 或右臂对应状态，再发送附近目标。EE 使用仿真 Jacobian 的 differential IK。
 
-启用相机时发布 `/camera1/usb_cam1/image_raw/image_compressed`、
-`/camera3/usb_cam3/image_raw/image_compressed` 和 `/camera_head_front/color/image_raw/compressed`。
+双臂启用相机时发布 `/camera1/usb_cam1/image_raw/image_compressed`、
+`/camera3/usb_cam3/image_raw/image_compressed` 和 `/camera_head_front/color/image_raw/compressed`；
+单臂只发布所选腕部相机，不发布头部相机。
 `use_sim_time: true` 时发布 `/clock`。本机型没有底盘、升降和头部关节控制接口。
 默认物理 120 Hz、控制 20 Hz、渲染调度 60 Hz；实际运行帧率另受计算与渲染耗时影响。

@@ -51,7 +51,7 @@ class SdkControl:
             if size == 0:
                 continue
             slots = list(range(offset, offset + size))
-            if name in ("arm_action", "right_arm_action") and self.mode == "ee":
+            if name in self.profile.arm_action_terms and self.mode == "ee":
                 if size != 7:
                     raise ValueError(f"{name} must have seven absolute pose slots")
                 self.pose_slots.append((name, slots))
@@ -63,24 +63,24 @@ class SdkControl:
             offset += size
         self.pose_slots = dict(self.pose_slots)
         if self.mode == "ee" and set(self.pose_slots) != {
-            "arm_action",
-            "right_arm_action",
+            *self.profile.arm_action_terms,
         }:
             raise ValueError("EE mode requires arm_action and right_arm_action")
         required = list(self.profile.gripper_joint_names)
         if self.mode == "joint":
-            required += list(self.profile.arm_joint_names[0] + self.profile.arm_joint_names[1])
+            for names in self.profile.arm_joint_names:
+                required += list(names)
         if self.profile.mobile:
             required += list(WAIST_JOINT_NAMES + HEAD_JOINT_NAMES + WHEEL_JOINT_NAMES)
         missing = [name for name in required if name not in self.joint_slots]
         if missing:
             raise ValueError(f"SDK action manager is missing joint slots: {missing}")
-        self.ee_commands = [None, None]
+        self.ee_commands = [None] * len(self.profile.arm_joint_names)
         self._velocity = (0.0, 0.0, 0.0)
         self._velocity_pending = False
         self._velocity_stamp = None
         self.callbacks = {}
-        for side in range(2):
+        for side in range(len(self.profile.arm_joint_names)):
             if self.mode == "ee":
                 self.callbacks[self.profile.arm_pose_commands[side]] = partial(self.pose_command, side=side)
             else:
@@ -157,7 +157,7 @@ class SdkControl:
         self._velocity = (0.0, 0.0, 0.0)
         self._velocity_pending = False
         self._velocity_stamp = None
-        self.ee_commands = [None, None]
+        self.ee_commands = [None] * len(self.profile.arm_joint_names)
         if self.mode == "ee":
             base = self.mapping.base
             for side, flange in enumerate(self.mapping.flanges):
@@ -181,7 +181,7 @@ class SdkControl:
             to_numpy(robot.data.root_pos_w[0]),
             to_numpy(robot.data.root_quat_w[0]),
         )
-        for side, term_name in enumerate(("arm_action", "right_arm_action")):
+        for side, term_name in enumerate(self.profile.arm_action_terms):
             command = self.ee_commands[side]
             if command is None:
                 continue

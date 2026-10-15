@@ -7,6 +7,7 @@ frames, sensors and gripper range. ``ros.arm_control`` selects ``ee`` or ``joint
 
 Usage:
     python scripts/sdk_ros2.py --robot artixon_arm_6a --viz kit
+    python scripts/sdk_ros2.py --robot artixon_arm_6a_left --viz kit
 """
 
 from __future__ import annotations
@@ -31,7 +32,11 @@ def parse_args():
     parser = argparse.ArgumentParser(description="ManipArena ROS2 SDK.")
     AppLauncher.add_app_launcher_args(parser)
     parser.add_argument("--config", default=None)
-    parser.add_argument("--robot", choices=("quanta_x1", "quanta_x2", "artixon_arm_6a"), default=None)
+    parser.add_argument(
+        "--robot",
+        choices=("quanta_x1", "quanta_x2", "artixon_arm_6a", "artixon_arm_6a_left", "artixon_arm_6a_right"),
+        default=None,
+    )
     # RTX cameras/lidar still render on the NVIDIA GPU.  Keep PhysX tensors on
     # CPU by default because this Sim/Lab stack can otherwise fall back to CPU
     # PhysX while leaving Warp on CUDA, producing ProxyArray type mismatches.

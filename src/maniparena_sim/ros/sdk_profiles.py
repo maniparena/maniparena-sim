@@ -11,16 +11,17 @@ from maniparena_sim.ros.quanta_x1_sdk_topics import normalize_arm_control
 class SdkProfile:
     name: str
     base_body_name: str
-    arm_joint_names: tuple[tuple[str, ...], tuple[str, ...]]
-    flange_names: tuple[str, str]
-    gripper_joint_names: tuple[str, str]
-    arm_joint_commands: tuple[str, str]
-    arm_pose_commands: tuple[str, str]
-    arm_states: tuple[str, str]
-    arm_poses: tuple[str, str]
-    gripper_commands: tuple[str, str]
-    gripper_states: tuple[str, str]
-    gripper_state_names: tuple[str, str]
+    arm_joint_names: tuple[tuple[str, ...], ...]
+    flange_names: tuple[str, ...]
+    gripper_joint_names: tuple[str, ...]
+    arm_joint_commands: tuple[str, ...]
+    arm_pose_commands: tuple[str, ...]
+    arm_states: tuple[str, ...]
+    arm_poses: tuple[str, ...]
+    gripper_commands: tuple[str, ...]
+    gripper_states: tuple[str, ...]
+    gripper_state_names: tuple[str, ...]
+    arm_action_terms: tuple[str, ...] = ("arm_action", "right_arm_action")
     mobile: bool = False
 
     @property
@@ -152,10 +153,36 @@ ARTIXON_ARM_6A = SdkProfile(
 )
 
 
+def _artixon_single_profile(side: str) -> SdkProfile:
+    """Build the one-arm ROS contract while retaining left/right topic names."""
+    return SdkProfile(
+        name=f"artixon_arm_6a_{side}",
+        base_body_name="base_link",
+        arm_joint_names=(tuple(f"{side}_arm_joint{i}" for i in range(1, 7)),),
+        flange_names=(f"{side}_arm_link6",),
+        gripper_joint_names=(f"{side}_arm_gripper",),
+        arm_joint_commands=(f"/{side}_arm_joint_controller/commands",),
+        arm_pose_commands=(f"/{side}_arm_cartesian_controller/pose_cmd",),
+        arm_states=(f"/{side}_arm/joint_states",),
+        arm_poses=(f"/{side}_arm/end_pose",),
+        gripper_commands=(f"/{side}_gripper_controller/commands",),
+        gripper_states=(f"/{side}_gripper/joint_states",),
+        gripper_state_names=(f"{side}_arm_gripper",),
+        arm_action_terms=("arm_action",),
+    )
+
+
+ARTIXON_ARM_6A_LEFT = _artixon_single_profile("left")
+ARTIXON_ARM_6A_RIGHT = _artixon_single_profile("right")
+
+
 def get_sdk_profile(profile: str | SdkProfile) -> SdkProfile:
     if isinstance(profile, SdkProfile):
         return profile
-    profiles = {p.name: p for p in (QUANTA_X2, ARTIXON_ARM_6A)}
+    profiles = {
+        p.name: p
+        for p in (QUANTA_X2, ARTIXON_ARM_6A, ARTIXON_ARM_6A_LEFT, ARTIXON_ARM_6A_RIGHT)
+    }
     try:
         return profiles[str(profile).strip().lower()]
     except KeyError:

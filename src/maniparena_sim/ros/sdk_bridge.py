@@ -176,6 +176,18 @@ class SdkRosBridge:
             for name, cfg in QuantaX1RosConfig.CAMERA_CONFIG.items()
             if cfg["scene_entity"] in scene_keys
         }
+        if self.profile.name in ("artixon_arm_6a_left", "artixon_arm_6a_right") and "wrist_camera" in scene_keys:
+            side = self.profile.name.rsplit("_", 1)[-1]
+            camera_name = "camera1" if side == "left" else "camera3"
+            configs[camera_name] = {
+                "scene_entity": "wrist_camera",
+                "rgb_key": "wrist_cam",
+                "depth_key": None,
+                "frame_id": f"{side}_arm_gripper_camera_color_frame",
+                "compress_fmt": "jpeg",
+                "compress_quality": 80,
+                "pointcloud_downsample": 1,
+            }
         if self.profile.name == "quanta_x2":
             for cfg in configs.values():
                 if cfg["scene_entity"] in ("left_wrist_camera", "right_wrist_camera"):
@@ -200,7 +212,7 @@ class SdkRosBridge:
             return stamped(MessageBuilder.joint_states, indices, list(names))
 
         acquirers = {"/joint_states": joint_state(list(range(len(mapping.joint_names))), mapping.joint_names)}
-        for side in range(2):
+        for side in range(len(mapping.arms)):
             acquirers[self.profile.arm_states[side]] = joint_state(
                 mapping.arms[side], self.profile.arm_joint_names[side]
             )
