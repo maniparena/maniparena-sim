@@ -338,3 +338,165 @@ class BimanualEmbodiment(EmbodimentBase):
 
     def get_vr_ee_frame_names(self) -> tuple[str, str]:
         return "left_ee_frame", "right_ee_frame"
+
+
+def _single_arm_eef_delta_pos(env, ee_frame_cfg=SceneEntityCfg("ee_frame")) -> torch.Tensor:
+    pos, quat = _get_ee_world(env, ee_frame_cfg)
+    ref_pos, _ = _get_or_init_ee_ref(env, "_single_arm_ee_ref", pos, quat)
+    return pos - ref_pos
+
+
+def _single_arm_eef_delta_quat(env, ee_frame_cfg=SceneEntityCfg("ee_frame")) -> torch.Tensor:
+    pos, quat = _get_ee_world(env, ee_frame_cfg)
+    _, ref_quat = _get_or_init_ee_ref(env, "_single_arm_ee_ref", pos, quat)
+    return math_utils.quat_mul(quat, math_utils.quat_conjugate(ref_quat))
+
+
+@register_asset
+class SingleArmEmbodiment(EmbodimentBase):
+    """One ArtiXon G-jaw arm, with its base link at the USD origin."""
+
+    name = "ArtiXon Arm-6A Single"
+
+    @configclass
+    class SceneCfg:
+        robot: ArticulationCfg = ArticulationCfg(
+            spawn=sim_utils.UsdFileCfg(
+                usd_path=os.path.join(ASSETS_DIR, "bimanual_robot", "bimanual_robot_G_left.usd"),
+                activate_contact_sensors=True,
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=True),
+                articulation_props=sim_utils.ArticulationRootPropertiesCfg(
+                    enabled_self_collisions=False,
+                    fix_root_link=True,
+                    solver_position_iteration_count=16,
+                    solver_velocity_iteration_count=8,
+                ),
+            ),
+            prim_path="{ENV_REGEX_NS}/Robot",
+            init_state=ArticulationCfg.InitialStateCfg(
+                pos=(-0.32165, -0.25918, -0.23),
+                rot=(0.0, 0.0, 0.0, 1.0),
+            ),
+            actuators={
+                "arm_acts": ImplicitActuatorCfg(
+                    joint_names_expr=["left_arm_joint[1-6]"], effort_limit_sim=200.0, stiffness=1500.0, damping=150.0
+                ),
+                "gripper_acts": ImplicitActuatorCfg(
+                    joint_names_expr=["left_arm_gripper"], effort_limit_sim=200.0, stiffness=200.0, damping=30.0
+                ),
+            },
+        )
+        ee_frame: FrameTransformerCfg = FrameTransformerCfg(
+            prim_path="{ENV_REGEX_NS}/Robot/left_arm_link6",
+            debug_vis=False,
+            target_frames=[FrameTransformerCfg.FrameCfg(prim_path="{ENV_REGEX_NS}/Robot/left_arm_link6", name="end_effector")],
+        )
+
+    @configclass
+    class CameraCfg(ArenaCameraCfg):
+        wrist_camera: CameraCfg = CameraCfg(
+            prim_path="{ENV_REGEX_NS}/Robot/left_arm_gripper_camera_color_frame/Left_Gripper_Camera",
+            update_period=0.0333,
+            height=480,
+            width=640,
+            data_types=["rgb"],
+            spawn=OpenCVFisheyeCameraCfg(clipping_range=(0.03, 1.0e5)),
+            renderer_cfg=get_default_renderer_cfg(),
+        )
+
+    @configclass
+    class ActionsCfg:
+        arm_action: ActionTermCfg = DifferentialInverseKinematicsActionCfg(
+            asset_name="robot",
+            joint_names=["left_arm_joint[1-6]"],
+            body_name="left_arm_link6",
+            controller=DifferentialIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="dls"),
+            scale=1.0,
+        )
+        gripper_action: ActionTermCfg = ClampedRawGripperActionCfg(
+            asset_name="robot", joint_names=["left_arm_gripper"], scale=1.0, offset=0.0, use_default_offset=False
+        )
+
+    @configclass
+    class JointActionsCfg:
+        arm_action: ActionTermCfg = JointPositionActionCfg(
+            asset_name="robot", joint_names=["left_arm_joint[1-6]"], scale=1.0, use_default_offset=False
+        )
+        gripper_action: ActionTermCfg = BinaryJointPositionActionCfg(
+            asset_name="robot", joint_names=["left_arm_gripper"], open_command_expr={"left_arm_gripper": 1.89}, close_command_expr={"left_arm_gripper": 0.0}
+        )
+
+    @configclass
+    class StateObservationsCfg:
+        @configclass
+        class PolicyCfg(ObsGroup):
+            joint_pos = ObsTerm(func=mdp_isaac_lab.joint_pos_rel, params={"asset_cfg": SceneEntityCfg("robot")})
+            joint_vel = ObsTerm(func=mdp_isaac_lab.joint_vel_rel, params={"asset_cfg": SceneEntityCfg("robot")})
+            eef_delta_pos = ObsTerm(func=_single_arm_eef_delta_pos, params={"ee_frame_cfg": SceneEntityCfg("ee_frame")})
+            eef_delta_quat = ObsTerm(func=_single_arm_eef_delta_quat, params={"ee_frame_cfg": SceneEntityCfg("ee_frame")})
+            follow_pos = ObsTerm(
+                func=wallx_ee_follow_pos,
+                params={"ee_frame_cfg": SceneEntityCfg("ee_frame"), "gripper_joint_name": "left_arm_gripper"},
+            )
+
+            def __post_init__(self):
+                self.enable_corruption = False
+                self.concatenate_terms = False
+
+        policy: PolicyCfg = PolicyCfg()
+
+    @configclass
+    class CameraObservationsCfg:
+        @configclass
+        class CameraObsCfg(ObsGroup):
+            wrist_cam = ObsTerm(func=mdp_isaac_lab.image, params={"sensor_cfg": SceneEntityCfg("wrist_camera"), "data_type": "rgb", "normalize": False})
+
+            def __post_init__(self):
+                self.enable_corruption = False
+                self.concatenate_terms = False
+
+        camera_obs: CameraObsCfg = CameraObsCfg()
+
+    def __init__(self, side: str = "left", enable_cameras: bool = False, initial_pose: Pose | None = None):
+        side = str(side).strip().lower()
+        if side not in {"left", "right"}:
+            raise ValueError("SingleArmEmbodiment side must be 'left' or 'right'")
+        super().__init__(enable_cameras=enable_cameras, initial_pose=initial_pose)
+        self.side = side
+        self.scene_config = self.SceneCfg()
+        self.camera_config = self.CameraCfg()
+        self.action_config = self.ActionsCfg()
+        self.observation_config = self.StateObservationsCfg()
+        self._camera_observation_config = self.CameraObservationsCfg()
+        if side == "right":
+            self._set_side_names("right")
+
+    def _set_side_names(self, side: str) -> None:
+        robot = self.scene_config.robot
+        robot.actuators["arm_acts"].joint_names_expr = ["right_arm_joint[1-6]"]
+        robot.actuators["gripper_acts"].joint_names_expr = ["right_arm_gripper"]
+        for cfg in (self.action_config.arm_action, self.action_config.gripper_action):
+            cfg.joint_names = [cfg.joint_names[0].replace("left", side)]
+        self.action_config.arm_action.body_name = f"{side}_arm_link6"
+        self.action_config.gripper_action.clamp_max = BIMANUAL_G_GRIPPER_OPEN
+        self.scene_config.ee_frame.prim_path = f"{{ENV_REGEX_NS}}/Robot/{side}_arm_link6"
+        self.scene_config.ee_frame.target_frames[0].prim_path = self.scene_config.ee_frame.prim_path
+        self.observation_config.policy.follow_pos.params["gripper_joint_name"] = f"{side}_arm_gripper"
+        self.camera_config.wrist_camera.prim_path = (
+            f"{{ENV_REGEX_NS}}/Robot/{side}_arm_gripper_camera_color_frame/"
+            f"{'Right' if side == 'right' else 'Left'}_Gripper_Camera"
+        )
+
+    def get_observation_cfg(self):
+        if self.enable_cameras:
+            return combine_configclass_instances("ObservationCfg", self.observation_config, self._camera_observation_config)
+        return self.observation_config
+
+    def get_vr_gripper_clamp(self) -> dict[str, tuple[float, float]]:
+        return {f"{self.side}_arm_gripper": (_BIMANUAL_GRIPPER_CLOSE, BIMANUAL_G_GRIPPER_OPEN)}
+
+    def get_vr_gripper_joint_names(self) -> tuple[str]:
+        return (f"{self.side}_arm_gripper",)
+
+    def get_vr_ee_frame_names(self) -> tuple[str]:
+        return ("ee_frame",)

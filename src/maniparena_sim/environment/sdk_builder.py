@@ -8,7 +8,13 @@ from urllib.parse import urlparse
 
 from maniparena_sim.assets import ASSETS_DIR
 
-SUPPORTED_SDK_ROBOTS = ("quanta_x1", "quanta_x2", "artixon_arm_6a")
+SUPPORTED_SDK_ROBOTS = (
+    "quanta_x1",
+    "quanta_x2",
+    "artixon_arm_6a",
+    "artixon_arm_6a_left",
+    "artixon_arm_6a_right",
+)
 
 
 def sdk_robot_type(payload: dict) -> str:
@@ -28,6 +34,8 @@ def resolve_sdk_usd_path(robot_type: str, robot_cfg: dict) -> str:
         # ArtiXon Arm-6A SDK is the G-jaw desktop contract.  The legacy H-jaw
         # asset remains available to the task/teleoperation embodiment.
         "artixon_arm_6a": Path(ASSETS_DIR) / "bimanual_robot" / "bimanual_robot_G.usd",
+        "artixon_arm_6a_left": Path(ASSETS_DIR) / "bimanual_robot" / "bimanual_robot_G_left.usd",
+        "artixon_arm_6a_right": Path(ASSETS_DIR) / "bimanual_robot" / "bimanual_robot_G_right.usd",
     }[robot_type]
     value = str(robot_cfg.get("usd_path") or default).strip()
     if urlparse(value).scheme in {"http", "https", "omniverse"}:
@@ -114,6 +122,28 @@ def _configure_bimanual_sdk(embodiment, arm_control: str) -> None:
         frame.target_frames[0].prim_path = frame.prim_path
 
 
+def _configure_single_arm_sdk(embodiment, arm_control: str) -> None:
+    """Configure the selected G-jaw arm and its one-arm action contract."""
+    side = embodiment.side
+    if arm_control == "joint":
+        actions = embodiment.JointActionsCfg()
+        arm = actions.arm_action
+        # Joint mode still accepts the G-jaw's continuous 0–1.89 rad target;
+        # the binary task action is only for legacy task controls.
+        gripper = embodiment.action_config.gripper_action
+        actions.gripper_action = gripper
+        arm.joint_names = [f"{side}_arm_joint[1-6]"]
+        gripper.joint_names = [f"{side}_arm_gripper"]
+        embodiment.action_config = actions
+    else:
+        embodiment.action_config.arm_action.joint_names = [f"{side}_arm_joint[1-6]"]
+        embodiment.action_config.arm_action.body_name = f"{side}_arm_link6"
+        embodiment.action_config.gripper_action.joint_names = [f"{side}_arm_gripper"]
+    embodiment.action_config.gripper_action.clamp_max = 1.89
+    embodiment.scene_config.ee_frame.prim_path = f"{{ENV_REGEX_NS}}/Robot/{side}_arm_link6"
+    embodiment.scene_config.ee_frame.target_frames[0].prim_path = embodiment.scene_config.ee_frame.prim_path
+
+
 def build_sdk_ros2_gym_env(payload: dict, headless: bool = False, device: str = "cpu"):
     """Return ``(gym_env, embodiment)`` for the selected public SDK robot."""
     robot_type = sdk_robot_type(payload)
@@ -149,7 +179,7 @@ def build_sdk_ros2_gym_env(payload: dict, headless: bool = False, device: str = 
 
         embodiment = QuantaX2Embodiment(usd_path=usd_path, enable_cameras=enable_cameras)
         embodiment.prepare_sdk(arm_control)
-    else:
+    elif robot_type == "artixon_arm_6a":
         from maniparena_sim.embodiment.robots.bimanual import BimanualEmbodiment
 
         embodiment = BimanualEmbodiment(enable_cameras=enable_cameras)
@@ -157,9 +187,18 @@ def build_sdk_ros2_gym_env(payload: dict, headless: bool = False, device: str = 
         if not enable_cameras:
             embodiment.camera_config = None
         _configure_bimanual_sdk(embodiment, arm_control)
+    else:
+        from maniparena_sim.embodiment.robots.bimanual import SingleArmEmbodiment
+
+        side = robot_type.rsplit("_", 1)[-1]
+        embodiment = SingleArmEmbodiment(side=side, enable_cameras=enable_cameras)
+        embodiment.scene_config.robot.spawn.usd_path = usd_path
+        if not enable_cameras:
+            embodiment.camera_config = None
+        _configure_single_arm_sdk(embodiment, arm_control)
     _configure_robot(embodiment, robot_cfg)
 
-    scene_name = "fruits_to_basket" if robot_type == "artixon_arm_6a" else "dummy_task"
+    scene_name = "fruits_to_basket" if robot_type.startswith("artixon_arm_6a") else "dummy_task"
     scene = build_scene(scene_name)
     task = SdkTask()
     _apply_viewer_cfg_override(task, payload)
