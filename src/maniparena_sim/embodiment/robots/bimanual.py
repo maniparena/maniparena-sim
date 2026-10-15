@@ -373,7 +373,10 @@ class SingleArmEmbodiment(EmbodimentBase):
                 ),
             ),
             prim_path="{ENV_REGEX_NS}/Robot",
-            init_state=ArticulationCfg.InitialStateCfg(pos=(0.0, 0.0, 0.0), rot=(0.0, 0.0, 0.0, 1.0)),
+            init_state=ArticulationCfg.InitialStateCfg(
+                pos=(-0.32165, -0.25918, -0.23),
+                rot=(0.0, 0.0, 0.0, 1.0),
+            ),
             actuators={
                 "arm_acts": ImplicitActuatorCfg(
                     joint_names_expr=["left_arm_joint[1-6]"], effort_limit_sim=200.0, stiffness=1500.0, damping=150.0

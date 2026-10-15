@@ -35,6 +35,10 @@ python scripts/sdk_ros2.py --robot artixon_arm_6a_right --viz kit
 
 ![ArtiXon Arm-6A SDK ROS2 sim](../media/artixon_arm_6a_sdk_ros2_sim.png)
 
+单臂 SDK 场景：
+
+![ArtiXon Arm-6A single-arm SDK](../media/artixon_arm_6a_single_sdk_ros2_sim.png)
+
 ## 控制与状态
 
 默认 `ros.arm_control: ee`；切换为 `joint` 后使用关节指令。两种模式互斥。
