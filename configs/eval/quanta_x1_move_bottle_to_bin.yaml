@@ -1,0 +1,29 @@
+# Closed-loop eval for move_bottle_to_bin (scripts/eval.py --robot quanta_x1 --task move_bottle_to_bin).
+# Only settings that differ from the code defaults, or that you are expected to tune, are listed.
+num_episodes: 10
+# Per-episode step limit (timeout -> reset and count the episode as failed). The
+# collected demonstrations are limited to 7200 steps; use 100~300 first to check resets.
+max_steps: 7200
+enable_recording: true
+
+# Third-person camera for --video.
+viewer_cfg:
+  eye: [-1.0, 1.9, 1.7]
+  lookat: [1.2, -0.2, 0.5]
+video_recorder:
+  backend_source: renderer
+  window_width: 1280
+  window_height: 720
+
+policy_config:
+  model_address: "localhost"
+  model_port: 8000
+  instruction: "Navigate to the source table, grasp the correct bottle on the table, navigate to the destination bin, place the bottle in the bin, and retract the arm safely."
+  action_horizon: 32
+  action_chunk_length: 16
+  interpolation_multiplier: 2
+
+# Optional: pin the sampled pool objects / seed (default: random per process).
+# scene_options:
+#   seed: 0
+#   bottle: bottle_01 .. bottle_04

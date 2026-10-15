@@ -2,23 +2,23 @@
 
 # 遥操作采集
 
-采集入口为 `scripts/collect.py`，配置文件按控制方式区分（`keyboard` / `vuer`）。
+采集入口为 `scripts/collect.py`，配置文件按控制方式区分（`keyboard` / `vuer` / `vr`）。
 
 ## 支持的任务
 
-| Task | 说明 |
-|------|------|
-| `sort_blocks` | 将彩色方块放到对应彩纸上 |
-| `fruits_to_basket` | 将水果放入粉色篮子 |
-| `buttons_contact` | 依次触碰三个彩色按钮 |
-| `put_bottle_on_woodshelf` | 桌面取瓶放到木架（静态场景；资产在 `assets/put_bottle_on_woodshelf/`） |
+| Task | 底盘 | 说明 |
+|------|------|------|
+| `sort_blocks` | 固定 | 将三个彩色方块放到对应颜色的纸上 |
+| `fruits_to_basket` | 固定 | 将苹果、香蕉、梨放入篮子，面包为干扰物 |
+| `move_bottle_to_bin` | 移动 | 将桌上的瓶子放入垃圾桶 |
+| `move_fruit_to_basket` | 移动 | 将水果桌上的水果放入另一张桌上的篮子 |
+| `put_bottle_on_woodshelf` | 移动 | 将桌上的瓶子放到木架上 |
 
-桌面任务场景使用 `assets/green_booth/green_booth_mesh_ground.usd` 展台（材质在
-`assets/green_booth/materials/`，2D lidar 在 `assets/quanta_x1/sensors/`，均已本地化，无远程引用）。
-`put_bottle_on_woodshelf` 使用独立 booth/桌/架/瓶资产（`assets/put_bottle_on_woodshelf/`）。
+五个任务都支持键盘和 Vuer WebXR，`vr` 是 `vuer` 的别名。每回合物体随机，移动任务的机器人起点也随机；成功条件是物体到达目标且双臂回到初始姿态。
 
-底盘差速使用仿真有效几何：`wheel_radius=0.084`、`wheel_track_width=0.458`
-（见 `embodiment/robots/quanta_x1.py`）。Wall-X 全身推理（21D，含 head/lift/底盘）入口：
+固定底盘任务使用 `assets/green_booth/`；移动任务使用 `assets/put_bottle_on_woodshelf/` 和 `assets/mobile_manip/`。`move_bottle_to_bin`、`move_fruit_to_basket` 的对象默认从对象池随机选择，并在当前进程内保持不变；可通过 `scene_options.seed`、`bottle`、`fruit`、`basket` 指定。
+
+底盘参数：`wheel_radius=0.084`、`wheel_track_width=0.458`。Wall-X 全身推理（21D，含 head/lift/底盘）入口：
 
 ```bash
 python scripts/eval.py \
@@ -42,7 +42,7 @@ python scripts/collect.py \
   --viz kit
 ```
 
-将 `fruits_to_basket` 换成 `sort_blocks` 或 `buttons_contact` 即可切换任务。
+将 `fruits_to_basket` 换成上表其他任务即可切换。
 
 ### Vuer（Pico WebXR）
 
@@ -109,15 +109,21 @@ teleop_config:
 ## 录制输出
 
 - 默认目录：`~/maniparena_output/recordings/quanta_x1_<task>_collect/`
-- 格式：HDF5 episode + sidecar MP4（左腕 / 右腕 / 头 / 底盘相机）
+- 格式：每个 episode 同时写 HDF5 和 `lerobot/` 下的 LeRobot parquet；相机仍写为 HDF5 同目录的 sidecar MP4（左腕 / 右腕 / 头部 RGB，相机深度不写入 MP4）
+- HDF5 每帧保存 action、processed action、机器人状态、物体状态和观测；QUANTA_X1 遥操 action 为 19D，评测 action 为 21D
+- LeRobot 的 `action` 保留遥操实际 19D；`observation.state` 保存 23D 关节状态，不需要再做格式转换。若只需旧的 HDF5 输出，可在采集 YAML 中设置 `format: "hdf5"`。
+- QUANTA_X1 评测记录同样双写；评测 LeRobot `action` 为 21D，并包含额外的 `head_yaw` / `head_pitch` 两列。
 - 帧率：由配置 `step_hz` 决定，当前统一为 **20 Hz**
 
 示例：
 
 ```text
 ~/maniparena_output/recordings/quanta_x1_fruits_to_basket_collect/
-  quanta_x1_fruits_to_basket_collect_vuer_episode0.hdf5
-  quanta_x1_fruits_to_basket_collect_vuer_episode0_videos/
+  quanta_x1_fruits_to_basket_collect_vr_episode0.hdf5
+  lerobot/
+    data/chunk-000/episode_000000.parquet
+    meta/info.json
+  quanta_x1_fruits_to_basket_collect_vr_episode0_videos/
     ...
 ```
 

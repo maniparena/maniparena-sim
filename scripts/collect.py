@@ -54,6 +54,7 @@ def parse_args():
             'sort_blocks', 'fruits_to_basket',
             'buttons_contact', 'dummy_task',
             'put_bottle_on_woodshelf',
+            'move_bottle_to_bin', 'move_fruit_to_basket',
         ],
     )
     parser.add_argument(

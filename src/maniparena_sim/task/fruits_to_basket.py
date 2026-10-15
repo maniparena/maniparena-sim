@@ -49,7 +49,7 @@ class FruitsToBasketTask(TaskBase):
         return self.termination_cfg
 
     def get_prompt(self) -> str:
-        return "Pick up the fruits and put them into the pink basket."
+        return "Put the apple, banana and pear into the basket, leave the bread on the table, then return both arms home."
 
     def get_mimic_env_cfg(self, embodiment_name: str) -> Any:
         return None

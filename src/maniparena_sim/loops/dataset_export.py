@@ -192,6 +192,12 @@ def _episode_has_actions(rm: Any, env_id: int) -> bool:
     ep = rm._episodes.get(int(env_id))
     if ep is None or ep.is_empty():
         return False
+    # QUANTA_X1 collection uses ManaStagedEpisodeData. Its action samples remain
+    # in the GPU staging queue until pre_export(), so get_action() is empty until
+    # the staged buffers are drained.
+    pre_export = getattr(ep, "pre_export", None)
+    if callable(pre_export):
+        pre_export()
     return ep.get_action(0) is not None
 
 

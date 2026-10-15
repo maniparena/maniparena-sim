@@ -5,10 +5,10 @@
 
 support_frames:
   pick_support:
-    center: [1.5, -0.95, 0.75]
+    center: [1.5, -0.95, 0.7067]
     x_axis: [0.0, 1.0, 0.0]
     y_axis: [-1.0, 0.0, 0.0]
-    object_root_z: 0.8833
+    object_root_z: 0.84
 
 robot_start_anchors:
   "1":

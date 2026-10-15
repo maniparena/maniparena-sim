@@ -18,12 +18,21 @@ from maniparena_sim.environment.scene_builder import build_scene
 from maniparena_sim.task.builders.buttons_contact_builder import ButtonsContactBuilder
 from maniparena_sim.task.builders.fruits_to_basket_builder import FruitsToBasketBuilder
 from maniparena_sim.task.builders.dummy_task_builder import DummyTaskBuilder
+from maniparena_sim.task.builders.move_bottle_to_bin_builder import MoveBottleToBinBuilder
+from maniparena_sim.task.builders.move_fruit_to_basket_builder import MoveFruitToBasketBuilder
 from maniparena_sim.task.builders.put_bottle_on_woodshelf_builder import PutBottleOnWoodshelfBuilder
+from maniparena_sim.task.builders.quanta_tabletop_builders import (
+    QuantaFruitsToBasketBuilder,
+    QuantaSortBlocksBuilder,
+)
 from maniparena_sim.task.builders.sort_blocks_builder import SortBlocksBuilder
 from maniparena_sim.task.buttons_contact import ButtonsContactTaskCFG
 from maniparena_sim.task.fruits_to_basket import FruitsToBasketTaskCFG
 from maniparena_sim.task.dummy_task import DummyTaskCFG
+from maniparena_sim.task.mobile_layouts import MOBILE_HEAD_PITCH_INIT, MOBILE_LIFT_INIT
+from maniparena_sim.task.mobile_pick_place import MoveBottleToBinTaskCFG, MoveFruitToBasketTaskCFG
 from maniparena_sim.task.put_bottle_on_woodshelf import PutBottleOnWoodshelfTaskCFG
+from maniparena_sim.task.quanta_tabletop_layouts import TABLETOP_ROBOT
 from maniparena_sim.task.sort_blocks import SortBlocksTaskCFG
 
 
@@ -162,10 +171,23 @@ SUPPORTED_TASKS = {
 }
 
 
-def build_task_runtime(task_name: str, scene):
-    if task_name not in SUPPORTED_TASKS:
+# quanta_x1 task table: the mobile tasks and the quanta variants of the shared
+# tabletop ids. The bimanual desktop-arm tasks above are intentionally left untouched.
+QUANTA_X1_TASKS = {
+    "sort_blocks": (SortBlocksTaskCFG, QuantaSortBlocksBuilder),
+    "fruits_to_basket": (FruitsToBasketTaskCFG, QuantaFruitsToBasketBuilder),
+    "move_bottle_to_bin": (MoveBottleToBinTaskCFG, MoveBottleToBinBuilder),
+    "move_fruit_to_basket": (MoveFruitToBasketTaskCFG, MoveFruitToBasketBuilder),
+}
+
+
+def build_task_runtime(task_name: str, scene, robot: str = "bimanual"):
+    if robot == "quanta_x1" and task_name in QUANTA_X1_TASKS:
+        cfg_cls, builder_cls = QUANTA_X1_TASKS[task_name]
+    elif task_name in SUPPORTED_TASKS:
+        cfg_cls, builder_cls = SUPPORTED_TASKS[task_name]
+    else:
         raise ValueError(f"Unsupported task '{task_name}'. Supported: {list(SUPPORTED_TASKS)}")
-    cfg_cls, builder_cls = SUPPORTED_TASKS[task_name]
     task_cfg = cfg_cls(task_type=task_name)
     task = builder_cls().finalize(task_cfg, scene=scene)
     task.config = task_cfg
@@ -652,10 +674,24 @@ def build_eval_gym_env(
 QUANTA_X1_SUPPORTED_TASKS = (
     "sort_blocks",
     "fruits_to_basket",
-    "buttons_contact",
-    "dummy_task",
+    "move_bottle_to_bin",
+    "move_fruit_to_basket",
     "put_bottle_on_woodshelf",
+    "dummy_task",
 )
+
+# Floor-standing (mobile) tasks: construction spawn only, episode resets sample the
+# real base pose in the task event.
+_QUANTA_X1_MOBILE_TASKS = ("move_bottle_to_bin", "move_fruit_to_basket", "put_bottle_on_woodshelf")
+_QUANTA_X1_MOBILE_INIT_POS = (-0.3, 0.0, 0.0)
+_QUANTA_X1_MOBILE_JOINT_POS = {
+    "^(?!lift_joint$|head_pitch_joint$).*": 0.0,
+    "lift_joint": MOBILE_LIFT_INIT,
+    "head_pitch_joint": MOBILE_HEAD_PITCH_INIT,
+}
+
+
+_QUANTA_X1_TABLETOP_TASKS = ("sort_blocks", "fruits_to_basket")
 
 
 def _apply_quanta_x1_task_spawn(embodiment, task_name: str) -> None:
@@ -665,7 +701,18 @@ def _apply_quanta_x1_task_spawn(embodiment, task_name: str) -> None:
     a reset-mode event from ``initial_pose``. Without it, keyboard ``R`` /
     ``gym_env.reset()`` restores joints but leaves the mobile base where it was.
     """
-    if task_name != "put_bottle_on_woodshelf":
+    if task_name in _QUANTA_X1_TABLETOP_TASKS:
+        # Fixed tabletop spawn: ManipArena-style root pose, lift / head from the task layout.
+        spec = TABLETOP_ROBOT[task_name]
+        init_state = embodiment.scene_config.robot.init_state
+        init_state.pos = spec["pos"]
+        init_state.joint_pos = {
+            "^(?!lift_joint$|head_pitch_joint$).*": 0.0,
+            "lift_joint": spec["lift"],
+            "head_pitch_joint": spec["head_pitch"],
+        }
+        return
+    if task_name not in _QUANTA_X1_MOBILE_TASKS:
         return
     from isaaclab_arena.utils.pose import Pose
 
@@ -674,14 +721,16 @@ def _apply_quanta_x1_task_spawn(embodiment, task_name: str) -> None:
         PUT_BOTTLE_QUANTA_X1_INIT_QUAT_XYZW,
     )
 
-    pose = Pose(
-        position_xyz=PUT_BOTTLE_QUANTA_X1_INIT_POS,
-        rotation_xyzw=PUT_BOTTLE_QUANTA_X1_INIT_QUAT_XYZW,
-    )
-    # Construction spawn only; episode reset samples robot/bottle in the task.
-    embodiment.set_initial_pose(pose, create_reset_event=False)
-    embodiment.scene_config.robot.init_state.pos = PUT_BOTTLE_QUANTA_X1_INIT_POS
-    embodiment.scene_config.robot.init_state.rot = PUT_BOTTLE_QUANTA_X1_INIT_QUAT_XYZW
+    if task_name == "put_bottle_on_woodshelf":
+        position, rotation = PUT_BOTTLE_QUANTA_X1_INIT_POS, PUT_BOTTLE_QUANTA_X1_INIT_QUAT_XYZW
+    else:
+        position, rotation = _QUANTA_X1_MOBILE_INIT_POS, (0.0, 0.0, 0.0, 1.0)
+    # Construction spawn only; episode reset samples the base pose in the task.
+    embodiment.set_initial_pose(Pose(position_xyz=position, rotation_xyzw=rotation), create_reset_event=False)
+    init_state = embodiment.scene_config.robot.init_state
+    init_state.pos = position
+    init_state.rot = rotation
+    init_state.joint_pos = dict(_QUANTA_X1_MOBILE_JOINT_POS)
 
 
 def build_quanta_x1_collect_gym_env(
@@ -713,7 +762,7 @@ def build_quanta_x1_collect_gym_env(
 
     enable_cameras = bool(payload.get('enable_cameras', True))
 
-    scene = build_scene(task_name, robot='quanta_x1')
+    scene = build_scene(task_name, robot='quanta_x1', scene_options=payload.get('scene_options'))
     embodiment = QuantaX1Embodiment(enable_cameras=enable_cameras)
     if not enable_cameras:
         embodiment.camera_config = None
@@ -723,7 +772,7 @@ def build_quanta_x1_collect_gym_env(
     else:
         embodiment.action_config = embodiment.ActionsCfgAbsIK()
     _apply_quanta_x1_task_spawn(embodiment, task_name)
-    task = build_task_runtime(task_name, scene)
+    task = build_task_runtime(task_name, scene, robot='quanta_x1')
 
     env_name = f'quanta_x1_{task_name}_collect'
     arena_env = IsaacLabArenaEnvironment(
@@ -744,6 +793,13 @@ def build_quanta_x1_collect_gym_env(
     working_path = str(payload.get('working_path', '~/maniparena_output/recordings/'))
     output_dir = str(Path(os.path.expanduser(working_path)) / env_name)
     Path(output_dir).mkdir(parents=True, exist_ok=True)
+    # QUANTA_X1 teleop writes the raw HDF5 episode and a native LeRobot
+    # parquet dataset together.  ``hdf5`` is an explicit opt-out.
+    recording_format = str(payload.get('format', 'hdf5+lerobot')).strip().lower()
+    dual_recording = recording_format in {
+        'hdf5+lerobot', 'hdf5_lerobot', 'both', 'bimanual_lerobot', 'lerobot',
+    }
+    lerobot_root = str(Path(output_dir) / 'lerobot')
     prefix = f'{env_name}_{control_mode}'
     bootstrap_name = f'{prefix}_bootstrap'
     boot_f = os.path.join(output_dir, f'{bootstrap_name}.hdf5')
@@ -756,7 +812,17 @@ def build_quanta_x1_collect_gym_env(
     env_cfg.recorders.dataset_export_dir_path = output_dir
     env_cfg.recorders.dataset_filename = bootstrap_name
     env_cfg.recorders.dataset_export_mode = DatasetExportMode.EXPORT_ALL
-    env_cfg.recorders.dataset_file_handler_class_type = PlainHDF5DatasetFileHandler
+    if dual_recording:
+        from maniparena_sim.terms.recorders.dataset_handlers.quanta_x1_dual import (
+            create_quanta_x1_dual_handler_type,
+        )
+        env_cfg.recorders.dataset_file_handler_class_type = create_quanta_x1_dual_handler_type(
+            output_root=lerobot_root,
+            task_name=task.get_prompt() or env_name,
+            fps=float(payload.get('step_hz', 20)),
+        )
+    else:
+        env_cfg.recorders.dataset_file_handler_class_type = PlainHDF5DatasetFileHandler
     if enable_cameras:
         env_cfg.recorders.record_camera_obs = PreStepCameraObservationsRecorderCfg()
 
@@ -805,7 +871,8 @@ def build_quanta_x1_collect_gym_env(
     return CollectEnv(
         gym_env=gym_env, task=task, success_term=None,
         env_name=env_name, output_dir=output_dir, embodiment=embodiment,
-        exported_paths=[output_dir], is_direct_lerobot=False, prefix=prefix,
+        exported_paths=[output_dir] + ([lerobot_root] if dual_recording else []),
+        is_direct_lerobot=False, prefix=prefix,
         stream_viewports=payload.get('stream_viewports'),
     )
 
@@ -890,13 +957,13 @@ def build_quanta_x1_eval_gym_env(
     policy_cfg = payload.get('policy_config') or {}
     instruction = policy_cfg.get('instruction')
 
-    scene = build_scene(task_name, robot='quanta_x1')
+    scene = build_scene(task_name, robot='quanta_x1', scene_options=payload.get('scene_options'))
     embodiment = QuantaX1Embodiment(enable_cameras=enable_cameras)
     if not enable_cameras:
         embodiment.camera_config = None
     embodiment.action_config = embodiment.ActionsCfgWallxWholebody()
     _apply_quanta_x1_task_spawn(embodiment, task_name)
-    task = build_task_runtime(task_name, scene)
+    task = build_task_runtime(task_name, scene, robot='quanta_x1')
     _apply_viewer_cfg_override(task, payload)
 
     env_name = f'quanta_x1_{task_name}_eval'
@@ -943,6 +1010,21 @@ def build_quanta_x1_eval_gym_env(
         )
         output_dir = str(Path(os.path.expanduser(working_path)) / env_name)
         Path(output_dir).mkdir(parents=True, exist_ok=True)
+        recording_format = str(payload.get('format', 'hdf5+lerobot')).strip().lower()
+        dual_recording = recording_format in {
+            'hdf5+lerobot', 'hdf5_lerobot', 'both', 'bimanual_lerobot', 'lerobot',
+        }
+        lerobot_root = str(Path(output_dir) / 'lerobot')
+        handler_type = PlainHDF5DatasetFileHandler
+        if dual_recording:
+            from maniparena_sim.terms.recorders.dataset_handlers.quanta_x1_dual import (
+                create_quanta_x1_dual_handler_type,
+            )
+            handler_type = create_quanta_x1_dual_handler_type(
+                output_root=lerobot_root,
+                task_name=str(instruction or task.get_prompt()) or env_name,
+                fps=float(payload.get('step_hz', 20)),
+            )
         prefix = f'{env_name}_eval'
         bootstrap_name = f'{prefix}_bootstrap'
         boot_f = os.path.join(output_dir, f'{bootstrap_name}.hdf5')
@@ -953,15 +1035,15 @@ def build_quanta_x1_eval_gym_env(
             output_dir=output_dir,
             prefix=prefix,
             bootstrap_name=bootstrap_name,
-            exported_paths=[output_dir],
-            handler_type=PlainHDF5DatasetFileHandler,
-            fmt='hdf5',
+            exported_paths=[output_dir] + ([lerobot_root] if dual_recording else []),
+            handler_type=handler_type,
+            fmt='hdf5+lerobot' if dual_recording else 'hdf5',
         )
         configure_env_recorder(
             env_cfg,
             recording,
             enable_cameras=enable_cameras,
-            handler_type=PlainHDF5DatasetFileHandler,
+            handler_type=handler_type,
             export_on_reset=True,
         )
 

@@ -38,8 +38,13 @@ from maniparena_sim.assets import ASSETS_DIR
 from maniparena_sim.embodiment.sensors.update_camera import OpenCVFisheyeCameraCfg
 
 
+# The task/teleoperation embodiment remains on the legacy H-jaw asset.
 _BIMANUAL_GRIPPER_OPEN = 5.717175
 _BIMANUAL_GRIPPER_CLOSE = 0.0
+
+# The SDK uses the manaenv v00.05.05 G-jaw asset.  Keep this separate from the
+# task clamp so changing the SDK contract cannot silently change old tasks.
+BIMANUAL_G_GRIPPER_OPEN = 1.89
 
 
 class ClampedRawGripperAction(joint_actions.JointPositionAction):
@@ -138,7 +143,7 @@ class BimanualEmbodiment(EmbodimentBase):
     class SceneCfg:
         robot: ArticulationCfg = ArticulationCfg(
             spawn=sim_utils.UsdFileCfg(
-                usd_path=os.path.join(ASSETS_DIR, "bimanual_robot", "bimanual_robot.usd"),
+                usd_path=os.path.join(ASSETS_DIR, "bimanual_robot", "bimanual_robot_H.usd"),
                 activate_contact_sensors=True,
                 rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=True),
                 articulation_props=sim_utils.ArticulationRootPropertiesCfg(

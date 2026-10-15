@@ -1,0 +1,9 @@
+task_name: move_fruit_to_basket
+robot: quanta_x1
+enable_cameras: true
+num_envs: 1
+# Optional process-level pool selection; reset ranges match the remote ID task.
+# scene_options:
+#   seed: 42
+#   fruit: apple_01
+#   basket: basket_01
