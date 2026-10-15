@@ -127,7 +127,9 @@ QUANTA_X2 = SdkProfile(
 )
 ARTIXON_ARM_6A = SdkProfile(
     name="artixon_arm_6a",
-    base_body_name="base",
+    # The complete manaenv G-jaw desktop USD authors the fixed root as
+    # ``base_link`` (the legacy H asset used ``base``).
+    base_body_name="base_link",
     arm_joint_names=tuple(tuple(f"{side}_arm_joint{i}" for i in range(1, 7)) for side in ("left", "right")),
     flange_names=("left_arm_link6", "right_arm_link6"),
     gripper_joint_names=("left_arm_gripper", "right_arm_gripper"),

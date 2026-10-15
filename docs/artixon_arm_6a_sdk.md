@@ -1,7 +1,11 @@
 # ArtiXon Arm-6A SDK ROS2
 
 ArtiXon Arm-6A 是仓库已有桌面双臂的公开名称，直接复用 `BimanualEmbodiment`
-和 `assets/bimanual_robot/bimanual_robot.usd`，SDK 层配置法兰坐标和控制接口。
+和 `assets/bimanual_robot/bimanual_robot_G.usd`，SDK 层配置法兰坐标和控制接口。
+
+桌面 SDK 默认使用随仓库提供的完整 G 夹爪 USD（`bimanual_robot_G.usd`，夹爪开位
+置 0–1.89 rad）。旧桌面任务仍使用 `bimanual_robot_H.usd`（0–5.717175 rad），
+两条链路互不改写。
 默认加载抓水果的桌面场景，但任务为空：没有成功判定、超时或自动重置，也不录制数据。
 依赖和环境安装见 [安装说明](install.md)。
 
@@ -32,7 +36,7 @@ python scripts/sdk_ros2.py --robot artixon_arm_6a --viz kit
 | --- | --- | --- |
 | 末端指令（ee） | `/left_arm_cartesian_controller/pose_cmd`、`/right_arm_cartesian_controller/pose_cmd` | `PoseStamped`，`base_link` 下绝对法兰位姿 |
 | 关节指令（joint） | `/left_arm_joint_controller/commands`、`/right_arm_joint_controller/commands` | `Float64MultiArray`，每臂 6 值 |
-| 夹爪指令 | `/left_gripper_controller/commands`、`/right_gripper_controller/commands` | `Float64MultiArray`，单值 0–5.717175 |
+| 夹爪指令 | `/left_gripper_controller/commands`、`/right_gripper_controller/commands` | `Float64MultiArray`，单值 0–1.89 |
 | 双臂状态 | `/left_arm/joint_states`、`/right_arm/joint_states` | `JointState` |
 | 法兰状态 | `/left_arm/end_pose`、`/right_arm/end_pose` | `PoseStamped`，`base_link` 下绝对位姿 |
 | 夹爪状态 | `/left_gripper/joint_states`、`/right_gripper/joint_states` | `JointState` |

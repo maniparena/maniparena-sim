@@ -25,7 +25,9 @@ def resolve_sdk_usd_path(robot_type: str, robot_cfg: dict) -> str:
     default = {
         "quanta_x1": Path(ASSETS_DIR) / "quanta_x1" / "quanta_x1.usd",
         "quanta_x2": Path(ASSETS_DIR) / "quanta_x2" / "quanta_x2.usd",
-        "artixon_arm_6a": Path(ASSETS_DIR) / "bimanual_robot" / "bimanual_robot.usd",
+        # ArtiXon Arm-6A SDK is the G-jaw desktop contract.  The legacy H-jaw
+        # asset remains available to the task/teleoperation embodiment.
+        "artixon_arm_6a": Path(ASSETS_DIR) / "bimanual_robot" / "bimanual_robot_G.usd",
     }[robot_type]
     value = str(robot_cfg.get("usd_path") or default).strip()
     if urlparse(value).scheme in {"http", "https", "omniverse"}:
@@ -91,6 +93,15 @@ def _configure_bimanual_sdk(embodiment, arm_control: str) -> None:
         actions.gripper_action = embodiment.action_config.gripper_action
         actions.right_gripper_action = embodiment.action_config.right_gripper_action
         embodiment.action_config = actions
+    # Both EE and joint SDK modes send the raw drive angle.  Clamp the command
+    # at the G-jaw's 1.89 rad open position; the embodiment's default H-jaw
+    # clamp is intentionally retained for all non-SDK task paths.
+    from maniparena_sim.embodiment.robots.bimanual import BIMANUAL_G_GRIPPER_OPEN
+
+    for name in ("gripper_action", "right_gripper_action"):
+        action = getattr(embodiment.action_config, name)
+        if hasattr(action, "clamp_max"):
+            action.clamp_max = BIMANUAL_G_GRIPPER_OPEN
     for side, term_name in (("left", "arm_action"), ("right", "right_arm_action")):
         arm = getattr(embodiment.action_config, term_name)
         arm.joint_names = [f"{side}_arm_joint{i}" for i in range(1, 7)]
