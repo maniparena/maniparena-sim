@@ -1,12 +1,10 @@
 # ArtiXon Arm-6A SDK ROS2
 
-ArtiXon Arm-6A 是仓库已有桌面双臂的公开名称，直接复用 `BimanualEmbodiment`
-和 `assets/bimanual_robot/bimanual_robot_G.usd`，SDK 层配置法兰坐标和控制接口。
+桌面 SDK 使用 `assets/bimanual_robot/bimanual_robot_G.usd`，夹爪指令范围为
+`0–1.89 rad`。桌面任务继续使用 `bimanual_robot_H.usd`，夹爪范围为
+`0–5.717175 rad`。
 
-桌面 SDK 默认使用随仓库提供的完整 G 夹爪 USD（`bimanual_robot_G.usd`，夹爪开位
-置 0–1.89 rad）。旧桌面任务仍使用 `bimanual_robot_H.usd`（0–5.717175 rad），
-两条链路互不改写。
-默认加载抓水果的桌面场景，但任务为空：没有成功判定、超时或自动重置，也不录制数据。
+SDK 默认打开水果桌面场景。场景不设置任务目标、成功条件或自动重置，也不录制数据。
 依赖和环境安装见 [安装说明](install.md)。
 
 ## 启动
