@@ -14,14 +14,11 @@
 | `move_fruit_to_basket` | 移动 | 将水果桌上的水果放入另一张桌上的篮子 |
 | `put_bottle_on_woodshelf` | 移动 | 将桌上的瓶子放到木架上 |
 
-物体位置每回合随机，移动任务的机器人起点同样随机。成功条件为物体放入目标后双臂回到初始姿态。五个 QUANTA_X1 任务都支持键盘、Vuer WebXR 和 `vr` 别名；`--control-mode vr` 与 `--control-mode vuer` 使用同一条 Vuer 控制链。`buttons_contact` 仅支持 bimanual。
+五个任务都支持键盘和 Vuer WebXR，`vr` 是 `vuer` 的别名。每回合物体随机，移动任务的机器人起点也随机；成功条件是物体到达目标且双臂回到初始姿态。
 
-固定底盘任务使用 `assets/green_booth/`，移动任务使用 `assets/put_bottle_on_woodshelf/` 和 `assets/mobile_manip/`（垃圾桶、瓶子、水果、篮子，成员见 `assets/mobile_manip/pools.json`）。
+固定底盘任务使用 `assets/green_booth/`；移动任务使用 `assets/put_bottle_on_woodshelf/` 和 `assets/mobile_manip/`。`move_bottle_to_bin`、`move_fruit_to_basket` 的对象默认从对象池随机选择，并在当前进程内保持不变；可通过 `scene_options.seed`、`bottle`、`fruit`、`basket` 指定。
 
-`move_bottle_to_bin` 和 `move_fruit_to_basket` 的瓶子、水果、篮子在一个进程内固定为池中的一个，默认随机选取，可在评测配置里通过 `scene_options`（`seed`、`bottle`、`fruit`、`basket`）指定。
-
-底盘差速使用仿真有效几何：`wheel_radius=0.084`、`wheel_track_width=0.458`
-（见 `embodiment/robots/quanta_x1.py`）。Wall-X 全身推理（21D，含 head/lift/底盘）入口：
+底盘参数：`wheel_radius=0.084`、`wheel_track_width=0.458`。Wall-X 全身推理（21D，含 head/lift/底盘）入口：
 
 ```bash
 python scripts/eval.py \
