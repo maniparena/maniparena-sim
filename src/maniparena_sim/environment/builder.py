@@ -793,6 +793,13 @@ def build_quanta_x1_collect_gym_env(
     working_path = str(payload.get('working_path', '~/maniparena_output/recordings/'))
     output_dir = str(Path(os.path.expanduser(working_path)) / env_name)
     Path(output_dir).mkdir(parents=True, exist_ok=True)
+    # QUANTA_X1 teleop writes the raw HDF5 episode and a native LeRobot
+    # parquet dataset together.  ``hdf5`` is an explicit opt-out.
+    recording_format = str(payload.get('format', 'hdf5+lerobot')).strip().lower()
+    dual_recording = recording_format in {
+        'hdf5+lerobot', 'hdf5_lerobot', 'both', 'bimanual_lerobot', 'lerobot',
+    }
+    lerobot_root = str(Path(output_dir) / 'lerobot')
     prefix = f'{env_name}_{control_mode}'
     bootstrap_name = f'{prefix}_bootstrap'
     boot_f = os.path.join(output_dir, f'{bootstrap_name}.hdf5')
@@ -805,7 +812,17 @@ def build_quanta_x1_collect_gym_env(
     env_cfg.recorders.dataset_export_dir_path = output_dir
     env_cfg.recorders.dataset_filename = bootstrap_name
     env_cfg.recorders.dataset_export_mode = DatasetExportMode.EXPORT_ALL
-    env_cfg.recorders.dataset_file_handler_class_type = PlainHDF5DatasetFileHandler
+    if dual_recording:
+        from maniparena_sim.terms.recorders.dataset_handlers.quanta_x1_dual import (
+            create_quanta_x1_dual_handler_type,
+        )
+        env_cfg.recorders.dataset_file_handler_class_type = create_quanta_x1_dual_handler_type(
+            output_root=lerobot_root,
+            task_name=task.get_prompt() or env_name,
+            fps=float(payload.get('step_hz', 20)),
+        )
+    else:
+        env_cfg.recorders.dataset_file_handler_class_type = PlainHDF5DatasetFileHandler
     if enable_cameras:
         env_cfg.recorders.record_camera_obs = PreStepCameraObservationsRecorderCfg()
 
@@ -854,7 +871,8 @@ def build_quanta_x1_collect_gym_env(
     return CollectEnv(
         gym_env=gym_env, task=task, success_term=None,
         env_name=env_name, output_dir=output_dir, embodiment=embodiment,
-        exported_paths=[output_dir], is_direct_lerobot=False, prefix=prefix,
+        exported_paths=[output_dir] + ([lerobot_root] if dual_recording else []),
+        is_direct_lerobot=False, prefix=prefix,
         stream_viewports=payload.get('stream_viewports'),
     )
 
@@ -992,6 +1010,21 @@ def build_quanta_x1_eval_gym_env(
         )
         output_dir = str(Path(os.path.expanduser(working_path)) / env_name)
         Path(output_dir).mkdir(parents=True, exist_ok=True)
+        recording_format = str(payload.get('format', 'hdf5+lerobot')).strip().lower()
+        dual_recording = recording_format in {
+            'hdf5+lerobot', 'hdf5_lerobot', 'both', 'bimanual_lerobot', 'lerobot',
+        }
+        lerobot_root = str(Path(output_dir) / 'lerobot')
+        handler_type = PlainHDF5DatasetFileHandler
+        if dual_recording:
+            from maniparena_sim.terms.recorders.dataset_handlers.quanta_x1_dual import (
+                create_quanta_x1_dual_handler_type,
+            )
+            handler_type = create_quanta_x1_dual_handler_type(
+                output_root=lerobot_root,
+                task_name=str(instruction or task.get_prompt()) or env_name,
+                fps=float(payload.get('step_hz', 20)),
+            )
         prefix = f'{env_name}_eval'
         bootstrap_name = f'{prefix}_bootstrap'
         boot_f = os.path.join(output_dir, f'{bootstrap_name}.hdf5')
@@ -1002,15 +1035,15 @@ def build_quanta_x1_eval_gym_env(
             output_dir=output_dir,
             prefix=prefix,
             bootstrap_name=bootstrap_name,
-            exported_paths=[output_dir],
-            handler_type=PlainHDF5DatasetFileHandler,
-            fmt='hdf5',
+            exported_paths=[output_dir] + ([lerobot_root] if dual_recording else []),
+            handler_type=handler_type,
+            fmt='hdf5+lerobot' if dual_recording else 'hdf5',
         )
         configure_env_recorder(
             env_cfg,
             recording,
             enable_cameras=enable_cameras,
-            handler_type=PlainHDF5DatasetFileHandler,
+            handler_type=handler_type,
             export_on_reset=True,
         )
 

@@ -112,8 +112,10 @@ teleop_config:
 ## 录制输出
 
 - 默认目录：`~/maniparena_output/recordings/quanta_x1_<task>_collect/`
-- 格式：HDF5 episode + sidecar MP4（左腕 / 右腕 / 头部 RGB 相机；底盘深度相机不写入 MP4）
+- 格式：每个 episode 同时写 HDF5 和 `lerobot/` 下的 LeRobot parquet；相机仍写为 HDF5 同目录的 sidecar MP4（左腕 / 右腕 / 头部 RGB，相机深度不写入 MP4）
 - HDF5 每帧保存 action、processed action、机器人状态、物体状态和观测；QUANTA_X1 遥操 action 为 19D，评测 action 为 21D
+- LeRobot 的 `action` 保留遥操实际 19D；`observation.state` 保存 23D 关节状态，不需要再做格式转换。若只需旧的 HDF5 输出，可在采集 YAML 中设置 `format: "hdf5"`。
+- QUANTA_X1 评测记录同样双写；评测 LeRobot `action` 为 21D，并包含额外的 `head_yaw` / `head_pitch` 两列。
 - 帧率：由配置 `step_hz` 决定，当前统一为 **20 Hz**
 
 示例：
@@ -121,6 +123,9 @@ teleop_config:
 ```text
 ~/maniparena_output/recordings/quanta_x1_fruits_to_basket_collect/
   quanta_x1_fruits_to_basket_collect_vr_episode0.hdf5
+  lerobot/
+    data/chunk-000/episode_000000.parquet
+    meta/info.json
   quanta_x1_fruits_to_basket_collect_vr_episode0_videos/
     ...
 ```
