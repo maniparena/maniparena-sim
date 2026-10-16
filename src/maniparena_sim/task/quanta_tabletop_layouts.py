@@ -16,7 +16,7 @@ TABLETOP_ROBOT = {
 # --- sort_blocks -------------------------------------------------------------------
 # Bricks rest on the table top (z fixed); resets draw all three jointly from one absolute
 # region. Papers are fixed ManipArena poses (scale 0.8, yaw +90 deg) 1.5 mm above the table.
-SORT_BRICK_Z = -0.213
+SORT_BRICK_Z = -0.234  # brick USD origin is at its bottom: rests on the table top (-0.235)
 SORT_BRICK_LOAD_POSES = [  # yellow, green, red (inside the region, apart by >= 0.11)
     (0.05, -0.16, SORT_BRICK_Z),
     (0.05, -0.26, SORT_BRICK_Z),
@@ -65,7 +65,7 @@ FRUIT_NOMINAL_LOAD_POSES = {
     "pear": (0.04, -0.62, FRUIT_Z),
     "bread": (0.20, -0.55, FRUIT_Z),
 }
-# basket_b: scale 0.7 (asset ``platform_pink_2``), kinematic, yaw +90 deg.
+# basket_b: manaenv scale 0.7 == platform_pink x 0.56 (asset ``platform_pink_2``), kinematic, yaw +90 deg.
 QUANTA_BASKET_POSE = (0.11, -0.26, -0.232)
 FRUIT_PLACE_GATE = {
     "xy_inset_ratio": 0.05,

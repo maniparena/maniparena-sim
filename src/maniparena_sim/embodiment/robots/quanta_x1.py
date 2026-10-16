@@ -46,6 +46,7 @@ from isaaclab_arena.utils.pose import Pose
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
 from maniparena_sim.assets import ASSETS_DIR
+from maniparena_sim.embodiment.actions.lift_frame_ik import LiftFrameDiffIKActionCfg
 from maniparena_sim.embodiment.actions.safe_effort_overlay import SafeEffortOverlayActionCfg
 from maniparena_sim.embodiment.sensors.update_camera import (
     OpenCVFisheyeCameraCfg,
@@ -84,6 +85,24 @@ _QUANTA_X1_HEAD_CMD_OFFSET = {"head_pitch_joint": _QUANTA_X1_HEAD_PITCH_CMD_OFFS
 # compensated caster drag.
 QUANTA_X1_WHEEL_RADIUS_M = 0.0845
 QUANTA_X1_WHEEL_TRACK_WIDTH_M = 0.415
+
+# Head (faceImg) view of the data-collection robot: 1280x720 calibrated pinhole
+# (same intrinsics as manaenv ex001 head front camera). The 16:9 view matters for
+# Wall-X: the server resizes the long side to 448, so a 4:3 head image costs more
+# image tokens than training and overflows max_length on long instructions.
+_QUANTA_X1_HEAD_VIEW = dict(
+    width=1280,
+    height=720,
+    fx=720.3193,
+    fy=719.8599,
+    cx=640.3909,
+    cy=351.073,
+    distortion_coefficients=[
+        -0.01953918673098087, 0.00478989025577903,
+        0.0005033669294789433, -0.00021549213852267712,
+        0.0, 0.0, 0.0, 0.0,
+    ],
+)
 
 QUANTA_X1_DIFF_DRIVE_KEYBOARD_CFG = DifferentialDriveKeyboardControllerCfg(
     mode_name="quanta_x1_differential",
@@ -162,7 +181,9 @@ class QuantaX1Embodiment(EmbodimentBase):
             actuators={
                 "wheels": ImplicitActuatorCfg(
                     joint_names_expr=["left_wheel_joint", "right_wheel_joint"],
-                    effort_limit=500.0, velocity_limit=200.0, stiffness=0.0, damping=1000.0,
+                    # Wheel drive strength of the data-collection robot (manaenv ex001: effort 5000,
+                    # damping 5000). Weaker wheels let the base drift when the arms move.
+                    effort_limit=5000.0, velocity_limit=200.0, stiffness=0.0, damping=5000.0,
                 ),
                 "lift_acts": ImplicitActuatorCfg(
                     joint_names_expr=["lift_joint"],
@@ -266,14 +287,16 @@ class QuantaX1Embodiment(EmbodimentBase):
 
         Layout: ``[L_pos(3), L_quat(4), L_grip(1), R_pos(3), R_quat(4), R_grip(1),
         L_wheel(1), R_wheel(1), lift(1), head_yaw(1), head_pitch(1)]``.
+
+        Arm poses are in the ``lift_link`` frame, so lift motion does not move arm targets.
         """
 
-        arm_action: ActionTermCfg = DifferentialInverseKinematicsActionCfg(
+        arm_action: ActionTermCfg = LiftFrameDiffIKActionCfg(
             asset_name="robot", joint_names=["left_arm_joint[1-6]"], body_name="left_arm_gripper_base_link",
             controller=DifferentialIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="dls"), scale=1.0,
         )
         gripper_action: ActionTermCfg = ClampedRawGripperActionCfg(asset_name="robot", joint_names=["left_arm_gripper"], scale=1.0, offset=0.0, use_default_offset=False)
-        right_arm_action: ActionTermCfg = DifferentialInverseKinematicsActionCfg(
+        right_arm_action: ActionTermCfg = LiftFrameDiffIKActionCfg(
             asset_name="robot", joint_names=["right_arm_joint[1-6]"], body_name="right_arm_gripper_base_link",
             controller=DifferentialIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="dls"), scale=1.0,
         )
@@ -483,6 +506,25 @@ class QuantaX1Embodiment(EmbodimentBase):
                 "normalize": False,
             },
         )
+
+    def use_dataset_head_view(self) -> None:
+        """Eval-only: render the head camera like the training data (1280x720, calibrated)."""
+        if self.camera_config is None:
+            return
+        head = self.camera_config.head_camera
+        head.width = _QUANTA_X1_HEAD_VIEW["width"]
+        head.height = _QUANTA_X1_HEAD_VIEW["height"]
+        head.spawn = OpenCVPinholeCameraCfg(clipping_range=(0.03, 1.0e5), **_QUANTA_X1_HEAD_VIEW)
+
+    def disable_chassis_depth(self) -> None:
+        """Eval-only: drop the depth-only chassis camera (SDK/collect keep it).
+
+        A depth-only camera makes Isaac Lab's RTX renderer set
+        ``/rtx/sdg/force/disableColorRender``, which blanks the RGB cameras too.
+        """
+        if self.camera_config is not None:
+            self.camera_config.chassis_camera = None
+        self._camera_observation_config.camera_obs.chassis_cam = None
 
     def get_observation_cfg(self):
         if self.enable_cameras:
