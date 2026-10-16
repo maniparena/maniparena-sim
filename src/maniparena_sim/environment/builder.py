@@ -892,17 +892,10 @@ def build_quanta_x1_sdk_ros2_gym_env(
 
     from maniparena_sim.embodiment.robots.quanta_x1 import QuantaX1Embodiment
 
-    from maniparena_sim.environment.sdk_builder import (
-        apply_actuator_overrides,
-        build_flat_sdk_scene,
-        sdk_scene_choice,
-    )
+    from maniparena_sim.environment.sdk_builder import apply_actuator_overrides
 
     enable_cameras = True
-    if sdk_scene_choice(payload, 'quanta_x1') == 'flat':
-        scene = build_flat_sdk_scene()
-    else:
-        scene = build_scene('dummy_task', robot='quanta_x1')
+    scene = build_scene('dummy_task', robot='quanta_x1')
     embodiment = QuantaX1Embodiment(enable_cameras=enable_cameras)
     embodiment.enable_head_depth()
     robot_cfg = payload.get('robot') or {}
@@ -921,14 +914,7 @@ def build_quanta_x1_sdk_ros2_gym_env(
         embodiment.action_config = embodiment.ActionsCfgSdkEe()
     else:
         embodiment.action_config = embodiment.ActionsCfgSdkRos2()
-    if sdk_scene_choice(payload, 'quanta_x1') == 'flat':
-        from maniparena_sim.task.dummy_task import DummyTask, DummyTaskTerminationsCfg
-
-        # The flat scene has no background asset; DummyTask only stores it.
-        task = DummyTask(background_scene=None)
-        task.termination_cfg = DummyTaskTerminationsCfg()
-    else:
-        task = build_task_runtime('dummy_task', scene)
+    task = build_task_runtime('dummy_task', scene)
     _apply_viewer_cfg_override(task, payload)
 
     env_name = 'quanta_x1_sdk_ros2'

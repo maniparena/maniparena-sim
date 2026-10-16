@@ -17,30 +17,6 @@ SUPPORTED_SDK_ROBOTS = (
 )
 
 
-def sdk_scene_choice(payload: dict, robot_type: str) -> str:
-    """``scene``: ``default`` (task scene) or ``flat`` (obstacle-free ground plane, mobile bases only)."""
-    choice = str(payload.get("scene", "default")).strip().lower()
-    if choice not in ("default", "flat"):
-        raise ValueError("scene must be 'default' or 'flat'.")
-    if choice == "flat" and robot_type not in ("quanta_x1", "quanta_x2"):
-        raise ValueError("scene: flat is only available for the mobile SDK robots.")
-    return choice
-
-
-def build_flat_sdk_scene():
-    """Ground plane + light; the default nav_f16 scene has walls next to the mobile-base spawn."""
-    from isaaclab_arena.assets.registries import AssetRegistry
-    from isaaclab_arena.scene.scene import Scene
-
-    from maniparena_sim.environment.registry import bootstrap_arena_registry
-    from maniparena_sim.environment.scene_builder import _attach_render_settings
-
-    bootstrap_arena_registry()
-    registry = AssetRegistry()
-    scene = Scene(assets=[registry.get_asset_by_name("ground_plane")(), registry.get_asset_by_name("light")()])
-    return _attach_render_settings(scene, settings_name="nav_f16")
-
-
 def apply_actuator_overrides(embodiment, robot_cfg: dict) -> None:
     """Optional ``robot.actuator_overrides: {group: {attr: value}}`` for drive-parameter experiments."""
     overrides = robot_cfg.get("actuator_overrides") or {}
@@ -246,7 +222,7 @@ def build_sdk_ros2_gym_env(payload: dict, headless: bool = False, device: str = 
     apply_actuator_overrides(embodiment, robot_cfg)
 
     scene_name = "fruits_to_basket" if robot_type.startswith("artixon_arm_6a") else "dummy_task"
-    scene = build_flat_sdk_scene() if sdk_scene_choice(payload, robot_type) == "flat" else build_scene(scene_name)
+    scene = build_scene(scene_name)
     task = SdkTask()
     _apply_viewer_cfg_override(task, payload)
     arena_env = IsaacLabArenaEnvironment(
