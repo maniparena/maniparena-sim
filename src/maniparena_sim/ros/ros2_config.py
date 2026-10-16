@@ -84,9 +84,10 @@ class QuantaX1RosConfig:
     CHASSIS_CONTROL_CONFIG = {
         "control_mode": "differential",
         "wheel_joint_names": ("left_wheel_joint", "right_wheel_joint"),
-        # Sim-effective QUANTA_X1 geometry (older nominal 0.078 / 0.48 over-drives).
-        "wheel_radius": 0.084,
-        "wheel_track_width": 0.458,
+        # Drive-wheel collision geometry (sphere r=0.0845 m at y=+-0.2075 m). The former 0.084 / 0.458
+        # compensated slip from the casters, which no longer drag (friction combine mode "min").
+        "wheel_radius": 0.0845,
+        "wheel_track_width": 0.415,
     }
 
     KEYBOARD_MOVEMENT_CONFIG = {

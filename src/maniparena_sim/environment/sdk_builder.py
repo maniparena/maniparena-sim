@@ -17,6 +17,28 @@ SUPPORTED_SDK_ROBOTS = (
 )
 
 
+def apply_actuator_overrides(embodiment, robot_cfg: dict) -> None:
+    """Optional ``robot.actuator_overrides: {group: {attr: value}}`` for drive-parameter experiments."""
+    overrides = robot_cfg.get("actuator_overrides") or {}
+    actuators = embodiment.scene_config.robot.actuators
+    for group, attrs in overrides.items():
+        if group not in actuators:
+            raise ValueError(f"Unknown actuator group {group!r}; expected one of {sorted(actuators)}.")
+        for attr, value in (attrs or {}).items():
+            if not hasattr(actuators[group], attr):
+                raise ValueError(f"Actuator group {group!r} has no attribute {attr!r}.")
+            value = float(value)
+            if not math.isfinite(value) or value < 0:
+                raise ValueError(f"robot.actuator_overrides.{group}.{attr} must be finite and nonnegative.")
+            setattr(actuators[group], attr, value)
+    # Optional ``robot.articulation_overrides: {solver_position_iteration_count: int, ...}``.
+    props = embodiment.scene_config.robot.spawn.articulation_props
+    for attr, value in (robot_cfg.get("articulation_overrides") or {}).items():
+        if not hasattr(props, attr):
+            raise ValueError(f"articulation_props has no attribute {attr!r}.")
+        setattr(props, attr, int(value) if "iteration" in attr else value)
+
+
 def sdk_robot_type(payload: dict) -> str:
     robot = payload.get("robot") or {}
     value = robot.get("type", "quanta_x1") if isinstance(robot, dict) else robot
@@ -197,6 +219,7 @@ def build_sdk_ros2_gym_env(payload: dict, headless: bool = False, device: str = 
             embodiment.camera_config = None
         _configure_single_arm_sdk(embodiment, arm_control)
     _configure_robot(embodiment, robot_cfg)
+    apply_actuator_overrides(embodiment, robot_cfg)
 
     scene_name = "fruits_to_basket" if robot_type.startswith("artixon_arm_6a") else "dummy_task"
     scene = build_scene(scene_name)

@@ -196,7 +196,8 @@ class QuantaX2SceneCfg:
             "wheels": ImplicitActuatorCfg(
                 joint_names_expr=[".*wheel.*"],
                 effort_limit_sim=5000.0,
-                velocity_limit_sim=5.0,
+                # 5 rad/s capped the base at ~0.42 m/s (0.5 m/s command -> 0.41 m/s measured).
+                velocity_limit_sim=10.0,
                 stiffness=0.0,
                 damping=5000.0,
             ),

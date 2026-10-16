@@ -79,10 +79,11 @@ _QUANTA_X1_HEAD_KD = 150.0
 _QUANTA_X1_HEAD_PITCH_CMD_OFFSET = 0.00616
 _QUANTA_X1_HEAD_CMD_OFFSET = {"head_pitch_joint": _QUANTA_X1_HEAD_PITCH_CMD_OFFSET}
 
-# Sim-effective QUANTA_X1 wheel geometry. Older nominal 0.078 / 0.48 over-drives
-# the simulated base.
-QUANTA_X1_WHEEL_RADIUS_M = 0.084
-QUANTA_X1_WHEEL_TRACK_WIDTH_M = 0.458
+# QUANTA_X1 drive-wheel collision geometry (sphere r=0.0845 m at y=+-0.2075 m in the USD).
+# Valid with the frictionless casters (friction combine mode "min"); the former 0.084 / 0.458
+# compensated caster drag.
+QUANTA_X1_WHEEL_RADIUS_M = 0.0845
+QUANTA_X1_WHEEL_TRACK_WIDTH_M = 0.415
 
 QUANTA_X1_DIFF_DRIVE_KEYBOARD_CFG = DifferentialDriveKeyboardControllerCfg(
     mode_name="quanta_x1_differential",
