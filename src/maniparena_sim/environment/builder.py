@@ -892,10 +892,25 @@ def build_quanta_x1_sdk_ros2_gym_env(
 
     from maniparena_sim.embodiment.robots.quanta_x1 import QuantaX1Embodiment
 
+    from maniparena_sim.environment.sdk_builder import (
+        apply_actuator_overrides,
+        build_flat_sdk_scene,
+        sdk_scene_choice,
+    )
+
     enable_cameras = True
-    scene = build_scene('dummy_task', robot='quanta_x1')
+    if sdk_scene_choice(payload, 'quanta_x1') == 'flat':
+        scene = build_flat_sdk_scene()
+    else:
+        scene = build_scene('dummy_task', robot='quanta_x1')
     embodiment = QuantaX1Embodiment(enable_cameras=enable_cameras)
     embodiment.enable_head_depth()
+    robot_cfg = payload.get('robot') or {}
+    if robot_cfg.get('usd_path'):
+        from maniparena_sim.environment.sdk_builder import resolve_sdk_usd_path
+
+        embodiment.scene_config.robot.spawn.usd_path = resolve_sdk_usd_path('quanta_x1', robot_cfg)
+    apply_actuator_overrides(embodiment, robot_cfg)
     # SDK ROS2 spawns on the floor: drop the tabletop z-offset so the base sits at z=0.
     _p = embodiment.scene_config.robot.init_state.pos
     embodiment.scene_config.robot.init_state.pos = (_p[0], _p[1], 0.0)
@@ -906,7 +921,14 @@ def build_quanta_x1_sdk_ros2_gym_env(
         embodiment.action_config = embodiment.ActionsCfgSdkEe()
     else:
         embodiment.action_config = embodiment.ActionsCfgSdkRos2()
-    task = build_task_runtime('dummy_task', scene)
+    if sdk_scene_choice(payload, 'quanta_x1') == 'flat':
+        from maniparena_sim.task.dummy_task import DummyTask, DummyTaskTerminationsCfg
+
+        # The flat scene has no background asset; DummyTask only stores it.
+        task = DummyTask(background_scene=None)
+        task.termination_cfg = DummyTaskTerminationsCfg()
+    else:
+        task = build_task_runtime('dummy_task', scene)
     _apply_viewer_cfg_override(task, payload)
 
     env_name = 'quanta_x1_sdk_ros2'

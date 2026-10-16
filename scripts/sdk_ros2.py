@@ -188,10 +188,15 @@ def main(args: argparse.Namespace | None = None) -> int:
     cc = (
         QuantaX1RosConfig.CHASSIS_CONTROL_CONFIG
         if profile == "quanta_x1"
-        else {"wheel_radius": 0.078, "wheel_track_width": 0.48}
+        # quanta_x2 drive-wheel collision geometry: radius 0.085 m, contact spheres at y = +-0.207 m.
+        else {"wheel_radius": 0.085, "wheel_track_width": 0.414}
     )
-    wheel_radius = float(cc["wheel_radius"])
-    wheel_track = float(cc["wheel_track_width"])
+    # Optional ``chassis: {wheel_radius, wheel_track_width}`` override (twist -> wheel speed conversion).
+    chassis_cfg = payload.get("chassis") or {}
+    wheel_radius = float(chassis_cfg.get("wheel_radius", cc["wheel_radius"]))
+    wheel_track = float(chassis_cfg.get("wheel_track_width", cc["wheel_track_width"]))
+    if not (wheel_radius > 0 and wheel_track > 0):
+        raise ValueError("chassis.wheel_radius and chassis.wheel_track_width must be positive.")
 
     def _twist_to_wheels(lin_x: float, ang_z: float) -> tuple[float, float]:
         left = (lin_x - 0.5 * ang_z * wheel_track) / wheel_radius
