@@ -204,9 +204,9 @@ Wall-X 闭环评测中的头部相机视角（加速播放）：
 
 ![quanta_x1 Wall-X eval sort_blocks](../media/quanta_x1_wallx_eval_sort_blocks.gif)
 
-`move_bottle_to_bin`：
+`put_bottle_on_woodshelf`：
 
-![quanta_x1 Wall-X eval move_bottle_to_bin](../media/quanta_x1_wallx_eval_move_bottle_to_bin.gif)
+![quanta_x1 Wall-X eval put_bottle_on_woodshelf](../media/quanta_x1_wallx_eval_put_bottle_on_woodshelf.gif)
 
 ---
 
