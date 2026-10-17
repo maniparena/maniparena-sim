@@ -1,0 +1,26 @@
+enable_cameras: true
+enable_recording: true
+num_envs: 1
+num_episodes: 10
+# Per-episode hard limit in eval.py (timeout -> reset + count 1 episode).
+max_steps: 800
+working_path: "~/maniparena_output/eval/"
+# Fixed perspective recorder (independent of Kit viewport drag).
+video_recorder:
+  backend_source: renderer
+  window_width: 1280
+  window_height: 720
+# One mp4 per eval episode (--video); use video_mode: step for fixed step clips.
+video_mode: episode
+
+policy_config:
+  model_address: "localhost"
+  model_port: 8000
+  instruction: "Put the apple, banana and pear into the basket, leave the bread on the table, then return both arms home."
+  action_horizon: 32
+  action_chunk_length: 32
+  interpolation_multiplier: 1.5
+  # follow* is already init-relative on the Wall-X wire; keep false.
+  ee_pose_normalize: false
+  pos_gain: 1.0
+  rot_gain: 1.0

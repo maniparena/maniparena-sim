@@ -136,17 +136,29 @@ QUANTA_X1 支持使用开源的 [Wall-X](https://github.com/X-Square-Robot/wall-
 
 ## 运行
 
-先启动 Wall-X 推理服务，再运行：
+先启动 Wall-X 推理服务，再运行（以 `put_bottle_on_woodshelf` 为例）：
 
 ```bash
 python scripts/eval.py \
   --robot quanta_x1 --task put_bottle_on_woodshelf \
   --config configs/eval/quanta_x1_put_bottle.yaml \
   --server-address 127.0.0.1 --server-port 8000 \
-  --headless --enable_cameras --device cuda:0
+  --viz kit
 ```
 
-`--task` 可选 `sort_blocks`、`fruits_to_basket`、`move_bottle_to_bin`、`move_fruit_to_basket`、`put_bottle_on_woodshelf`。仓库提供 `quanta_x1_put_bottle.yaml`、`quanta_x1_move_bottle_to_bin.yaml`、`quanta_x1_move_fruit_to_basket.yaml` 三份配置；固定底盘的两个任务可沿用相同的 `policy_config`，并将 `max_steps` 设为 2400。回合超时后环境重置并计为一个回合。
+需要 Kit 视口时使用 `--viz kit`；批量评测无需界面时改用 `--viz none`。
+
+每个任务对应的配置文件：
+
+| `--task` | `--config` | `max_steps` |
+|----------|-----------|-------------|
+| `sort_blocks` | `configs/eval/quanta_x1_sort_blocks.yaml` | 800 |
+| `fruits_to_basket` | `configs/eval/quanta_x1_fruits_to_basket.yaml` | 800 |
+| `move_bottle_to_bin` | `configs/eval/quanta_x1_move_bottle_to_bin.yaml` | 3000 |
+| `move_fruit_to_basket` | `configs/eval/quanta_x1_move_fruit_to_basket.yaml` | 3000 |
+| `put_bottle_on_woodshelf` | `configs/eval/quanta_x1_put_bottle.yaml` | 3000 |
+
+回合超时后环境重置并计为一个回合。`--server-address` / `--server-port` 指向 Wall-X 推理服务。
 
 ## 评测设置
 
@@ -157,7 +169,7 @@ python scripts/eval.py \
 | 仿真步长 | 物理 240 Hz，环境 30 Hz（decimation 8） | 相机每个环境步渲染一次 |
 | 动作块 | `action_horizon=32`、`action_chunk_length=32` | 整个动作块执行后重新推理 |
 | 插值 | `interpolation_multiplier=1.5` | 一个动作块对应 48 个环境步 |
-| 回合步数上限 | 固定底盘任务 2400，移动任务 3000 | 由 `max_steps` 设置 |
+| 回合步数上限 | 固定底盘任务 800，移动任务 3000 | 由 `max_steps` 设置 |
 | 指令 | 与训练数据中对应任务的文本一致 | 见各配置文件的 `instruction` |
 | 手臂坐标系 | `lift_link` | 手臂位姿指令与状态均在 `lift_link` 坐标系下表达，lift 运动不改变手臂指令 |
 | 相机 | 头部 1280×720 标定针孔相机，腕部鱼眼相机 | 与采集、SDK 一致，镜头畸变模型由 `enable_usd_lens_models()` 写入相机 USD；评测中不启用仅输出深度的底盘相机 |
@@ -183,6 +195,18 @@ python scripts/eval.py \
 ### 录制
 
 `enable_recording: true` 时，每个回合（包括成功回合）单独导出一个 hdf5 文件，以及头部、左腕、右腕三路相机的 mp4。
+
+### 评测示例
+
+Wall-X 闭环评测中的头部相机视角（加速播放）：
+
+`sort_blocks`：
+
+![quanta_x1 Wall-X eval sort_blocks](../media/quanta_x1_wallx_eval_sort_blocks.gif)
+
+`move_bottle_to_bin`：
+
+![quanta_x1 Wall-X eval move_bottle_to_bin](../media/quanta_x1_wallx_eval_move_bottle_to_bin.gif)
 
 ---
 
