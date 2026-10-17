@@ -45,6 +45,7 @@ def as_vec3_tensor(v, device=None) -> torch.Tensor:
 
 
 __all__ = [
+    "arm_base_pose_w",
     "base_to_world_frame",
     "world_to_base_frame",
     "as_quat_tensor",
@@ -78,6 +79,17 @@ def world_to_base_frame(
     qw_t = _as_quat(quat_world, device=base_quat_inv.device)
     quat_base = _squeeze1(math_utils.quat_mul(base_quat_inv.unsqueeze(0), qw_t))
     return pos_base, quat_base
+
+
+def arm_base_pose_w(robot: Any, body_name: str | None = None) -> Tuple[torch.Tensor, torch.Tensor]:
+    """World pose ``(pos(3), quat_xyzw(4))`` of the arm-base frame; the articulation root if ``body_name`` is unset."""
+    data = robot.data
+    if not body_name:
+        return data.root_pos_w[0].clone(), data.root_quat_w[0].clone()
+    body_ids, _ = robot.find_bodies(body_name)
+    pos, quat = data.body_pos_w, data.body_quat_w
+    pos, quat = getattr(pos, "torch", pos), getattr(quat, "torch", quat)
+    return pos[0, int(body_ids[0])].clone(), quat[0, int(body_ids[0])].clone()
 
 
 def base_to_world_frame(

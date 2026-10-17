@@ -172,6 +172,11 @@ def finalize_quanta_x1_recorder(
     else:
         install_sync_export_sidecar_finalize(rm)
 
+    if not layout.is_direct_lerobot:
+        # Eval writes one file per episode; replace the gym.make bootstrap handler.
+        if rm._dataset_file_handler is not None:
+            rm._dataset_file_handler.close()
+        rm._dataset_file_handler = PerEpisodeFileHandler(layout, rm)
     boot_f = os.path.join(layout.output_dir, f'{layout.bootstrap_name}.hdf5')
     if os.path.exists(boot_f):
         os.remove(boot_f)
@@ -186,6 +191,64 @@ def next_episode_dataset_name(layout: RecordingLayout) -> str:
         if not os.path.exists(path):
             return name
         idx += 1
+
+
+class PerEpisodeFileHandler:
+    """Recorder dataset handler that writes each exported episode to its own file.
+
+    Isaac Lab exports a natural ``done`` (task success, dropped block) inside ``env.step()``
+    via ``record_pre_reset``, where no per-episode file is open yet. A handler that is only
+    created around explicit exports silently drops those episodes, so the file is opened on
+    demand here and every export path (in-step or explicit) keeps its data.
+    """
+
+    def __init__(self, layout: RecordingLayout, rm: Any) -> None:
+        self._layout = layout
+        self._rm = rm
+        self._env_args: dict | None = None
+        self._unreported: list[str] = []
+        self._num_episodes = 0
+
+    @property
+    def _hdf5_file_stream(self) -> Any:
+        # The sidecar video manager reads the target HDF5 path from here *before* the write.
+        from types import SimpleNamespace
+
+        name = next_episode_dataset_name(self._layout)
+        return SimpleNamespace(filename=os.path.join(self._layout.output_dir, f'{name}.hdf5'))
+
+    def add_env_args(self, env_args: dict) -> None:
+        self._env_args = env_args
+
+    def get_num_episodes(self) -> int:
+        return self._num_episodes
+
+    def write_episode(self, episode: Any, demo_id: int | None = None, dataset_compression: bool = False) -> None:
+        layout = self._layout
+        name = next_episode_dataset_name(layout)
+        fh = self._rm.cfg.dataset_file_handler_class_type()
+        fh.create(os.path.join(layout.output_dir, name), env_name=layout.env_name)
+        try:
+            if self._env_args is not None:
+                fh.add_env_args(self._env_args)
+            fh.write_episode(episode, demo_id, dataset_compression)
+            fh.flush()
+        finally:
+            fh.close()
+        self._unreported.append(os.path.join(layout.output_dir, f'{name}.hdf5'))
+        self._num_episodes += 1
+
+    def pop_unreported(self) -> str | None:
+        """Path of the newest episode written since the last call (None if nothing new)."""
+        path = self._unreported[-1] if self._unreported else None
+        self._unreported.clear()
+        return path
+
+    def flush(self) -> None:
+        pass
+
+    def close(self) -> None:
+        pass
 
 
 def _episode_has_actions(rm: Any, env_id: int) -> bool:
@@ -223,8 +286,12 @@ def export_episode(
         else 0
     )
 
+    per_episode = isinstance(handler, PerEpisodeFileHandler)
+
     # Auto-reset path already exported + cleared the buffer.
     if not _episode_has_actions(rm, env_id):
+        if per_episode:
+            return handler.pop_unreported()
         if layout.is_direct_lerobot and before > 0:
             return layout.output_dir
         return None
@@ -234,6 +301,10 @@ def export_episode(
         env_ids,
         torch.tensor([mark_success], dtype=torch.bool, device=gym_env.device),
     )
+
+    if per_episode:
+        rm.export_episodes(env_ids)
+        return handler.pop_unreported()
 
     if layout.is_direct_lerobot:
         rm.export_episodes(env_ids)

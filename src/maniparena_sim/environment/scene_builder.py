@@ -100,26 +100,38 @@ def _place_assets(assets, positions, *, rotation_xyzw=_IDENTITY_ROT) -> None:
 
 
 def _build_sort_blocks_scene(registry: AssetRegistry, robot: str) -> Scene:
+    """Desktop-arm sort_blocks (ManipArena bricks / papers)."""
     background = _spawn_background(registry, robot)
     blocks = [
         registry.get_asset_by_name("yellow_brick")(),
         registry.get_asset_by_name("green_brick")(),
         registry.get_asset_by_name("red_brick")(),
     ]
-    paper_names = ("yellow_paper", "green_paper", "pink_paper")
-    if robot == "quanta_x1":  # fixed (kinematic) papers
-        paper_names = tuple(name.replace("_paper", "_paper_2") for name in paper_names)
-    destinations = [registry.get_asset_by_name(name)() for name in paper_names]
-    if robot == "quanta_x1":  # bricks rest on the table, papers 1.5 mm above it
-        _place_assets(blocks, SORT_BRICK_LOAD_POSES)
-        _place_assets(destinations, SORT_PAPER_POSES, rotation_xyzw=_PAPER_ROT)
-    else:
-        _place_assets(blocks, _SORT_BLOCK_POSES)
-        _place_assets(destinations, _SORT_DEST_POSES, rotation_xyzw=_PAPER_ROT)
+    destinations = [
+        registry.get_asset_by_name(name)() for name in ("yellow_paper", "green_paper", "pink_paper")
+    ]
+    _place_assets(blocks, _SORT_BLOCK_POSES)
+    _place_assets(destinations, _SORT_DEST_POSES, rotation_xyzw=_PAPER_ROT)
+    return Scene(assets=[background, *blocks, *destinations])
+
+
+def _build_quanta_x1_sort_blocks_scene(registry: AssetRegistry) -> Scene:
+    """QUANTA_X1 sort_blocks: collection bricks / papers (``_2`` assets), same layout as data collection."""
+    background = _spawn_background(registry, "quanta_x1")
+    blocks = [
+        registry.get_asset_by_name(name)() for name in ("yellow_brick_2", "green_brick_2", "red_brick_2")
+    ]
+    # Fixed (kinematic) papers; bricks rest on the table, papers 1.5 mm above it.
+    destinations = [
+        registry.get_asset_by_name(name)() for name in ("yellow_paper_2", "green_paper_2", "pink_paper_2")
+    ]
+    _place_assets(blocks, SORT_BRICK_LOAD_POSES)
+    _place_assets(destinations, SORT_PAPER_POSES, rotation_xyzw=_PAPER_ROT)
     return Scene(assets=[background, *blocks, *destinations])
 
 
 def _build_fruits_to_basket_scene(registry: AssetRegistry, robot: str) -> Scene:
+    """Desktop-arm fruits_to_basket."""
     background = _spawn_background(registry, robot)
     objects = [
         registry.get_asset_by_name("bread")(),
@@ -127,17 +139,27 @@ def _build_fruits_to_basket_scene(registry: AssetRegistry, robot: str) -> Scene:
         registry.get_asset_by_name("banana")(),
         registry.get_asset_by_name("pear")(),
     ]
-    if robot == "quanta_x1":  # 0.7-scale basket, centred between the arms
-        basket = registry.get_asset_by_name("platform_pink_2")()
-        basket.set_initial_pose(_pose_at(QUANTA_BASKET_POSE, _PAPER_ROT))
-    else:
-        basket = registry.get_asset_by_name("platform_pink")()
-        basket.set_initial_pose(_pose_at(_BASKET_POSE, _PAPER_ROT))
+    basket = registry.get_asset_by_name("platform_pink")()
+    basket.set_initial_pose(_pose_at(_BASKET_POSE, _PAPER_ROT))
     _apply_semantic_tags(basket)
-    if robot == "quanta_x1":  # objects = [bread, apple, banana, pear]
-        fruit_poses = [FRUIT_NOMINAL_LOAD_POSES[name] for name in ("bread", "apple", "banana", "pear")]
-    else:
-        fruit_poses = _FRUIT_POSES
+    _place_assets(objects, _FRUIT_POSES)
+    return Scene(assets=[background, basket, *objects])
+
+
+def _build_quanta_x1_fruits_to_basket_scene(registry: AssetRegistry) -> Scene:
+    """QUANTA_X1 fruits_to_basket: collection-sized basket (``platform_pink_2``), centred between the arms."""
+    background = _spawn_background(registry, "quanta_x1")
+    objects = [
+        registry.get_asset_by_name("bread")(),
+        registry.get_asset_by_name("apple")(),
+        registry.get_asset_by_name("banana")(),
+        registry.get_asset_by_name("pear")(),
+    ]
+    basket = registry.get_asset_by_name("platform_pink_2")()
+    basket.set_initial_pose(_pose_at(QUANTA_BASKET_POSE, _PAPER_ROT))
+    _apply_semantic_tags(basket)
+    # objects = [bread, apple, banana, pear]
+    fruit_poses = [FRUIT_NOMINAL_LOAD_POSES[name] for name in ("bread", "apple", "banana", "pear")]
     _place_assets(objects, fruit_poses)
     return Scene(assets=[background, basket, *objects])
 
@@ -273,7 +295,11 @@ def build_scene(task_name: str, *, robot: str = "bimanual", scene_options: dict 
     bootstrap_arena_registry()
     registry = AssetRegistry()
     options = dict(scene_options or {})
-    if task_name == "sort_blocks":
+    if robot == "quanta_x1" and task_name == "sort_blocks":
+        scene = _build_quanta_x1_sort_blocks_scene(registry)
+    elif robot == "quanta_x1" and task_name == "fruits_to_basket":
+        scene = _build_quanta_x1_fruits_to_basket_scene(registry)
+    elif task_name == "sort_blocks":
         scene = _build_sort_blocks_scene(registry, robot)
     elif task_name == "fruits_to_basket":
         scene = _build_fruits_to_basket_scene(registry, robot)

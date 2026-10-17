@@ -255,6 +255,11 @@ def main() -> int:
         from maniparena_sim.environment.builder import (
             QUANTA_X1_SUPPORTED_TASKS,
             build_quanta_x1_eval_gym_env,
+            quanta_x1_demo_lift_command,
+        )
+        from maniparena_sim.embodiment.robots.quanta_x1 import (
+            QUANTA_X1_WHEEL_RADIUS_M,
+            QUANTA_X1_WHEEL_TRACK_WIDTH_M,
         )
         from maniparena_sim.policy.quanta_x1_wallx_policy import (
             QuantaX1WallxPolicy,
@@ -279,19 +284,29 @@ def main() -> int:
                 instruction=str(
                     pc.get(
                         'instruction',
-                        'pick the bottle from the table and place it on the wooden shelf',
+                        'Navigate to the source table, grasp the bottle on the table, navigate to the wooden shelf, place the bottle on the shelf, and retract the arm safely.',
                     ),
                 ),
                 action_horizon=int(pc.get('action_horizon', 32)),
                 action_chunk_length=int(pc.get('action_chunk_length', 32)),
-                interpolation_multiplier=int(
-                    pc.get('interpolation_multiplier', 2),
+                # 1.0 = one 30 fps chunk row per 30 Hz env step; 1.5 plays the chunk 1.5x slower.
+                interpolation_multiplier=float(
+                    pc.get('interpolation_multiplier', 1.5),
                 ),
                 ee_pose_normalize=bool(pc.get('ee_pose_normalize', False)),
+                lift_wire_mode=str(pc.get('lift_wire_mode', 'init_relative')),
+                wire_layout=str(pc.get('wire_layout', 'dataset')),
+                base_kick_vx=float(pc.get('base_kick_vx', 0.0)),
+                # Demonstrations hold the lift command constant per task; it is not a policy output.
+                lift_hold=float(pc.get('lift_hold', quanta_x1_demo_lift_command(args.task))),
+                # Experiment switches (default off): see QuantaX1WallxPolicyConfig.
+                base_velocity_inv_interp=bool(pc.get('base_velocity_inv_interp', False)),
+                base_velocity_scale=float(pc.get('base_velocity_scale', 1.0)),
                 pos_gain=float(pc.get('pos_gain', 1.0)),
                 rot_gain=float(pc.get('rot_gain', 1.0)),
-                wheel_radius=float(pc.get('wheel_radius', 0.084)),
-                wheel_track_width=float(pc.get('wheel_track_width', 0.458)),
+                # Defaults are the calibrated QUANTA_X1 chassis geometry (QUANTA_X1_WHEEL_*_M).
+                wheel_radius=float(pc.get('wheel_radius', QUANTA_X1_WHEEL_RADIUS_M)),
+                wheel_track_width=float(pc.get('wheel_track_width', QUANTA_X1_WHEEL_TRACK_WIDTH_M)),
             ),
         )
         policy_name = 'QuantaX1WallxPolicy'

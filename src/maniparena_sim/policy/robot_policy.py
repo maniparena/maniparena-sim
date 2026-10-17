@@ -29,7 +29,7 @@ class RobotPolicyConfig:
 
     action_horizon: int = 32
     action_chunk_length: int = 32
-    interpolation_multiplier: int = 2
+    interpolation_multiplier: float = 2
     ee_pose_normalize: bool = True
 
     camera_left: str = 'left_wrist_cam'
@@ -361,17 +361,18 @@ class RobotClosedloopPolicy:
     # -- EE coordinate transform --
 
     @staticmethod
-    def _interpolate_rows(rows: np.ndarray, multiplier: int) -> np.ndarray:
-        multiplier = max(1, int(multiplier))
-        if multiplier == 1:
-            return rows
+    def _interpolate_rows(rows: np.ndarray, multiplier: float) -> np.ndarray:
+        """Linearly resample ``rows`` to ``round(len * multiplier)`` rows (multiplier may be fractional)."""
+        multiplier = max(1.0, float(multiplier))
         rows = np.asarray(rows, dtype=np.float32)
         if rows.ndim == 1:
             rows = rows.reshape(1, -1)
         in_len, dim = rows.shape
-        out_len = in_len * multiplier
+        out_len = int(round(in_len * multiplier))
+        if out_len <= in_len:
+            return rows
         if in_len <= 1:
-            return np.repeat(rows, multiplier, axis=0)
+            return np.repeat(rows, out_len, axis=0)
         src = np.arange(in_len, dtype=np.float64)
         dst = np.linspace(0.0, float(in_len - 1), out_len)
         out = np.zeros((out_len, dim), dtype=np.float32)

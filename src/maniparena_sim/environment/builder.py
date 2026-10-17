@@ -693,6 +693,13 @@ _QUANTA_X1_MOBILE_JOINT_POS = {
 
 _QUANTA_X1_TABLETOP_TASKS = ("sort_blocks", "fruits_to_basket")
 
+# Wall-X eval timing only (collect / SDK keep the scene defaults). Physics matches the
+# data-collection env (240 Hz); the env step is 1/30 s so every 30 fps chunk row
+# is played for exactly one env step, with no interpolation. Cameras render each step.
+_QUANTA_X1_EVAL_SIM_FPS = 240
+_QUANTA_X1_EVAL_DECIMATION = 8
+_QUANTA_X1_EVAL_RENDER_INTERVAL = 8
+
 
 def _apply_quanta_x1_task_spawn(embodiment, task_name: str) -> None:
     """Override QUANTA_X1 root spawn for task-specific layouts.
@@ -731,6 +738,36 @@ def _apply_quanta_x1_task_spawn(embodiment, task_name: str) -> None:
     init_state.pos = position
     init_state.rot = rotation
     init_state.joint_pos = dict(_QUANTA_X1_MOBILE_JOINT_POS)
+
+
+# Demo data: lift command 0.379 with measured lift 0.365 on every frame (the joint sags under load),
+# while the eval robot spawns at the command (0.379) and has not sagged yet at the first queries.
+# The checkpoints read the lift state as a context cue: an unsagged 0.38+ state makes them command
+# the sort_blocks lift (0.455) and the arms end up ~7 cm too high. Spawn at the demo state instead.
+_QUANTA_X1_EVAL_LIFT_STATE_SAG = 0.014
+_QUANTA_X1_EVAL_LIFT_SAG_TASKS = ("fruits_to_basket", "move_bottle_to_bin", "move_fruit_to_basket", "put_bottle_on_woodshelf")
+
+
+def quanta_x1_demo_lift_command(task_name: str) -> float:
+    """Lift command (m) held for the whole episode in the task's demonstrations (not a policy output)."""
+    if task_name in _QUANTA_X1_TABLETOP_TASKS:
+        return float(TABLETOP_ROBOT[task_name]["lift"])
+    return float(MOBILE_LIFT_INIT)
+
+
+def _apply_eval_lift_sag_init(embodiment, task_name: str) -> None:
+    if task_name not in _QUANTA_X1_EVAL_LIFT_SAG_TASKS:
+        return
+    joint_pos = dict(embodiment.scene_config.robot.init_state.joint_pos)
+    joint_pos["lift_joint"] = float(joint_pos["lift_joint"]) - _QUANTA_X1_EVAL_LIFT_STATE_SAG
+    embodiment.scene_config.robot.init_state.joint_pos = joint_pos
+
+
+def _enable_camera_lens_models() -> None:
+    """Apply the calibrated head / wrist lens models (shared by collect, SDK and eval)."""
+    from maniparena_sim.embodiment.sensors.lens_models import enable_usd_lens_models
+
+    print(f'[lens] enabled OpenCV lens model on {enable_usd_lens_models()} camera prim(s)')
 
 
 def build_quanta_x1_collect_gym_env(
@@ -837,6 +874,8 @@ def build_quanta_x1_collect_gym_env(
         n_disabled = deactivate_robot_camera_prims(logger=print)
         if n_disabled:
             print(f'deactivated {n_disabled} USD camera prim(s)')
+    else:
+        _enable_camera_lens_models()
 
     # Streaming recorder: dump obs GPU->CPU per step, stream camera frames to MP4.
     rm = gym_env.recorder_manager
@@ -937,6 +976,7 @@ def build_quanta_x1_sdk_ros2_gym_env(
 
     gym_env = _make_unwrapped_gym_env(reg_name, env_cfg, env_kwargs)
     apply_carb_settings(getattr(scene, 'render_carb_dict', None) or {})
+    _enable_camera_lens_models()
     return gym_env, embodiment
 
 
@@ -969,8 +1009,10 @@ def build_quanta_x1_eval_gym_env(
     embodiment = QuantaX1Embodiment(enable_cameras=enable_cameras)
     if not enable_cameras:
         embodiment.camera_config = None
+    embodiment.disable_chassis_depth()
     embodiment.action_config = embodiment.ActionsCfgWallxWholebody()
     _apply_quanta_x1_task_spawn(embodiment, task_name)
+    _apply_eval_lift_sag_init(embodiment, task_name)
     task = build_task_runtime(task_name, scene, robot='quanta_x1')
     _apply_viewer_cfg_override(task, payload)
 
@@ -992,9 +1034,10 @@ def build_quanta_x1_eval_gym_env(
     patch_env_cfg_render(
         env_cfg,
         getattr(scene, 'render_cfg_dict', None) or {},
-        sim_fps=getattr(scene, 'sim_fps', 120),
-        render_interval=getattr(scene, 'render_decremental', 2),
+        sim_fps=_QUANTA_X1_EVAL_SIM_FPS,
+        render_interval=_QUANTA_X1_EVAL_RENDER_INTERVAL,
     )
+    env_cfg.decimation = _QUANTA_X1_EVAL_DECIMATION
     _apply_video_recorder_cfg(env_cfg, payload)
     if hasattr(env_cfg, 'terminations'):
         env_cfg.terminations.time_out = None
@@ -1061,6 +1104,8 @@ def build_quanta_x1_eval_gym_env(
     apply_carb_settings(
         getattr(scene, 'render_carb_dict', None) or {},
     )
+    if enable_cameras:
+        _enable_camera_lens_models()
 
     if recording is not None:
         # Same as bimanual: flush in record_pre_reset before buffer clear.

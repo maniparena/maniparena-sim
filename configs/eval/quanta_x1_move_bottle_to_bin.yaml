@@ -3,7 +3,7 @@
 num_episodes: 10
 # Per-episode step limit (timeout -> reset and count the episode as failed). The
 # collected demonstrations are limited to 7200 steps; use 100~300 first to check resets.
-max_steps: 7200
+max_steps: 3000
 enable_recording: true
 
 # Third-person camera for --video.
@@ -20,8 +20,8 @@ policy_config:
   model_port: 8000
   instruction: "Navigate to the source table, grasp the correct bottle on the table, navigate to the destination bin, place the bottle in the bin, and retract the arm safely."
   action_horizon: 32
-  action_chunk_length: 16
-  interpolation_multiplier: 2
+  action_chunk_length: 32
+  interpolation_multiplier: 1.5
 
 # Optional: pin the sampled pool objects / seed (default: random per process).
 # scene_options:

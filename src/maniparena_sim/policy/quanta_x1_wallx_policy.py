@@ -4,8 +4,8 @@ Wire action layout (``ActionsCfgWallxWholebody``):
 ``[L_pose7, Lg, R_pose7, Rg, L_wheel, R_wheel, lift, head_yaw, head_pitch]``.
 
 Wall-X QUANTA_X1 pose contract (``wire_pose_reference: init_ee_pose``):
-- Request ``follow1/2_pos`` is root-local, relative to home EE, with lift
-  ΔZ removed from the Z channel.
+- Request ``follow1/2_pos`` is in the ``lift_link`` (arm base) frame, relative to
+  home EE. Arms and lift are independent: no lift term enters the arm wire.
 - Response uses the same relative wire; client composes
   ``target_b = home_b + wire`` and ``q_b = q_rel * q_home``.
 - Quaternions use Isaac Lab / DiffIK **XYZW**.
@@ -74,8 +74,32 @@ class QuantaX1WallxPolicyConfig(RobotPolicyConfig):
     right_ee_body: str = "right_arm_gripper_base_link"
     left_gripper_joint: str = "left_arm_gripper"
     right_gripper_joint: str = "right_arm_gripper"
+    # Arms are posed in this body's frame, independent of lift.
+    arm_base_body: str = "lift_link"
     # follow* is already init-relative on the Wall-X wire; do not double-normalize.
     ee_pose_normalize: bool = False
+    # "absolute": response ``lift`` is the joint target (m).
+    # "init_relative": response ``lift`` is a delta from the lift at reset.
+    lift_wire_mode: str = "init_relative"
+    # "dataset": remap the server fields to the training-data tail order [twist, lift, head];
+    # "named": use the server field names as is (legacy).
+    wire_layout: str = "dataset"
+    # The checkpoint copies the measured base twist into its twist output, so from exact rest it
+    # never starts driving. Training episodes start moving ~1 s in with ~0.06 m/s: report this
+    # forward speed in the first query of an episode so the model emits its whole start-up ramp.
+    base_kick_vx: float = 0.0
+    # Experiment switch (default off = unchanged behaviour). Base commands are velocities, so holding
+    # every chunk row ``interpolation_multiplier`` times longer multiplies the base displacement per
+    # chunk by the same factor while arm position targets only slow down. When enabled, wheel speeds
+    # are divided by ``interpolation_multiplier`` so each chunk moves the base by the demonstrated amount.
+    base_velocity_inv_interp: bool = False
+    # Extra constant factor on the wheel speeds (experiment; 1.0 = off).
+    base_velocity_scale: float = 1.0
+    # Absolute lift command (m) held for the whole episode; the model's lift output is ignored.
+    # Demos keep the lift command constant per task (sort 0.455, fruits/mobile 0.379), and the
+    # checkpoints drift to the sort lift (~0.455) once the lift state passes ~0.41. eval.py fills this
+    # per task from the demo value; None = follow the model.
+    lift_hold: Optional[float] = None
 
 
 class QuantaX1WallxPolicy(RobotClosedloopPolicy):
@@ -118,25 +142,23 @@ class QuantaX1WallxPolicy(RobotClosedloopPolicy):
         ang_b = rot.inv().apply(ang_w)
         return np.asarray([lin_b[0], lin_b[1], ang_b[2]], dtype=np.float32)
 
-    def _get_ee_root_local(
+    def _get_ee_arm_base_local(
         self, env: Any, body_name: str,
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        """EE pose in robot root frame from articulation body state (torch)."""
+        """EE pose in the arm-base (``lift_link``) frame, so it is independent of lift."""
         robot = env.scene["robot"]
         body_ids, _ = robot.find_bodies(body_name)
-        body_idx = int(body_ids[0])
-        root_pos = _to_torch_f32(robot.data.root_pos_w)
-        root_quat = _to_torch_f32(robot.data.root_quat_w)
-        body_pos = _to_torch_f32(robot.data.body_pos_w)[:, body_idx, :]
-        body_quat = _to_torch_f32(robot.data.body_quat_w)[:, body_idx, :]
-        # Packed warp quatf may arrive as (N,) → reshape to (N, 4).
-        if root_quat.ndim == 1:
-            root_quat = root_quat.reshape(-1, 4)
-        if body_quat.ndim == 1:
-            body_quat = body_quat.reshape(root_pos.shape[0], 4)
-        elif body_quat.ndim == 2 and body_quat.shape[-1] != 4:
-            body_quat = body_quat.reshape(root_pos.shape[0], 4)
-        return subtract_frame_transforms(root_pos, root_quat, body_pos, body_quat)
+        base_ids, _ = robot.find_bodies(self.cfg.arm_base_body)
+        body_idx, base_idx = int(body_ids[0]), int(base_ids[0])
+        body_pos_all = _to_torch_f32(robot.data.body_pos_w)
+        body_quat_all = _to_torch_f32(robot.data.body_quat_w)
+        n = body_pos_all.shape[0]
+        # Packed warp quatf may arrive as (N, B*4) or (N,) → reshape to (N, B, 4).
+        body_quat_all = body_quat_all.reshape(n, -1, 4)
+        return subtract_frame_transforms(
+            body_pos_all[:, base_idx, :], body_quat_all[:, base_idx, :],
+            body_pos_all[:, body_idx, :], body_quat_all[:, body_idx, :],
+        )
 
     def _ensure_home_refs(self, env: Any) -> None:
         """Cache root-local home EE (+ lift) refs for init-relative wire poses."""
@@ -148,8 +170,8 @@ class QuantaX1WallxPolicy(RobotClosedloopPolicy):
         if not (stale or need_left or need_right or need_lift):
             return
 
-        l_pos, l_quat = self._get_ee_root_local(env, self.cfg.left_ee_body)
-        r_pos, r_quat = self._get_ee_root_local(env, self.cfg.right_ee_body)
+        l_pos, l_quat = self._get_ee_arm_base_local(env, self.cfg.left_ee_body)
+        r_pos, r_quat = self._get_ee_arm_base_local(env, self.cfg.right_ee_body)
         if stale or need_left:
             setattr(env, self._LEFT_REF_KEY, (l_pos.clone(), l_quat.clone()))
         if stale or need_right:
@@ -175,14 +197,10 @@ class QuantaX1WallxPolicy(RobotClosedloopPolicy):
         gripper_joint: str,
         ref_key: str,
     ) -> np.ndarray:
-        """7D follow wire: init-relative root-local + lift Z compensation."""
-        pos, quat = self._get_ee_root_local(env, body_name)
+        """7D follow wire: init-relative pose in the arm-base (lift_link) frame."""
+        pos, quat = self._get_ee_arm_base_local(env, body_name)
         ref_pos, ref_quat = getattr(env, ref_key)
         relative_pos = pos - ref_pos
-        lift_now = self._read_joint_tensor(env, self.cfg.lift_joint_name)
-        lift_init = getattr(env, "_lift_ref_" + self.cfg.lift_joint_name)
-        relative_pos = relative_pos.clone()
-        relative_pos[:, 2:3] -= lift_now - lift_init
         relative_quat = quat_mul(quat, quat_conjugate(ref_quat))
         roll, pitch, yaw = euler_xyz_from_quat(relative_quat)
         relative_euler = torch.stack([roll, pitch, yaw], dim=-1)
@@ -217,20 +235,39 @@ class QuantaX1WallxPolicy(RobotClosedloopPolicy):
         state = dict(model_input.get("state") or {})
         state["follow1_pos"] = follow1
         state["follow2_pos"] = follow2
-        state["velocity_decomposed_odom"] = self._body_twist(env)
-        state["lift"] = np.asarray(
-            [self._read_joint(env, self.cfg.lift_joint_name)], dtype=np.float32
-        )
-        state["head_pos"] = np.asarray(
+        twist = self._body_twist(env)
+        if self.cfg.base_kick_vx and self._query_count == 0:
+            twist = twist.copy()
+            twist[0] = max(float(twist[0]), float(self.cfg.base_kick_vx))
+        lift = np.asarray([self._read_joint(env, self.cfg.lift_joint_name)], dtype=np.float32)
+        head = np.asarray(
             [
                 self._read_joint(env, self.cfg.head_yaw_joint_name),
                 self._read_joint(env, self.cfg.head_pitch_joint_name),
             ],
             dtype=np.float32,
         )
+        if self.cfg.wire_layout == "dataset":
+            # The checkpoint's 26-D tail is [twist(3), lift, head(2)] (training data order) but the
+            # server fills it from dof_config names [head(2), height(1), velocity(3)]. Send the
+            # values under the names whose slots hold them in the training data.
+            state["head_pos"] = twist[:2]
+            state["lift"] = twist[2:3]
+            state["velocity_decomposed"] = np.concatenate([lift, head]).astype(np.float32)
+        else:
+            state["velocity_decomposed_odom"] = twist
+            state["lift"] = lift
+            state["head_pos"] = head
         out = dict(model_input)
         out["state"] = state
         return out
+
+    def _base_velocity_factor(self) -> float:
+        """Experiment-only wheel-speed factor (1.0 unless a ``base_velocity_*`` switch is set)."""
+        factor = float(self.cfg.base_velocity_scale)
+        if self.cfg.base_velocity_inv_interp:
+            factor /= max(1.0, float(self.cfg.interpolation_multiplier))
+        return factor
 
     def _odom_to_wheels(self, odom: np.ndarray) -> np.ndarray:
         odom = np.asarray(odom, dtype=np.float32)
@@ -250,6 +287,26 @@ class QuantaX1WallxPolicy(RobotClosedloopPolicy):
             left.append(lw)
             right.append(rw)
         return np.stack([left, right], axis=-1).astype(np.float32)
+
+    @staticmethod
+    def _remap_dataset_layout(response: Dict[str, Any]) -> Dict[str, Any]:
+        """Server fields -> robot semantics for the training-data tail order [twist, lift, head].
+
+        ``head_pos`` carries (vx, vy), ``lift`` carries wz, and ``velocity_decomposed_odom``
+        carries (lift, head_yaw, head_pitch).
+        """
+        head, lift, odom = (response.get(k) for k in ("head_pos", "lift", "velocity_decomposed_odom"))
+        if head is None or lift is None or odom is None:
+            return response
+        head = np.asarray(head, dtype=np.float32).reshape(-1, 2)
+        wz = np.asarray(lift, dtype=np.float32).reshape(-1, 1)
+        odom = np.asarray(odom, dtype=np.float32).reshape(-1, 3)
+        n = min(len(head), len(wz), len(odom))
+        out = dict(response)
+        out["velocity_decomposed_odom"] = np.concatenate([head[:n], wz[:n]], axis=1)
+        out["lift"] = odom[:n, 0:1]
+        out["head_pos"] = odom[:n, 1:3]
+        return out
 
     def _response_to_action_chunk(
         self,
@@ -279,6 +336,9 @@ class QuantaX1WallxPolicy(RobotClosedloopPolicy):
         if horizon <= 0:
             return None
 
+        if self.cfg.wire_layout == "dataset":
+            response = self._remap_dataset_layout(response)
+
         # Wire is already init-relative; no client denorm layer.
         f1 = f1[:horizon, :7]
         f2 = f2[:horizon, :7]
@@ -291,6 +351,7 @@ class QuantaX1WallxPolicy(RobotClosedloopPolicy):
             if wheels.shape[0] < horizon:
                 pad = np.repeat(wheels[-1:], horizon - wheels.shape[0], axis=0)
                 wheels = np.concatenate([wheels, pad], axis=0)
+            wheels = wheels * self._base_velocity_factor()
 
         lift = response.get("lift")
         if lift is None:
@@ -326,7 +387,17 @@ class QuantaX1WallxPolicy(RobotClosedloopPolicy):
                 pad = np.repeat(head_arr[-1:], horizon - head_arr.shape[0], axis=0)
                 head_arr = np.concatenate([head_arr, pad], axis=0)
 
+        if self.cfg.lift_hold is not None:
+            lift_arr = np.full_like(lift_arr, float(self.cfg.lift_hold))
+            lift = lift_arr  # absolute command; skip the init-relative offset below
         self._ensure_home_refs(env)
+        if (
+            lift is not None
+            and self.cfg.wire_layout != "dataset"  # dataset layout already carries absolute lift
+            and self.cfg.lift_wire_mode == "init_relative"
+        ):
+            lift_init = getattr(env, "_lift_ref_" + self.cfg.lift_joint_name)
+            lift_arr = lift_arr + float(lift_init[0, 0].item())
         l_init_pos, l_init_quat = self._read_home_ee(env, self._LEFT_REF_KEY, device)
         r_init_pos, r_init_quat = self._read_home_ee(env, self._RIGHT_REF_KEY, device)
 
@@ -367,6 +438,9 @@ class QuantaX1WallxPolicy(RobotClosedloopPolicy):
 
         if horizon < self.cfg.action_horizon:
             chunk[horizon:] = chunk[horizon - 1]
+
+        # Receding horizon: execute only the first ``action_chunk_length`` rows, then re-query.
+        chunk = chunk[: max(1, min(int(self.cfg.action_chunk_length), self.cfg.action_horizon))]
 
         if self.cfg.interpolation_multiplier > 1:
             interpolated = self._interpolate_rows(
