@@ -21,7 +21,7 @@ from maniparena_sim.embodiment.teleop_devices.keyboard import (
     _map_action_dim,
 )
 from maniparena_sim.planners.teleop_base import TeleopPlanner, TeleopSettings
-from maniparena_sim.utils.motion_utils import world_to_base_frame
+from maniparena_sim.utils.motion_utils import arm_base_pose_w, world_to_base_frame
 
 _MOTION_EPS = 1e-8
 _BASE_DIM = 2
@@ -68,6 +68,8 @@ class KeyboardTeleopPlanner(TeleopPlanner):
         self._expected_action_dim = _get_expected_action_dim(env)
         self._gripper_targets = self._resolve_gripper_targets(embodiment)
         self._ee_frame_names = self._resolve_ee_frame_names(embodiment)
+        getter = getattr(embodiment, "get_arm_base_body_name", None)
+        self._arm_base_body = getter() if callable(getter) else None
         self._gripper_joint_names = self._resolve_gripper_joint_names(embodiment)
         self._lift_joint_name = self._resolve_lift_joint_name(embodiment)
         self._lift_enabled = (
@@ -154,12 +156,11 @@ class KeyboardTeleopPlanner(TeleopPlanner):
         if self._gym_env is None:
             return
         robot = self._gym_env.scene["robot"]
-        root_pos = robot.data.root_pos_w[0].clone()
-        root_quat = robot.data.root_quat_w[0].clone()
+        base_pos, base_quat = arm_base_pose_w(robot, self._arm_base_body)
         lpw, lqw, rpw, rqw = self._ee_world_poses()
-        lpb, lqb = world_to_base_frame(lpw, lqw, root_pos, root_quat)
-        rpb, rqb = world_to_base_frame(rpw, rqw, root_pos, root_quat)
-        device = root_pos.device
+        lpb, lqb = world_to_base_frame(lpw, lqw, base_pos, base_quat)
+        rpb, rqb = world_to_base_frame(rpw, rqw, base_pos, base_quat)
+        device = base_pos.device
         lg = torch.tensor([self._read_gripper(robot, self._gripper_joint_names[0])], device=device)
         rg = torch.tensor([self._read_gripper(robot, self._gripper_joint_names[1])], device=device)
         parts = [

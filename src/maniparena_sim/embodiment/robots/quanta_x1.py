@@ -86,8 +86,8 @@ _QUANTA_X1_HEAD_CMD_OFFSET = {"head_pitch_joint": _QUANTA_X1_HEAD_PITCH_CMD_OFFS
 QUANTA_X1_WHEEL_RADIUS_M = 0.0845
 QUANTA_X1_WHEEL_TRACK_WIDTH_M = 0.415
 
-# Head (faceImg) view of the data-collection robot: 1280x720 calibrated pinhole
-# (same intrinsics as manaenv ex001 head front camera). The 16:9 view matters for
+# Head (faceImg) view shared by collection, SDK and evaluation: 1280x720 calibrated pinhole
+# with the QUANTA_X1 head camera intrinsics. The 16:9 view matters for
 # Wall-X: the server resizes the long side to 448, so a 4:3 head image costs more
 # image tokens than training and overflows max_length on long instructions.
 _QUANTA_X1_HEAD_VIEW = dict(
@@ -181,8 +181,8 @@ class QuantaX1Embodiment(EmbodimentBase):
             actuators={
                 "wheels": ImplicitActuatorCfg(
                     joint_names_expr=["left_wheel_joint", "right_wheel_joint"],
-                    # Wheel drive strength of the data-collection robot (manaenv ex001: effort 5000,
-                    # damping 5000). Weaker wheels let the base drift when the arms move.
+                    # Wheel drive strength of the data-collection robot (effort 5000, damping 5000).
+                    # Weaker wheels let the base drift when the arms move.
                     effort_limit=5000.0, velocity_limit=200.0, stiffness=0.0, damping=5000.0,
                 ),
                 "lift_acts": ImplicitActuatorCfg(
@@ -233,8 +233,9 @@ class QuantaX1Embodiment(EmbodimentBase):
         )
         head_camera: CameraCfg = CameraCfg(
             prim_path="{ENV_REGEX_NS}/Robot/camera_head_front_color_optical_frame/Head_Front_Color_Camera",
-            update_period=0.0333, height=480, width=640, data_types=["rgb"],
-            spawn=OpenCVPinholeCameraCfg(clipping_range=(0.03, 1.0e5)),
+            update_period=0.0333, height=_QUANTA_X1_HEAD_VIEW["height"], width=_QUANTA_X1_HEAD_VIEW["width"],
+            data_types=["rgb"],
+            spawn=OpenCVPinholeCameraCfg(clipping_range=(0.03, 1.0e5), **_QUANTA_X1_HEAD_VIEW),
             renderer_cfg=get_default_renderer_cfg(),
         )
         chassis_camera: CameraCfg = CameraCfg(
@@ -257,17 +258,17 @@ class QuantaX1Embodiment(EmbodimentBase):
 
         Layout: ``[L_pos(3), L_quat(4), L_grip(1), R_pos(3), R_quat(4), R_grip(1),
         L_wheel(1), R_wheel(1), lift(1)]``. Used by vuer teleop: the arms
-        track absolute base-frame pose targets, the base is differential-drive
+        track absolute pose targets in the ``lift_link`` frame, the base is differential-drive
         wheel velocity, and the prismatic lift joint takes an absolute position
         target (vuer right-joystick).
         """
 
-        arm_action: ActionTermCfg = DifferentialInverseKinematicsActionCfg(
+        arm_action: ActionTermCfg = LiftFrameDiffIKActionCfg(
             asset_name="robot", joint_names=["left_arm_joint[1-6]"], body_name="left_arm_gripper_base_link",
             controller=DifferentialIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="dls"), scale=1.0,
         )
         gripper_action: ActionTermCfg = ClampedRawGripperActionCfg(asset_name="robot", joint_names=["left_arm_gripper"], scale=1.0, offset=0.0, use_default_offset=False)
-        right_arm_action: ActionTermCfg = DifferentialInverseKinematicsActionCfg(
+        right_arm_action: ActionTermCfg = LiftFrameDiffIKActionCfg(
             asset_name="robot", joint_names=["right_arm_joint[1-6]"], body_name="right_arm_gripper_base_link",
             controller=DifferentialIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="dls"), scale=1.0,
         )
@@ -421,15 +422,16 @@ class QuantaX1Embodiment(EmbodimentBase):
 
         Layout: ``[L_dpos(3), L_drotvec(3), L_grip(1), R_dpos(3), R_drotvec(3),
         R_grip(1), L_wheel(1), R_wheel(1)]``. Keyboard emits per-arm delta
-        pose (axis-angle), so the arms use ``use_relative_mode=True`` (6D/arm).
+        pose (axis-angle), so the arms use ``use_relative_mode=True`` (6D/arm), applied in the
+        ``lift_link`` frame.
         """
 
-        arm_action: ActionTermCfg = DifferentialInverseKinematicsActionCfg(
+        arm_action: ActionTermCfg = LiftFrameDiffIKActionCfg(
             asset_name="robot", joint_names=["left_arm_joint[1-6]"], body_name="left_arm_gripper_base_link",
             controller=DifferentialIKControllerCfg(command_type="pose", use_relative_mode=True, ik_method="dls"), scale=1.0,
         )
         gripper_action: ActionTermCfg = ClampedRawGripperActionCfg(asset_name="robot", joint_names=["left_arm_gripper"], scale=1.0, offset=0.0, use_default_offset=False)
-        right_arm_action: ActionTermCfg = DifferentialInverseKinematicsActionCfg(
+        right_arm_action: ActionTermCfg = LiftFrameDiffIKActionCfg(
             asset_name="robot", joint_names=["right_arm_joint[1-6]"], body_name="right_arm_gripper_base_link",
             controller=DifferentialIKControllerCfg(command_type="pose", use_relative_mode=True, ik_method="dls"), scale=1.0,
         )
@@ -507,15 +509,6 @@ class QuantaX1Embodiment(EmbodimentBase):
             },
         )
 
-    def use_dataset_head_view(self) -> None:
-        """Eval-only: render the head camera like the training data (1280x720, calibrated)."""
-        if self.camera_config is None:
-            return
-        head = self.camera_config.head_camera
-        head.width = _QUANTA_X1_HEAD_VIEW["width"]
-        head.height = _QUANTA_X1_HEAD_VIEW["height"]
-        head.spawn = OpenCVPinholeCameraCfg(clipping_range=(0.03, 1.0e5), **_QUANTA_X1_HEAD_VIEW)
-
     def disable_chassis_depth(self) -> None:
         """Eval-only: drop the depth-only chassis camera (SDK/collect keep it).
 
@@ -542,6 +535,10 @@ class QuantaX1Embodiment(EmbodimentBase):
 
     def get_vr_ee_frame_names(self) -> tuple[str, str]:
         return "left_ee_frame", "right_ee_frame"
+
+    def get_arm_base_body_name(self) -> str:
+        """Arm command frame: arm poses are expressed in ``lift_link`` so lift motion never moves them."""
+        return "lift_link"
 
     def get_vr_lift_joint_name(self) -> str:
         return "lift_joint"

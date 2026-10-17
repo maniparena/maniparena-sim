@@ -116,7 +116,7 @@ def _build_sort_blocks_scene(registry: AssetRegistry, robot: str) -> Scene:
 
 
 def _build_quanta_x1_sort_blocks_scene(registry: AssetRegistry) -> Scene:
-    """QUANTA_X1 sort_blocks: manaenv bricks / papers (``_2`` assets), same layout as data collection."""
+    """QUANTA_X1 sort_blocks: collection bricks / papers (``_2`` assets), same layout as data collection."""
     background = _spawn_background(registry, "quanta_x1")
     blocks = [
         registry.get_asset_by_name(name)() for name in ("yellow_brick_2", "green_brick_2", "red_brick_2")
@@ -147,7 +147,7 @@ def _build_fruits_to_basket_scene(registry: AssetRegistry, robot: str) -> Scene:
 
 
 def _build_quanta_x1_fruits_to_basket_scene(registry: AssetRegistry) -> Scene:
-    """QUANTA_X1 fruits_to_basket: manaenv-sized basket (``platform_pink_2``), centred between the arms."""
+    """QUANTA_X1 fruits_to_basket: collection-sized basket (``platform_pink_2``), centred between the arms."""
     background = _spawn_background(registry, "quanta_x1")
     objects = [
         registry.get_asset_by_name("bread")(),

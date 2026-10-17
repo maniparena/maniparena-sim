@@ -694,7 +694,7 @@ _QUANTA_X1_MOBILE_JOINT_POS = {
 _QUANTA_X1_TABLETOP_TASKS = ("sort_blocks", "fruits_to_basket")
 
 # Wall-X eval timing only (collect / SDK keep the scene defaults). Physics matches the
-# data-collection env (manaenv, 240 Hz); the env step is 1/30 s so every 30 fps chunk row
+# data-collection env (240 Hz); the env step is 1/30 s so every 30 fps chunk row
 # is played for exactly one env step, with no interpolation. Cameras render each step.
 _QUANTA_X1_EVAL_SIM_FPS = 240
 _QUANTA_X1_EVAL_DECIMATION = 8
@@ -761,6 +761,13 @@ def _apply_eval_lift_sag_init(embodiment, task_name: str) -> None:
     joint_pos = dict(embodiment.scene_config.robot.init_state.joint_pos)
     joint_pos["lift_joint"] = float(joint_pos["lift_joint"]) - _QUANTA_X1_EVAL_LIFT_STATE_SAG
     embodiment.scene_config.robot.init_state.joint_pos = joint_pos
+
+
+def _enable_camera_lens_models() -> None:
+    """Apply the calibrated head / wrist lens models (shared by collect, SDK and eval)."""
+    from maniparena_sim.embodiment.sensors.lens_models import enable_usd_lens_models
+
+    print(f'[lens] enabled OpenCV lens model on {enable_usd_lens_models()} camera prim(s)')
 
 
 def build_quanta_x1_collect_gym_env(
@@ -867,6 +874,8 @@ def build_quanta_x1_collect_gym_env(
         n_disabled = deactivate_robot_camera_prims(logger=print)
         if n_disabled:
             print(f'deactivated {n_disabled} USD camera prim(s)')
+    else:
+        _enable_camera_lens_models()
 
     # Streaming recorder: dump obs GPU->CPU per step, stream camera frames to MP4.
     rm = gym_env.recorder_manager
@@ -967,6 +976,7 @@ def build_quanta_x1_sdk_ros2_gym_env(
 
     gym_env = _make_unwrapped_gym_env(reg_name, env_cfg, env_kwargs)
     apply_carb_settings(getattr(scene, 'render_carb_dict', None) or {})
+    _enable_camera_lens_models()
     return gym_env, embodiment
 
 
@@ -1000,7 +1010,6 @@ def build_quanta_x1_eval_gym_env(
     if not enable_cameras:
         embodiment.camera_config = None
     embodiment.disable_chassis_depth()
-    embodiment.use_dataset_head_view()
     embodiment.action_config = embodiment.ActionsCfgWallxWholebody()
     _apply_quanta_x1_task_spawn(embodiment, task_name)
     _apply_eval_lift_sag_init(embodiment, task_name)
@@ -1096,9 +1105,7 @@ def build_quanta_x1_eval_gym_env(
         getattr(scene, 'render_carb_dict', None) or {},
     )
     if enable_cameras:
-        from maniparena_sim.embodiment.sensors.lens_models import enable_usd_lens_models
-
-        print(f'[lens] enabled OpenCV lens model on {enable_usd_lens_models()} camera prim(s)')
+        _enable_camera_lens_models()
 
     if recording is not None:
         # Same as bimanual: flush in record_pre_reset before buffer clear.

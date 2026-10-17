@@ -74,7 +74,7 @@ class QuantaX1WallxPolicyConfig(RobotPolicyConfig):
     right_ee_body: str = "right_arm_gripper_base_link"
     left_gripper_joint: str = "left_arm_gripper"
     right_gripper_joint: str = "right_arm_gripper"
-    # Arms are posed in this body's frame (manaenv ``isaac_base_body``), independent of lift.
+    # Arms are posed in this body's frame, independent of lift.
     arm_base_body: str = "lift_link"
     # follow* is already init-relative on the Wall-X wire; do not double-normalize.
     ee_pose_normalize: bool = False

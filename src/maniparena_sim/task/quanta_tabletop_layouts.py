@@ -65,7 +65,7 @@ FRUIT_NOMINAL_LOAD_POSES = {
     "pear": (0.04, -0.62, FRUIT_Z),
     "bread": (0.20, -0.55, FRUIT_Z),
 }
-# basket_b: manaenv scale 0.7 == platform_pink x 0.56 (asset ``platform_pink_2``), kinematic, yaw +90 deg.
+# QUANTA_X1 collection basket: scale 0.7 == platform_pink x 0.56 (asset ``platform_pink_2``), kinematic, yaw +90 deg.
 QUANTA_BASKET_POSE = (0.11, -0.26, -0.232)
 FRUIT_PLACE_GATE = {
     "xy_inset_ratio": 0.05,

@@ -4,7 +4,8 @@ Uses ``VuerControllerDevice`` only. OpenXR / CloudXR is removed.
 
 ``vuer_use_delta_targets`` captures a reference controller+EE pose at
 teleop-start, then drives the arms by axis-remapped (``-z, -x, y``)
-controller deltas added to the reference EE pose in base frame. Rotation is
+controller deltas added to the reference EE pose in the arm-base frame
+(``lift_link`` on quanta_x1, so lift motion does not move the arm targets). Rotation is
 a controller-rotation delta mapped through the same axis matrix.
 
 Button scheme:
@@ -29,7 +30,7 @@ import isaaclab.utils.math as math_utils
 import torch
 
 from maniparena_sim.planners.teleop_base import TeleopPlanner, TeleopSettings
-from maniparena_sim.utils.motion_utils import world_to_base_frame
+from maniparena_sim.utils.motion_utils import arm_base_pose_w, world_to_base_frame
 
 
 @dataclass
@@ -112,9 +113,6 @@ class VuerTeleopPlanner(TeleopPlanner):
         self._lift_joint_name = "lift_joint"
         self._lift_limits = (0.0, 0.78)
         self._lift_target: float | None = None
-        # Lift position captured alongside the arm reference/hold pose. Used to
-        # keep the arm IK target riding with the lift (see _lift_compensation).
-        self._lift_ref: float | None = None
         self._prev_buttons: torch.Tensor | None = None
         self._abs_quat_offset: torch.Tensor | None = None
         self._vuer_delta_reference: dict[str, dict[str, torch.Tensor]] = {}
@@ -126,6 +124,8 @@ class VuerTeleopPlanner(TeleopPlanner):
         self._embodiment = embodiment
         sim_device = str(env.device)
         self._ee_frame_names = embodiment.get_vr_ee_frame_names()
+        getter = getattr(embodiment, "get_arm_base_body_name", None)
+        self._arm_base_body = getter() if callable(getter) else None
         self._gripper_joint_names = embodiment.get_vr_gripper_joint_names()
         self._gripper_targets = self._resolve_gripper_targets(embodiment)
         self._base_control_enabled = bool(self.settings.use_motion_controller_base) and (
@@ -273,15 +273,11 @@ class VuerTeleopPlanner(TeleopPlanner):
     def _capture_vuer_delta_reference(self, raw: torch.Tensor) -> None:
         if not self._vuer_delta_enabled() or self._gym_env is None:
             return
-        # Snapshot the lift height so arm targets can ride with the lift
-        # carriage instead of staying fixed in the chassis-root frame.
-        self._lift_ref = self._read_lift_position()
         robot = self._gym_env.scene["robot"]
-        root_pos = robot.data.root_pos_w[0].clone()
-        root_quat = robot.data.root_quat_w[0].clone()
+        base_pos, base_quat = arm_base_pose_w(robot, self._arm_base_body)
         lpw, lqw, rpw, rqw = self._ee_world_poses()
-        l_tp, l_tq = world_to_base_frame(lpw, lqw, root_pos, root_quat)
-        r_tp, r_tq = world_to_base_frame(rpw, rqw, root_pos, root_quat)
+        l_tp, l_tq = world_to_base_frame(lpw, lqw, base_pos, base_quat)
+        r_tp, r_tq = world_to_base_frame(rpw, rqw, base_pos, base_quat)
         self._vuer_delta_reference = {
             "left": {
                 "controller_pos": self._raw_side_position(raw, side="left").detach().clone(),
@@ -306,12 +302,6 @@ class VuerTeleopPlanner(TeleopPlanner):
             return None
         scale = float(self.settings.vuer_delta_position_scale)
         rot_mode = str(self.settings.vuer_delta_rotation_mode).strip().lower()
-        # Lift travel since the reference was captured. The arms mount on the
-        # lift carriage, so the base-frame EE rises with the lift; add the same
-        # offset to the target Z to keep the arm command independent of lift.
-        lift_offset = 0.0
-        if self._lift_enabled and self._lift_ref is not None:
-            lift_offset = self._read_lift_position() - self._lift_ref
         out: list[torch.Tensor] = []
         for side in ("left", "right"):
             ref = self._vuer_delta_reference[side]
@@ -319,9 +309,6 @@ class VuerTeleopPlanner(TeleopPlanner):
             raw_pos = self._raw_side_position(raw, side=side)
             raw_delta = raw_pos - ref["controller_pos"].to(raw_pos.device)
             target_pos = ref["target_pos"].to(raw_pos.device) + self._map_vuer_position_delta(raw_delta) * scale
-            if lift_offset != 0.0:
-                target_pos = target_pos.clone()
-                target_pos[2] = target_pos[2] + lift_offset
             ref_quat = ref["target_quat"].to(ctrl_quat.device)
             if rot_mode == "controller":
                 ref_ctrl = ref["controller_quat"].to(ctrl_quat.device)
@@ -408,12 +395,11 @@ class VuerTeleopPlanner(TeleopPlanner):
 
     def _capture_hold_action(self) -> None:
         robot = self._gym_env.scene["robot"]
-        root_pos = robot.data.root_pos_w[0].clone()
-        root_quat = robot.data.root_quat_w[0].clone()
+        base_pos, base_quat = arm_base_pose_w(robot, self._arm_base_body)
         lpw, lqw, rpw, rqw = self._ee_world_poses()
-        lpb, lqb = world_to_base_frame(lpw, lqw, root_pos, root_quat)
-        rpb, rqb = world_to_base_frame(rpw, rqw, root_pos, root_quat)
-        device = root_pos.device
+        lpb, lqb = world_to_base_frame(lpw, lqw, base_pos, base_quat)
+        rpb, rqb = world_to_base_frame(rpw, rqw, base_pos, base_quat)
+        device = base_pos.device
         lg = torch.tensor([self._read_gripper(robot, self._gripper_joint_names[0])], device=device)
         rg = torch.tensor([self._read_gripper(robot, self._gripper_joint_names[1])], device=device)
         parts = [lpb.reshape(-1), self._normalize_quat(lqb.reshape(-1)), lg,
@@ -493,15 +479,14 @@ class VuerTeleopPlanner(TeleopPlanner):
             return self._apply_gripper_targets(action), {"device": self.device_name}
 
         robot = self._gym_env.scene["robot"]
-        root_pos = robot.data.root_pos_w[0].clone()
-        root_quat = robot.data.root_quat_w[0].clone()
+        base_pos, base_quat = arm_base_pose_w(robot, self._arm_base_body)
         delta = self._vuer_delta_targets_base(pose)
         if delta is None:
-            lpb, lqb = self._raw_side_pose_base(pose, side="left", root_pos=root_pos, root_quat=root_quat)
-            rpb, rqb = self._raw_side_pose_base(pose, side="right", root_pos=root_pos, root_quat=root_quat)
+            lpb, lqb = self._raw_side_pose_base(pose, side="left", root_pos=base_pos, root_quat=base_quat)
+            rpb, rqb = self._raw_side_pose_base(pose, side="right", root_pos=base_pos, root_quat=base_quat)
         else:
             lpb, lqb, rpb, rqb = delta
-        pos_offset = root_pos.new_tensor(self.settings.xr_target_base_pos_offset)
+        pos_offset = base_pos.new_tensor(self.settings.xr_target_base_pos_offset)
         parts = [lpb.reshape(-1) + pos_offset, self._normalize_quat(lqb.reshape(-1)), pose[_RAW_L_GRIP],
                  rpb.reshape(-1) + pos_offset, self._normalize_quat(rqb.reshape(-1)), pose[_RAW_R_GRIP]]
         if self._base_control_enabled:
@@ -533,7 +518,6 @@ class VuerTeleopPlanner(TeleopPlanner):
         self._prev_buttons = None
         self._vuer_delta_reference = {}
         self._lift_target = None
-        self._lift_ref = None
         if self._controller is not None and hasattr(self._controller, "reset"):
             self._controller.reset()
 

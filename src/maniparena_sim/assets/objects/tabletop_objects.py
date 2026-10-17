@@ -166,9 +166,9 @@ class _KinematicMixin:
 
 # --- quanta_x1 variants (suffix ``_2``) ----------------------------------------------
 # The desktop-arm bricks / papers above differ from the ones used to collect the QUANTA_X1
-# training data (manaenv library): bricks are 0.01 kg instead of 0.05 kg, papers are 1 mm
-# sheets instead of ~19 mm slabs, and the paper colours differ. The ``_2`` assets below use
-# the manaenv library USDs under ``assets/quanta_x1_objects``; the desktop assets stay as is.
+# training data: bricks are 0.01 kg instead of 0.05 kg, papers are 1 mm sheets instead of
+# ~19 mm slabs, and the paper colours differ. The ``_2`` assets below use the QUANTA_X1
+# collection USDs under ``assets/quanta_x1_objects``; the desktop assets stay as is.
 _QUANTA_OBJECTS_DIR = os.path.join(ASSETS_DIR, "quanta_x1_objects")
 
 
@@ -195,7 +195,7 @@ class RedBrick2(RedBrick):
 
 
 # Fixed (kinematic) papers. ``paper_pink.usd`` is paper_yellow with the tint estimated from
-# the manaenv ``paper_pink`` thumbnail (the library copy is not available offline).
+# the collection ``paper_pink`` thumbnail.
 @register_asset
 class YellowPaper2(_KinematicMixin, YellowPaper):
     name = "yellow_paper_2"
@@ -214,7 +214,7 @@ class PinkPaper2(_KinematicMixin, PinkPaper):
     usd_path = _quanta_object_usd("paper", "paper_pink.usd")
 
 
-# manaenv ``basket_b`` at scale 0.7 is the same mesh as ``platform_pink`` at 0.8 * 0.7 = 0.56.
+# The QUANTA_X1 collection basket (scale 0.7) is the same mesh as ``platform_pink`` at 0.8 * 0.7 = 0.56.
 @register_asset
 class BasketB2(_KinematicMixin, BasketB):
     name = "platform_pink_2"

@@ -16,6 +16,8 @@
 
 五个任务都支持键盘和 Vuer WebXR，`vr` 是 `vuer` 的别名。每回合物体随机，移动任务的机器人起点也随机；成功条件是物体到达目标且双臂回到初始姿态。
 
+手臂目标位姿统一在 `lift_link` 坐标系下表达，升降（lift）运动不会改变手臂指令；采集记录的 19D 动作、Wall-X 评测和 SDK 的末端位姿接口使用同一坐标系语义。
+
 固定底盘任务使用 `assets/green_booth/`；移动任务使用 `assets/put_bottle_on_woodshelf/` 和 `assets/mobile_manip/`。`move_bottle_to_bin`、`move_fruit_to_basket` 的对象默认从对象池随机选择，并在当前进程内保持不变；可通过 `scene_options.seed`、`bottle`、`fruit`、`basket` 指定。
 
 底盘参数（标定值，与 `QUANTA_X1_WHEEL_RADIUS_M` / `QUANTA_X1_WHEEL_TRACK_WIDTH_M` 一致）：`wheel_radius=0.0845`、`wheel_track_width=0.415`。Wall-X 全身推理见下文「Wall-X 评测」。
@@ -130,7 +132,11 @@ Vuer 遥操作 `fruits_to_basket` 三相机拼接预览（左腕 / 头部 / 右�
 
 # Wall-X 评测
 
-Wall-X（Wall-OSS）全身策略（21D：左右臂位姿+夹爪、左右轮速、lift、头部 yaw/pitch）在 Isaac Sim 里闭环评测，入口 `scripts/eval.py`。先在服务端起好 Wall-X 推理服务，再运行：
+QUANTA_X1 支持使用开源的 [Wall-X](https://github.com/X-Square-Robot/wall-x)（WALL-OSS 系列模型）进行闭环评测。评测入口为 `scripts/eval.py`，通过 WebSocket 连接 Wall-X 推理服务，服务的启动方式参见 Wall-X 仓库 README 中的 “WebSocket Serving”。更多评测任务可参考 [X2Real](https://github.com/X-Square-Robot/x2real)。
+
+## 运行
+
+先启动 Wall-X 推理服务，再运行：
 
 ```bash
 python scripts/eval.py \
@@ -140,48 +146,43 @@ python scripts/eval.py \
   --headless --enable_cameras --device cuda:0
 ```
 
-`--task` 可选 `sort_blocks`、`fruits_to_basket`、`move_bottle_to_bin`、`move_fruit_to_basket`、`put_bottle_on_woodshelf`。仓库内配置：`quanta_x1_put_bottle.yaml`、`quanta_x1_move_bottle_to_bin.yaml`、`quanta_x1_move_fruit_to_basket.yaml`；固定底盘的两个任务沿用相同的 `policy_config`，`max_steps` 取 2400。每回合超时后重置并计一回合。
+`--task` 可选 `sort_blocks`、`fruits_to_basket`、`move_bottle_to_bin`、`move_fruit_to_basket`、`put_bottle_on_woodshelf`。仓库提供 `quanta_x1_put_bottle.yaml`、`quanta_x1_move_bottle_to_bin.yaml`、`quanta_x1_move_fruit_to_basket.yaml` 三份配置；固定底盘的两个任务可沿用相同的 `policy_config`，并将 `max_steps` 设为 2400。回合超时后环境重置并计为一个回合。
 
-## 与数采对齐的评测设置
+## 评测设置
 
-评测使用独立的环境构建（`build_quanta_x1_eval_gym_env`），只影响 `eval.py`，采集和 SDK 不变。
+评测使用独立的环境构建（`build_quanta_x1_eval_gym_env`），仅作用于 `eval.py`，不影响采集和 SDK。
 
 | 项 | 取值 | 说明 |
 |----|------|------|
-| 物理 / 环境步长 | 240 Hz / 30 Hz（decimation 8） | 与数采 manaenv 一致，相机每个环境步渲染一次 |
-| 动作块 | `action_horizon=32`、`action_chunk_length=32` | 整块执行，不截断 |
-| 插值 | `interpolation_multiplier=1.5` | 一个动作块播放 48 个环境步 |
-| 超时 | 固定底盘 2400 步，移动任务 3000 步 | |
-| 指令 | 与训练数据任务文本一致 | 见各 yaml |
-| 手臂 IK | 在 `lift_link` 坐标系下求解 | lift 运动不影响手臂控制，与 manaenv 的 `isaac_base_body` 一致 |
-| 相机 | 头部 1280×720 针孔，腕部鱼眼 | 通过 `enable_usd_lens_models()` 写入 USD 镜头畸变模型；评测中去掉只含深度的底盘相机（否则 RTX 不再渲染彩色图） |
-| 物体与布局 | `sort_blocks`、`fruits_to_basket` 使用 `assets/quanta_x1_objects/` 里带 `_2` 后缀的资产 | 与桌面臂的 `sort_blocks` 资产、布局分开维护（`scene_builder.py` 中独立的场景构建函数） |
-| 固定底盘出生位姿 | sort：`pos=(-0.52,-0.26,-0.985)`、lift 0.455；fruits：`pos=(-0.60,-0.26,-0.985)`、lift 0.379；head pitch 0.35 | 见 `task/quanta_tabletop_layouts.py` |
+| 仿真步长 | 物理 240 Hz，环境 30 Hz（decimation 8） | 相机每个环境步渲染一次 |
+| 动作块 | `action_horizon=32`、`action_chunk_length=32` | 整个动作块执行后重新推理 |
+| 插值 | `interpolation_multiplier=1.5` | 一个动作块对应 48 个环境步 |
+| 回合步数上限 | 固定底盘任务 2400，移动任务 3000 | 由 `max_steps` 设置 |
+| 指令 | 与训练数据中对应任务的文本一致 | 见各配置文件的 `instruction` |
+| 手臂坐标系 | `lift_link` | 手臂位姿指令与状态均在 `lift_link` 坐标系下表达，lift 运动不改变手臂指令 |
+| 相机 | 头部 1280×720 标定针孔相机，腕部鱼眼相机 | 与采集、SDK 一致，镜头畸变模型由 `enable_usd_lens_models()` 写入相机 USD；评测中不启用仅输出深度的底盘相机 |
+| 物体与布局 | `sort_blocks`、`fruits_to_basket` 使用 `assets/quanta_x1_objects/` 下带 `_2` 后缀的资产 | 场景与桌面臂任务分别构建（`scene_builder.py`） |
+| 固定底盘出生位姿 | `sort_blocks`：`pos=(-0.52, -0.26, -0.985)`；`fruits_to_basket`：`pos=(-0.60, -0.26, -0.985)`；head pitch 均为 0.35 | 见 `task/quanta_tabletop_layouts.py` |
 
-### Lift 固定为数采值
+### Lift 指令
 
-数采里每个任务的 lift 指令全程恒定（`sort_blocks` 0.455，其余四个任务 0.379；实测值分别约 0.441 和 0.365）。现有 checkpoint 的 lift 输出不稳定：在 `fruits_to_basket` 和移动任务里，lift 会在 30~120 步内漂到 0.45 左右（相当于 sort 的高度），手臂实际抬高约 7 cm，导致抓取偏上、抓不到。所以评测中 **lift 不作为推理控制量**：`eval.py` 按任务把 lift 指令固定为数采值（`quanta_x1_demo_lift_command`），模型输出的 lift 被忽略，lift 状态仍然作为输入送给模型。可以用 `policy_config.lift_hold` 覆盖该值。
+训练数据中各任务的 lift 指令全程恒定：`sort_blocks` 为 0.455 m，其余任务为 0.379 m。评测时 lift 不由模型控制，`eval.py` 按任务固定该值，可用 `policy_config.lift_hold` 覆盖。
 
-非 sort 任务的机器人出生 lift 也设为数采实测状态（指令 − 0.014 m），保证第一次推理时的 lift 状态与训练数据一致。
+### 字段映射
 
-### 服务端字段映射
+训练数据（LeRobot v3.0，26 维，30 fps）状态与动作的末尾 6 维按 `[底盘速度 (vx, vy, wz), lift, 头部 (yaw, pitch)]` 排列，与推理服务按字段名组织的顺序不同。评测客户端（`wire_layout: dataset`，默认）按训练数据的顺序填写请求中的 `state`，并从响应中还原对应的指令：
 
-训练数据（LeRobot v3.0，26D，30 fps）末尾顺序是 `[底盘 twist(3), lift, head(2)]`，而推理服务按 `dof_config` 的名字 `[head(2), height, velocity(3)]` 填充。客户端 `wire_layout: dataset`（默认）按数据顺序重新映射请求和响应字段，不用改服务端。
+| 训练数据中的量 | 请求 `state` 字段 | 响应字段 |
+|----------------|-------------------|----------|
+| 底盘速度 vx、vy | `head_pos` | `head_pos` |
+| 底盘角速度 wz | `lift` | `lift` |
+| lift、头部 yaw、pitch | `velocity_decomposed` | `velocity_decomposed_odom` |
 
-### 底盘
+该映射要求推理服务将 `head_pos` 槽位按模型预测值返回，而不是回显请求中的状态。
 
-- 轮速由 `twist_to_wheel_vel` 换算，默认使用标定几何 `QUANTA_X1_WHEEL_RADIUS_M=0.0845`、`QUANTA_X1_WHEEL_TRACK_WIDTH_M=0.415`，不要在 yaml 里再写旧值（0.084 / 0.458 会让转向偏快约 10%）。
-- 万向轮摩擦为 0 且摩擦合并模式取 min，驱动轮为球体碰撞体，用来消除低速转向死区，见 SDK 的 `fix(assets)` 提交。
-- 第一次推理需要完整的 32 行动作块：从静止起步时模型前约 15 行输出接近 0，之后才开始加速。
+### 录制
 
-### 录制与视频
-
-`enable_recording: true` 时每个回合单独导出一个 hdf5（含成功回合）和三路相机 mp4（头部、左腕、右腕）。
-
-## 已知问题
-
-- checkpoint 对 lift 状态敏感：不固定 lift 时，lift 状态超过约 0.41 会触发输出 0.453（sort 的值），形成正反馈。固定 lift 后 `put_bottle_on_woodshelf` 单回合成功，`fruits_to_basket` 能抓起并放入部分水果，`move_bottle_to_bin`、`move_fruit_to_basket` 仍会停在离物体较远的位置、抓不到。
-- 单回合结果有随机性，同一 checkpoint 多次评测的成功与否会变化，需要多回合统计。
+`enable_recording: true` 时，每个回合（包括成功回合）单独导出一个 hdf5 文件，以及头部、左腕、右腕三路相机的 mp4。
 
 ---
 
