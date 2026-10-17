@@ -1,5 +1,7 @@
 # QUANTA_X1 使用指南
 
+本文档介绍 QUANTA_X1 的遥操作数据采集和 Wall-X 闭环评测；SDK ROS2 接口见 [QUANTA_X1 SDK ROS2](quanta_x1_sdk.md)。
+
 # 遥操作采集
 
 采集入口为 `scripts/collect.py`，配置文件按控制方式区分（`keyboard` / `vuer` / `vr`）。
@@ -134,9 +136,53 @@ Vuer 遥操作 `fruits_to_basket` 三相机拼接预览（左腕 / 头部 / 右�
 
 QUANTA_X1 支持使用开源的 [Wall-X](https://github.com/X-Square-Robot/wall-x)（WALL-OSS 系列模型）进行闭环评测。评测入口为 `scripts/eval.py`，通过 WebSocket 连接 Wall-X 推理服务，服务的启动方式参见 Wall-X 仓库 README 中的 “WebSocket Serving”。更多评测任务可参考 [X2Real](https://github.com/X-Square-Robot/x2real)。
 
+## 模型与数据
+
+| 内容 | 链接 |
+|------|------|
+| QUANTA_X1 Wall-OSS 0.5 checkpoint（20k 步，仅推理文件） | [yunxiao13/quanta-x1-wallx-20k](https://huggingface.co/yunxiao13/quanta-x1-wallx-20k) |
+| 训练数据（LeRobot v3.0，1066 条，5 个任务） | [yunxiao13/quanta-x1-demos](https://huggingface.co/datasets/yunxiao13/quanta-x1-demos) |
+
+两个仓库均为公开仓库，下载无需登录。使用 [Hugging Face Hub](https://huggingface.co/docs/huggingface_hub) 的命令行工具 `hf` 下载：
+
+```bash
+pip install -U huggingface_hub
+
+hf download yunxiao13/quanta-x1-wallx-20k --local-dir ./quanta-x1-wallx-20k
+hf download yunxiao13/quanta-x1-demos --repo-type dataset --local-dir ./quanta-x1-demos
+```
+
+checkpoint 约 18 GB，数据集约 5 GB。下载中断后重复执行同一条命令即可续传。无法直接访问 huggingface.co 时，可设置镜像地址 `export HF_ENDPOINT=<镜像地址>` 后再下载。数据集可直接用 LeRobot 加载：
+
+```python
+from lerobot.datasets.lerobot_dataset import LeRobotDataset
+
+dataset = LeRobotDataset("yunxiao13/quanta-x1-demos")
+```
+
+## 启动推理服务
+
+推理服务使用开源的 [Wall-X](https://github.com/X-Square-Robot/wall-x)。先按其 README 创建环境并安装（Python 3.10、`requirements.txt`、`flash-attn`、LeRobot，最后 `pip install -e .`），然后在该环境中运行本仓库的启动脚本：
+
+```bash
+python scripts/wallx_serve_quanta_x1.py \
+  --checkpoint-path ./quanta-x1-wallx-20k \
+  --port 8000
+```
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `--checkpoint-path` | 必填 | checkpoint 目录 |
+| `--port` | 8000 | WebSocket 端口，与评测命令的 `--server-port` 一致 |
+| `--host` | 127.0.0.1 | 监听地址；服务没有鉴权，需要远程访问时请自行限制来源 |
+| `--cuda-id` | 0 | 使用的 GPU，对应 `CUDA_VISIBLE_DEVICES` |
+| `--action-horizon` | 32 | 动作块长度 |
+
+脚本等价于 Wall-X 的 `scripts/run_serving.sh`，固定使用 `--robot-type ex001` 并返回序列化动作；其他参数可写在 `--` 之后，原样传给 Wall-X 的 `launch_serving`。该 checkpoint 的 `head_pos` 槽位对应底盘速度，Wall-X 默认实现在请求带有 `head_pos` 时会回显请求中的状态而不是模型预测，脚本在启动时替换了这一处方法，不修改 Wall-X 源码。
+
 ## 运行
 
-先启动 Wall-X 推理服务，再运行（以 `put_bottle_on_woodshelf` 为例）：
+推理服务就绪后运行（以 `put_bottle_on_woodshelf` 为例）：
 
 ```bash
 python scripts/eval.py \
@@ -190,7 +236,7 @@ python scripts/eval.py \
 | 底盘角速度 wz | `lift` | `lift` |
 | lift、头部 yaw、pitch | `velocity_decomposed` | `velocity_decomposed_odom` |
 
-该映射要求推理服务将 `head_pos` 槽位按模型预测值返回，而不是回显请求中的状态。
+该映射要求推理服务将 `head_pos` 槽位按模型预测值返回，`scripts/wallx_serve_quanta_x1.py` 已满足这一要求。
 
 ### 录制
 
@@ -207,88 +253,3 @@ Wall-X 闭环评测中的头部相机视角（加速播放）：
 `put_bottle_on_woodshelf`：
 
 ![quanta_x1 Wall-X eval put_bottle_on_woodshelf](../media/quanta_x1_wallx_eval_put_bottle_on_woodshelf.gif)
-
----
-
-# SDK ROS2
-
-## ROS 环境配置
-
-ROS2 桥依赖 Isaac Sim 的 `isaacsim.ros2.bridge` 扩展。当前为 Isaac Sim **6.0**（Python 3.12），按官方 ROS 2 Jazzy 安装即可：
-
-参考：<https://docs.ros.org/en/jazzy/Installation.html>
-
-## 启动命令
-
-先按主 [README](../README.md) 激活仿真环境，再 source ROS 2，最后启动：
-
-```bash
-source 3rd/isaaclabarena/.venv/bin/activate
-export OMNI_KIT_ACCEPT_EULA=YES ACCEPT_EULA=Y
-export ENABLE_CAMERAS=1
-source /opt/ros/jazzy/local_setup.bash
-python scripts/sdk_ros2.py \
-  --config configs/sdk_ros2/quanta_x1_sdk_ros2.yaml \
-  --viz kit
-```
-
-初始 Kit 视口对准机器人一次（`viewer_cfg.origin_type: world`），之后不跟车。可在
-`configs/sdk_ros2/quanta_x1_sdk_ros2.yaml` 改 `eye` / `lookat`（世界系，单位米）。
-
-启动后键盘控制（先点击 Isaac Sim 视口获取焦点）：
-
-| 按键 | 功能 |
-|------|------|
-| `W` / `S` | 底盘前进 / 后退 |
-| `A` / `D` 或 `Q` / `E` | 底盘转向 |
-| `R` | 重置机器人到初始位姿 |
-
-外部 ROS2 节点同时可通过 `/chassis/cmd_vel` 驱动底盘，速度与键盘叠加。
-
-## ROS2 话题
-
-ROS 节点名为 `sx001_ros_communicator`，话题合同见 `src/maniparena_sim/ros/quanta_x1_sdk_topics.py`。
-
-| Topic Name | Message Type |
-|------------|--------------|
-| **PUBLISHERS** | |
-| `/joint_states` | `JointState` |
-| `/left_arm/joint_states` / `/right_arm/joint_states` | `JointState` |
-| `/left_gripper/joint_states` / `/right_gripper/joint_states` | `JointState`（0–1.89） |
-| `/head/joint_states` | `JointState` |
-| `/lift/joint_states` | `JointState` |
-| `/left_arm/end_pose` / `/right_arm/end_pose` | `PoseStamped` |
-| `/odom` | `Odometry` |
-| `/tracked_pose` | `PoseStamped` |
-| `/hal/chassis/imu` | `Imu` |
-| `/scan` | `LaserScan`（RTX 直出） |
-| `/tf` / `/tf_static` | TF（`a_d_laser` 在 static） |
-| `/clock` | `Clock`（`use_sim_time: true`） |
-| `/camera_chassis_front/depth/points` | `PointCloud2` |
-| `/camera1/...` / `/camera3/...` | 左右腕 RGB |
-| `/camera_head_front/color/image_raw/compressed` | 头 RGB |
-| **SUBSCRIBERS** | |
-| `/left_arm_cartesian_controller/pose_cmd` / `/right_arm_cartesian_controller/pose_cmd` | `PoseStamped`（`ros.arm_control: ee`） |
-| `/left_arm_joint_controller/commands` / `/right_arm_joint_controller/commands` | `Float64MultiArray`（`ros.arm_control: joint`） |
-| `/left_gripper_controller/commands` | `Float64MultiArray`（0–1.89） |
-| `/right_gripper_controller/commands` | `Float64MultiArray`（0–1.89） |
-| `/head_position_controller/commands` | `Float64MultiArray` |
-| `/lift_position_controller/commands` | `Float64MultiArray` |
-| `/chassis/cmd_vel` | `Twist`（超时 0.25 s 清零） |
-
-双臂控制由 YAML `ros.arm_control` 选择，默认 **`ee`**：
-
-```yaml
-ros:
-  arm_control: ee    # 或 joint
-```
-
-## 演示
-
-`nav_f16` 场景中的 QUANTA_X1 仿真：
-
-![quanta_x1 SDK ROS2 sim](../media/quanta_x1_sdk_ros2_sim.png)
-
-RViz 中点云、`/scan` 与 TF 可视化：
-
-![quanta_x1 SDK ROS2 RViz](../media/quanta_x1_sdk_ros2_rviz.png)

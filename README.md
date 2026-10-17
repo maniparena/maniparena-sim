@@ -94,7 +94,7 @@ The SDK runtime exposes robot state and either Cartesian or joint commands, with
 
 | Robot | Launch | SDK guide |
 | --- | --- | --- |
-| QUANTA_X1 | `python scripts/sdk_ros2.py --robot quanta_x1 --viz kit` | [QUANTA_X1](docs/quanta_x1.md#sdk-ros2) |
+| QUANTA_X1 | `python scripts/sdk_ros2.py --robot quanta_x1 --viz kit` | [QUANTA_X1 SDK](docs/quanta_x1_sdk.md) |
 | quanta_x2 | `python scripts/sdk_ros2.py --robot quanta_x2 --viz kit` | [quanta_x2 SDK](docs/quanta_x2_sdk.md) |
 | ArtiXon Arm-6A | `python scripts/sdk_ros2.py --robot artixon_arm_6a --viz kit` | [ArtiXon Arm-6A SDK](docs/artixon_arm_6a_sdk.md) |
 
