@@ -6,7 +6,12 @@ from functools import partial
 
 import numpy as np
 
-from maniparena_sim.ros.math_utils import compose_pose, compute_relative_pose, to_numpy
+from maniparena_sim.ros.math_utils import (
+    compose_home_relative_pose,
+    compose_pose,
+    compute_relative_pose,
+    to_numpy,
+)
 from maniparena_sim.ros.quanta_x1_sdk_topics import normalize_arm_control
 from maniparena_sim.ros.sdk_profiles import (
     HEAD_JOINT_NAMES,
@@ -29,7 +34,7 @@ def finite_command(values, size: int) -> np.ndarray | None:
 
 
 class SdkControl:
-    """Own one environment's command state and reset-to-current-pose behavior."""
+    """Own command state and convert external EE poses into IK targets."""
 
     def __init__(self, env, robot, actions, profile, arm_control="ee", cmd_vel_timeout_s=0.25):
         self.profile = get_sdk_profile(profile)
@@ -53,7 +58,7 @@ class SdkControl:
             slots = list(range(offset, offset + size))
             if name in self.profile.arm_action_terms and self.mode == "ee":
                 if size != 7:
-                    raise ValueError(f"{name} must have seven absolute pose slots")
+                    raise ValueError(f"{name} must have seven pose slots")
                 self.pose_slots.append((name, slots))
             else:
                 names = list(getattr(term, "_joint_names", ()))
@@ -76,6 +81,7 @@ class SdkControl:
         if missing:
             raise ValueError(f"SDK action manager is missing joint slots: {missing}")
         self.ee_commands = [None] * len(self.profile.arm_joint_names)
+        self.ee_home = [None] * len(self.profile.arm_joint_names)
         self._velocity = (0.0, 0.0, 0.0)
         self._velocity_pending = False
         self._velocity_stamp = None
@@ -107,7 +113,7 @@ class SdkControl:
                 self.actions[0, self.joint_slots[name]] = float(value)
 
     def pose_command(self, msg, side):
-        """Accept absolute base_link end-effector poses with ROS XYZW quaternions."""
+        """Accept the profile's base_link EE pose contract with ROS XYZW quaternions."""
         try:
             if getattr(getattr(msg, "header", None), "frame_id", "") not in (
                 "",
@@ -167,7 +173,17 @@ class SdkControl:
                     to_numpy(robot.data.body_pos_w[0, base]),
                     to_numpy(robot.data.body_quat_w[0, base]),
                 )
-                self.ee_commands[side] = np.concatenate((pos, quat))
+                home = np.concatenate((pos, quat))
+                self.ee_home[side] = home
+                if self.profile.ee_pose_init_relative:
+                    # A reset defines the public zero pose.  The internal
+                    # action is still seeded with the current absolute pose.
+                    self.ee_commands[side] = np.array(
+                        (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0),
+                        dtype=np.float64,
+                    )
+                else:
+                    self.ee_commands[side] = home.copy()
             self.project_ee_pose_commands(robot)
 
     def project_ee_pose_commands(self, robot=None):
@@ -185,6 +201,15 @@ class SdkControl:
             command = self.ee_commands[side]
             if command is None:
                 continue
-            pos, quat = compose_pose(base_pos, base_quat, command[:3], command[3:])
+            if self.profile.ee_pose_init_relative:
+                home = self.ee_home[side]
+                if home is None:
+                    continue
+                flange_pos, flange_quat = compose_home_relative_pose(
+                    home[:3], home[3:], command[:3], command[3:]
+                )
+            else:
+                flange_pos, flange_quat = command[:3], command[3:]
+            pos, quat = compose_pose(base_pos, base_quat, flange_pos, flange_quat)
             for slot, value in zip(self.pose_slots[term_name], np.concatenate((pos, quat))):
                 self.actions[0, slot] = float(value)

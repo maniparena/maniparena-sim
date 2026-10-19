@@ -46,11 +46,11 @@ python scripts/sdk_ros2.py --robot artixon_arm_6a_right --viz kit
 
 | 接口 | 话题 | 类型 / 语义 |
 | --- | --- | --- |
-| 末端指令（ee） | `/left_arm_cartesian_controller/pose_cmd`、`/right_arm_cartesian_controller/pose_cmd` | `PoseStamped`，`base_link` 下绝对法兰位姿 |
+| 末端指令（ee） | `/left_arm_cartesian_controller/pose_cmd`、`/right_arm_cartesian_controller/pose_cmd` | `PoseStamped`，相对 reset/home 零位的法兰位姿；向量使用 `base_link` 轴 |
 | 关节指令（joint） | `/left_arm_joint_controller/commands`、`/right_arm_joint_controller/commands` | `Float64MultiArray`，每臂 6 值 |
 | 夹爪指令 | `/left_gripper_controller/commands`、`/right_gripper_controller/commands` | `Float64MultiArray`，单值 0–1.89 |
 | 双臂状态 | `/left_arm/joint_states`、`/right_arm/joint_states` | `JointState` |
-| 法兰状态 | `/left_arm/end_pose`、`/right_arm/end_pose` | `PoseStamped`，`base_link` 下绝对位姿 |
+| 法兰状态 | `/left_arm/end_pose`、`/right_arm/end_pose` | `PoseStamped`，相对 reset/home 零位的法兰位姿；向量使用 `base_link` 轴 |
 | 夹爪状态 | `/left_gripper/joint_states`、`/right_gripper/joint_states` | `JointState` |
 | 全关节状态 | `/joint_states` | `JointState` |
 
@@ -59,8 +59,11 @@ python scripts/sdk_ros2.py --robot artixon_arm_6a_right --viz kit
 `left` 替换为 `right`。单臂 EE action 为 8 维（7 维位姿加 1 维夹爪），joint 模式为 7 维。
 
 末端为 `left_arm_link6` / `right_arm_link6` 法兰。位置单位米，四元数 **XYZW**。
-指令 `header.frame_id` 使用 `base_link`（空值也按该坐标系处理）；先读取 `/left_arm/end_pose`
-或右臂对应状态，再发送附近目标。EE 使用仿真 Jacobian 的 differential IK。
+reset 后当前法兰 pose 定义为零位：位置输出为相对零位的位移，姿态为
+`q_relative = q_target * inverse(q_home)`。指令使用同一语义，位置是相对位移，姿态是
+`q_target = q_relative * q_home`。`header.frame_id` 使用 `base_link`（空值也按该坐标系处理）；
+先读取 `/left_arm/end_pose` 或右臂对应状态，再发送相对目标。内部仍会把目标转换成
+仿真 root frame 后执行 differential IK。
 
 双臂启用相机时发布 `/camera1/usb_cam1/image_raw/image_compressed`、
 `/camera3/usb_cam3/image_raw/image_compressed` 和 `/camera_head_front/color/image_raw/compressed`；

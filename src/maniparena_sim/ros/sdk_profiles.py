@@ -23,6 +23,9 @@ class SdkProfile:
     gripper_state_names: tuple[str, ...]
     arm_action_terms: tuple[str, ...] = ("arm_action", "right_arm_action")
     mobile: bool = False
+    # ArtiXon desktop EE topics use the same init/home-relative contract as
+    # the real robot.  Other SDK profiles keep their native absolute contract.
+    ee_pose_init_relative: bool = False
 
     @property
     def arm_dof(self) -> int:
@@ -150,6 +153,7 @@ ARTIXON_ARM_6A = SdkProfile(
     ),
     gripper_states=("/left_gripper/joint_states", "/right_gripper/joint_states"),
     gripper_state_names=("left_arm_gripper", "right_arm_gripper"),
+    ee_pose_init_relative=True,
 )
 
 
@@ -169,6 +173,7 @@ def _artixon_single_profile(side: str) -> SdkProfile:
         gripper_states=(f"/{side}_gripper/joint_states",),
         gripper_state_names=(f"{side}_arm_gripper",),
         arm_action_terms=("arm_action",),
+        ee_pose_init_relative=True,
     )
 
 
