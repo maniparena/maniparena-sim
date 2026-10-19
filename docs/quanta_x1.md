@@ -219,7 +219,7 @@ python scripts/eval.py \
 | 指令 | 与训练数据中对应任务的文本一致 | 见各配置文件的 `instruction` |
 | 手臂坐标系 | `lift_link` 数值语义，`neutral` 消息 frame ID | 手臂位姿数值仍在 `lift_link` 下表达，EE PoseStamped 的 `header.frame_id` 统一为 `neutral`，lift 运动不改变手臂指令 |
 | 相机 | 头部 1280×720 标定针孔相机，腕部鱼眼相机 | 与采集、SDK 一致，镜头畸变模型由 `enable_usd_lens_models()` 写入相机 USD；评测中不启用仅输出深度的底盘相机 |
-| 物体与布局 | `sort_blocks`、`fruits_to_basket` 使用 `assets/quanta_x1_objects/` 下带 `_2` 后缀的资产 | 场景与桌面臂任务分别构建（`scene_builder.py`） |
+| 物体与布局 | `sort_blocks`、`fruits_to_basket` 使用 `assets/objects/brick/` 和 `assets/objects/paper/` 下带 `_2` 后缀的资产 | 场景与桌面臂任务分别构建（`scene_builder.py`） |
 | 固定底盘出生位姿 | `sort_blocks`：`pos=(-0.52, -0.26, -0.985)`；`fruits_to_basket`：`pos=(-0.60, -0.26, -0.985)`；head pitch 均为 0.35 | 见 `task/quanta_tabletop_layouts.py` |
 
 ### Lift 指令

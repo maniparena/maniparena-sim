@@ -168,30 +168,30 @@ class _KinematicMixin:
 # The desktop-arm bricks / papers above differ from the ones used to collect the QUANTA_X1
 # training data: bricks are 0.01 kg instead of 0.05 kg, papers are 1 mm sheets instead of
 # ~19 mm slabs, and the paper colours differ. The ``_2`` assets below use the QUANTA_X1
-# collection USDs under ``assets/quanta_x1_objects``; the desktop assets stay as is.
-_QUANTA_OBJECTS_DIR = os.path.join(ASSETS_DIR, "quanta_x1_objects")
+# Collection variants live alongside the common tabletop objects. The ``_2`` suffix
+# keeps their registry names and filenames distinct from the desktop-arm assets.
 
 
-def _quanta_object_usd(asset_dir: str, asset_file: str) -> str:
-    return os.path.join(_QUANTA_OBJECTS_DIR, asset_dir, asset_file)
+def _tabletop_variant_usd(asset_dir: str, asset_file: str) -> str:
+    return os.path.join(ASSETS_DIR, "objects", asset_dir, asset_file)
 
 
 @register_asset
 class YellowBrick2(YellowBrick):
     name = "yellow_brick_2"
-    usd_path = _quanta_object_usd("brick", "brick_yellow.usd")
+    usd_path = _tabletop_variant_usd("brick", "brick_yellow_2.usd")
 
 
 @register_asset
 class GreenBrick2(GreenBrick):
     name = "green_brick_2"
-    usd_path = _quanta_object_usd("brick", "brick_green.usd")
+    usd_path = _tabletop_variant_usd("brick", "brick_green_2.usd")
 
 
 @register_asset
 class RedBrick2(RedBrick):
     name = "red_brick_2"
-    usd_path = _quanta_object_usd("brick", "brick_red.usd")
+    usd_path = _tabletop_variant_usd("brick", "brick_red_2.usd")
 
 
 # Fixed (kinematic) papers. ``paper_pink.usd`` is paper_yellow with the tint estimated from
@@ -199,19 +199,19 @@ class RedBrick2(RedBrick):
 @register_asset
 class YellowPaper2(_KinematicMixin, YellowPaper):
     name = "yellow_paper_2"
-    usd_path = _quanta_object_usd("paper", "paper_yellow.usd")
+    usd_path = _tabletop_variant_usd("paper", "paper_yellow_2.usd")
 
 
 @register_asset
 class GreenPaper2(_KinematicMixin, GreenPaper):
     name = "green_paper_2"
-    usd_path = _quanta_object_usd("paper", "paper_green.usd")
+    usd_path = _tabletop_variant_usd("paper", "paper_green_2.usd")
 
 
 @register_asset
 class PinkPaper2(_KinematicMixin, PinkPaper):
     name = "pink_paper_2"
-    usd_path = _quanta_object_usd("paper", "paper_pink.usd")
+    usd_path = _tabletop_variant_usd("paper", "paper_pink_2.usd")
 
 
 # The QUANTA_X1 collection basket (scale 0.7) is the same mesh as ``platform_pink`` at 0.8 * 0.7 = 0.56.
