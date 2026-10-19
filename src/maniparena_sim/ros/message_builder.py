@@ -286,7 +286,7 @@ class MessageBuilder:
         return compute_relative_pose(body_pos, body_quat, base_pos, base_quat)
 
     @staticmethod
-    def pose_stamped_ee_from_home(obs, body_idx, stamp, home_pos, home_quat, base_idx=None, frame_id="lift_link"):
+    def pose_stamped_ee_from_home(obs, body_idx, stamp, home_pos, home_quat, base_idx=None, frame_id="neutral"):
         """Build gripper PoseStamped relative to the home EE pose."""
         from geometry_msgs.msg import Point
         from geometry_msgs.msg import Pose as RosPose

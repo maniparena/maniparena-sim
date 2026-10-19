@@ -1,8 +1,9 @@
 """ROS SDK bridge for Quanta X2 and ArtiXon Arm-6A.
 
-Both profiles command and report absolute end-frame poses in ``base_link``.
-Joint and gripper positions are radians. Sensors publish only when instantiated
-by the scene; the bridge never invents camera or laser data.
+ArtiXon topics report and accept EE poses relative to the reset/home pose in
+``base_link``; Quanta X2 retains its profile-defined pose contract. Joint and
+gripper positions are radians. Sensors publish only when instantiated by the
+scene; the bridge never invents camera or laser data.
 """
 
 from __future__ import annotations
@@ -11,7 +12,12 @@ import sys
 from functools import partial
 from pathlib import Path
 
-from maniparena_sim.ros.math_utils import compute_relative_pose, quat_rotate_inverse, to_numpy
+from maniparena_sim.ros.math_utils import (
+    compute_home_relative_pose,
+    compute_relative_pose,
+    quat_rotate_inverse,
+    to_numpy,
+)
 from maniparena_sim.ros.sdk_control import SdkControl
 from maniparena_sim.ros.sdk_profiles import DEPTH_TOPICS, RGB_TOPICS, get_sdk_profile
 
@@ -323,9 +329,14 @@ class SdkRosBridge:
         pose = MessageBuilder.ee_pose_in_arm_base(obs, mapping.flanges[side], mapping.base)
         if pose is None:
             return None
+        if self.profile.ee_pose_init_relative:
+            home = self._control.ee_home[side]
+            if home is None:
+                return None
+            pose = compute_home_relative_pose(pose[0], pose[1], home[:3], home[3:])
         msg = PoseStamped()
         copy_stamp(msg.header.stamp, self._stamp_holder["stamp"])
-        msg.header.frame_id = "base_link"
+        msg.header.frame_id = "neutral" if self.profile.ee_pose_init_relative else "base_link"
         msg.pose.position.x, msg.pose.position.y, msg.pose.position.z = [float(x) for x in pose[0]]
         (
             msg.pose.orientation.x,

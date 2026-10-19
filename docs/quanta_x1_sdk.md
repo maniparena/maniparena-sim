@@ -66,6 +66,8 @@ ROS 节点名为 `sx001_ros_communicator`，话题合同见 `src/maniparena_sim/
 | `/lift_position_controller/commands` | `Float64MultiArray` |
 | `/chassis/cmd_vel` | `Twist`（超时 0.25 s 清零） |
 
+EE `PoseStamped` 的 `header.frame_id` 统一使用 `neutral`；位姿数值仍按 `lift_link` 的相对 home/zero 语义解释。
+
 头部相机为 1280×720 标定针孔相机，腕部相机为鱼眼相机，镜头畸变模型与数据采集、Wall-X 评测一致。
 
 双臂控制由 YAML `ros.arm_control` 选择，默认 **`ee`**：

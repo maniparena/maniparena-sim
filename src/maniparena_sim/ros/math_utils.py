@@ -111,6 +111,30 @@ def compose_pose(
     return world_pos, world_quat
 
 
+def compute_home_relative_pose(
+    pos: np.ndarray,
+    quat: np.ndarray,
+    home_pos: np.ndarray,
+    home_quat: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Compute the init/home-relative EE pose used by the public robot wire."""
+    rel_pos = np.asarray(pos, dtype=np.float32) - np.asarray(home_pos, dtype=np.float32)
+    rel_quat = quat_multiply(np.asarray(quat, dtype=np.float32), quat_inverse(home_quat))
+    return rel_pos, rel_quat
+
+
+def compose_home_relative_pose(
+    home_pos: np.ndarray,
+    home_quat: np.ndarray,
+    rel_pos: np.ndarray,
+    rel_quat: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Compose a public init/home-relative EE pose onto its home pose."""
+    pos = np.asarray(home_pos, dtype=np.float32) + np.asarray(rel_pos, dtype=np.float32)
+    quat = quat_multiply(np.asarray(rel_quat, dtype=np.float32), np.asarray(home_quat, dtype=np.float32))
+    return pos, quat
+
+
 def lift_joint_pose_to_root(
     cmd_pos,
     cmd_quat,
