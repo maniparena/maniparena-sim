@@ -336,7 +336,7 @@ class SdkRosBridge:
             pose = compute_home_relative_pose(pose[0], pose[1], home[:3], home[3:])
         msg = PoseStamped()
         copy_stamp(msg.header.stamp, self._stamp_holder["stamp"])
-        msg.header.frame_id = "base_link"
+        msg.header.frame_id = "neutral" if self.profile.ee_pose_init_relative else "base_link"
         msg.pose.position.x, msg.pose.position.y, msg.pose.position.z = [float(x) for x in pose[0]]
         (
             msg.pose.orientation.x,

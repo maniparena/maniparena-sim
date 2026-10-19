@@ -61,7 +61,7 @@ python scripts/sdk_ros2.py --robot artixon_arm_6a_right --viz kit
 末端为 `left_arm_link6` / `right_arm_link6` 法兰。位置单位米，四元数 **XYZW**。
 reset 后当前法兰 pose 定义为零位：位置输出为相对零位的位移，姿态为
 `q_relative = q_target * inverse(q_home)`。指令使用同一语义，位置是相对位移，姿态是
-`q_target = q_relative * q_home`。`header.frame_id` 使用 `base_link`（空值也按该坐标系处理）；
+`q_target = q_relative * q_home`。`header.frame_id` 固定使用 `neutral`（空值也按该坐标系处理）；
 先读取 `/left_arm/end_pose` 或右臂对应状态，再发送相对目标。内部仍会把目标转换成
 仿真 root frame 后执行 differential IK。
 

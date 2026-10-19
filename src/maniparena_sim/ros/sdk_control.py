@@ -113,12 +113,11 @@ class SdkControl:
                 self.actions[0, self.joint_slots[name]] = float(value)
 
     def pose_command(self, msg, side):
-        """Accept the profile's base_link EE pose contract with ROS XYZW quaternions."""
+        """Accept the profile's EE pose contract with ROS XYZW quaternions."""
         try:
-            if getattr(getattr(msg, "header", None), "frame_id", "") not in (
-                "",
-                "base_link",
-            ):
+            frame_id = getattr(getattr(msg, "header", None), "frame_id", "")
+            expected_frame = "neutral" if self.profile.ee_pose_init_relative else "base_link"
+            if frame_id not in ("", expected_frame):
                 return
             p, q = msg.pose.position, msg.pose.orientation
             values = finite_command((p.x, p.y, p.z, q.x, q.y, q.z, q.w), 7)

@@ -168,6 +168,8 @@ def _pose_stamped_xyz_xyzw(msg) -> tuple[list[float], list[float]] | None:
 def pose_stamped_to_diff_ik_command(msg, robot=None) -> list[float] | None:
     """Map ROS ``PoseStamped`` (XYZW) to ``[x, y, z, qx, qy, qz, qw]``."""
     del robot
+    if getattr(getattr(msg, "header", None), "frame_id", "") not in ("", "neutral"):
+        return None
     parsed = _pose_stamped_xyz_xyzw(msg)
     if parsed is None:
         return None

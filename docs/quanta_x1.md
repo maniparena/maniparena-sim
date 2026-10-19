@@ -18,7 +18,7 @@
 
 五个任务都支持键盘和 Vuer WebXR，`vr` 是 `vuer` 的别名。每回合物体随机，移动任务的机器人起点也随机；成功条件是物体到达目标且双臂回到初始姿态。
 
-手臂目标位姿统一在 `lift_link` 坐标系下表达，升降（lift）运动不会改变手臂指令；采集记录的 19D 动作、Wall-X 评测和 SDK 的末端位姿接口使用同一坐标系语义。
+手臂目标位姿数值统一在 `lift_link` 坐标系下表达，升降（lift）运动不会改变手臂指令；采集记录的 19D 动作、Wall-X 评测和 SDK 的末端位姿接口使用同一坐标系语义。EE `PoseStamped.header.frame_id` 统一为 `neutral`。
 
 固定底盘任务使用 `assets/green_booth/`；移动任务使用 `assets/put_bottle_on_woodshelf/` 和 `assets/mobile_manip/`。`move_bottle_to_bin`、`move_fruit_to_basket` 的对象默认从对象池随机选择，并在当前进程内保持不变；可通过 `scene_options.seed`、`bottle`、`fruit`、`basket` 指定。
 
@@ -217,7 +217,7 @@ python scripts/eval.py \
 | 插值 | `interpolation_multiplier=1.5` | 一个动作块对应 48 个环境步 |
 | 回合步数上限 | 固定底盘任务 800，移动任务 3000 | 由 `max_steps` 设置 |
 | 指令 | 与训练数据中对应任务的文本一致 | 见各配置文件的 `instruction` |
-| 手臂坐标系 | `lift_link` | 手臂位姿指令与状态均在 `lift_link` 坐标系下表达，lift 运动不改变手臂指令 |
+| 手臂坐标系 | `lift_link` 数值语义，`neutral` 消息 frame ID | 手臂位姿数值仍在 `lift_link` 下表达，EE PoseStamped 的 `header.frame_id` 统一为 `neutral`，lift 运动不改变手臂指令 |
 | 相机 | 头部 1280×720 标定针孔相机，腕部鱼眼相机 | 与采集、SDK 一致，镜头畸变模型由 `enable_usd_lens_models()` 写入相机 USD；评测中不启用仅输出深度的底盘相机 |
 | 物体与布局 | `sort_blocks`、`fruits_to_basket` 使用 `assets/quanta_x1_objects/` 下带 `_2` 后缀的资产 | 场景与桌面臂任务分别构建（`scene_builder.py`） |
 | 固定底盘出生位姿 | `sort_blocks`：`pos=(-0.52, -0.26, -0.985)`；`fruits_to_basket`：`pos=(-0.60, -0.26, -0.985)`；head pitch 均为 0.35 | 见 `task/quanta_tabletop_layouts.py` |

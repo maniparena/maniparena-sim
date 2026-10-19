@@ -158,7 +158,9 @@ def fill_data_acquirer(
     left_ee = getattr(joint_mapping, "left_gripper_body", [0])
     right_ee = getattr(joint_mapping, "right_gripper_body", [0])
     arm_base = getattr(joint_mapping, "arm_base_body", [None])
-    arm_frame = getattr(joint_mapping, "arm_base_frame_id", "lift_link")
+    # Public EE messages use the neutral frame ID.  The numeric pose remains
+    # expressed in the arm-base frame selected by ``base_index`` (lift_link).
+    arm_frame = "neutral"
     data_acquirer["/left_arm/end_pose"] = bind_with_dynamic_stamp(
         acquirer_arm_end_pose, s, int(left_ee[0]), arm_base[0], arm_frame, home_ref, "left"
     )
