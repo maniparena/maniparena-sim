@@ -244,8 +244,8 @@ class QuantaX1Embodiment(EmbodimentBase):
             height=480,
             width=640,
             data_types=["depth"],
-            # Clip far-plane holes (Lab default "none" -> inf). Kit viewport black
-            # with depth is handled separately via ensure_kit_viewport_color_render.
+            # Clip far-plane holes (Lab default "none" -> inf). The shared render
+            # setup clears Sim6's global color-disable flag after sensors spawn.
             depth_clipping_behavior="max",
             spawn=OpenCVPinholeCameraCfg(clipping_range=(0.03, 1.0e5)),
             renderer_cfg=_QUANTA_X1_DEPTH_RENDERER_CFG,

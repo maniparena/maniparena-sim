@@ -124,33 +124,29 @@ def patch_env_cfg_render(
 
 #  apply carb settings after gym.make()
 
-def ensure_kit_viewport_color_render() -> None:
-    """Keep Kit viewport lit when depth-only cameras are present (Sim 6).
+def ensure_rgb_render_enabled() -> None:
+    """Keep RGB render products enabled when depth-only cameras are present (Sim 6).
 
     Isaac Lab's RTX renderer sets ``/rtx/sdg/force/disableColorRender`` when a
     camera requests depth without rgb/rgba. It only clears that flag when
-    ``/isaaclab/has_gui`` is true. ``--viz kit`` enables KitVisualizer without
-    setting ``has_gui``, so a chassis depth camera blacks the main viewport
-    even though sensor buffers are fine. Same workaround as Lab's
-    ``scripts/demos/sensors/tacsl_sensor.py``.
+    ``/isaaclab/has_gui`` is true. Both the Kit viewport and headless RGB sensor
+    buffers can therefore become black; clear it after sensors spawn regardless
+    of the selected visualizer. This follows Lab's
+    ``scripts/demos/sensors/tacsl_sensor.py`` workaround.
     """
     try:
         import carb.settings
 
         settings = carb.settings.get_settings()
-        viz = settings.get("/isaaclab/visualizer/types") or ""
-        viz_tokens = {t for t in str(viz).replace(",", " ").split() if t}
-        if "kit" not in viz_tokens:
-            return
         settings.set_bool("/rtx/sdg/force/disableColorRender", False)
         print(
             "[RenderSettings] Cleared /rtx/sdg/force/disableColorRender "
-            "for Kit viewport"
+            "to keep RGB render products enabled"
         )
     except Exception as exc:
         print(
             f"[RenderSettings] WARNING: "
-            f"unable to keep Kit color render: {exc}"
+            f"unable to keep RGB render enabled: {exc}"
         )
 
 

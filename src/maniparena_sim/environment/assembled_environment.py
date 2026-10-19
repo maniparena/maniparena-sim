@@ -8,7 +8,7 @@ from typing import Any
 import numpy as np
 from maniparena_sim.environment.render_settings import (
     apply_carb_settings,
-    ensure_kit_viewport_color_render,
+    ensure_rgb_render_enabled,
     patch_env_cfg_render,
 )
 from maniparena_sim.terms.recorders.recording_terms import PreStepCameraObservationsRecorderCfg
@@ -104,7 +104,7 @@ class AssembledEnvironment:
         self._run_post_spawn_hooks()
 
         apply_carb_settings(getattr(self.scene, "render_carb_dict", None) or {})
-        ensure_kit_viewport_color_render()
+        ensure_rgb_render_enabled()
         self.is_built = True
         return self._gym_env
 

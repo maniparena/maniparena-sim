@@ -11,7 +11,7 @@ from maniparena_sim.embodiment.robots.bimanual import BimanualEmbodiment
 from maniparena_sim.environment.assembled_environment import AssembledEnvironment
 from maniparena_sim.environment.render_settings import (
     apply_carb_settings,
-    ensure_kit_viewport_color_render,
+    ensure_rgb_render_enabled,
     patch_env_cfg_render,
 )
 from maniparena_sim.environment.scene_builder import build_scene
@@ -107,7 +107,7 @@ def _make_unwrapped_gym_env(
     or the viewport stays at a bad/default pose (often reads as a black screen).
 
     Also clear Sim6 ``disableColorRender`` after sensors spawn: depth-only cameras
-    (QUANTA_X1 chassis) otherwise black the Kit viewport under ``--viz kit``.
+    (QUANTA_X1 chassis) otherwise black both the Kit viewport and headless RGB sensors.
     """
     import gymnasium as gym
 
@@ -115,7 +115,7 @@ def _make_unwrapped_gym_env(
         reg_name, cfg=env_cfg, render_mode=render_mode, **env_kwargs,
     )
     _reapply_viewer_after_make(env)
-    ensure_kit_viewport_color_render()
+    ensure_rgb_render_enabled()
     return env.unwrapped
 
 
