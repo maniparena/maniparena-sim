@@ -115,15 +115,17 @@ def _configure_robot(embodiment, robot_cfg: dict) -> None:
         camera.prim_path = "{ENV_REGEX_NS}/Robot/" + path
 
 
-def _configure_bimanual_sdk(embodiment, arm_control: str) -> None:
-    """Adapt the existing desktop actions to the SDK's flange and joint contract."""
-    if arm_control == "joint":
-        actions = embodiment.JointActionsCfg()
-        # SDK grippers accept continuous angles; reuse the existing raw terms.
-        actions.gripper_action = embodiment.action_config.gripper_action
-        actions.right_gripper_action = embodiment.action_config.right_gripper_action
-        embodiment.action_config = actions
-    # Both EE and joint SDK modes send the raw drive angle.  Clamp the command
+def _configure_bimanual_sdk(embodiment) -> None:
+    """Adapt the desktop actions to the SDK: joint-position control in every arm mode.
+
+    EE commands are solved to joint targets in ``maniparena_sim.kinematics``.
+    """
+    actions = embodiment.JointActionsCfg()
+    # SDK grippers accept continuous angles; reuse the existing raw terms.
+    actions.gripper_action = embodiment.action_config.gripper_action
+    actions.right_gripper_action = embodiment.action_config.right_gripper_action
+    embodiment.action_config = actions
+    # Clamp the command
     # at the G-jaw's 1.89 rad open position; the embodiment's default H-jaw
     # clamp is intentionally retained for all non-SDK task paths.
     from maniparena_sim.embodiment.robots.bimanual import BIMANUAL_G_GRIPPER_OPEN
@@ -135,33 +137,25 @@ def _configure_bimanual_sdk(embodiment, arm_control: str) -> None:
     for side, term_name in (("left", "arm_action"), ("right", "right_arm_action")):
         arm = getattr(embodiment.action_config, term_name)
         arm.joint_names = [f"{side}_arm_joint{i}" for i in range(1, 7)]
-        if arm_control == "joint":
-            arm.preserve_order = True
-        else:
-            arm.body_name = f"{side}_arm_link6"
+        arm.preserve_order = True
         frame = getattr(embodiment.scene_config, f"{side}_ee_frame")
         frame.prim_path = f"{{ENV_REGEX_NS}}/Robot/{side}_arm_link6"
         frame.target_frames[0].prim_path = frame.prim_path
 
 
-def _configure_single_arm_sdk(embodiment, arm_control: str) -> None:
-    """Configure the selected G-jaw arm and its one-arm action contract."""
+def _configure_single_arm_sdk(embodiment) -> None:
+    """Configure the selected G-jaw arm with joint-position actions (EE is solved outside the env)."""
     side = embodiment.side
-    if arm_control == "joint":
-        actions = embodiment.JointActionsCfg()
-        arm = actions.arm_action
-        # Joint mode still accepts the G-jaw's continuous 0–1.89 rad target;
-        # the binary task action is only for legacy task controls.
-        gripper = embodiment.action_config.gripper_action
-        actions.gripper_action = gripper
-        arm.joint_names = [f"{side}_arm_joint[1-6]"]
-        gripper.joint_names = [f"{side}_arm_gripper"]
-        embodiment.action_config = actions
-    else:
-        embodiment.action_config.arm_action.joint_names = [f"{side}_arm_joint[1-6]"]
-        embodiment.action_config.arm_action.body_name = f"{side}_arm_link6"
-        embodiment.action_config.gripper_action.joint_names = [f"{side}_arm_gripper"]
-    embodiment.action_config.gripper_action.clamp_max = 1.89
+    actions = embodiment.JointActionsCfg()
+    arm = actions.arm_action
+    # The G-jaw takes a continuous 0–1.89 rad target; the binary task action
+    # is only for legacy task controls.
+    gripper = embodiment.action_config.gripper_action
+    actions.gripper_action = gripper
+    arm.joint_names = [f"{side}_arm_joint[1-6]"]
+    gripper.joint_names = [f"{side}_arm_gripper"]
+    embodiment.action_config = actions
+    gripper.clamp_max = 1.89
     embodiment.scene_config.ee_frame.prim_path = f"{{ENV_REGEX_NS}}/Robot/{side}_arm_link6"
     embodiment.scene_config.ee_frame.target_frames[0].prim_path = embodiment.scene_config.ee_frame.prim_path
 
@@ -208,7 +202,7 @@ def build_sdk_ros2_gym_env(payload: dict, headless: bool = False, device: str = 
         embodiment.scene_config.robot.spawn.usd_path = usd_path
         if not enable_cameras:
             embodiment.camera_config = None
-        _configure_bimanual_sdk(embodiment, arm_control)
+        _configure_bimanual_sdk(embodiment)
     else:
         from maniparena_sim.embodiment.robots.bimanual import SingleArmEmbodiment
 
@@ -217,7 +211,7 @@ def build_sdk_ros2_gym_env(payload: dict, headless: bool = False, device: str = 
         embodiment.scene_config.robot.spawn.usd_path = usd_path
         if not enable_cameras:
             embodiment.camera_config = None
-        _configure_single_arm_sdk(embodiment, arm_control)
+        _configure_single_arm_sdk(embodiment)
     _configure_robot(embodiment, robot_cfg)
     apply_actuator_overrides(embodiment, robot_cfg)
 

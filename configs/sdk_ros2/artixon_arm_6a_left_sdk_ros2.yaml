@@ -17,3 +17,5 @@ ros:
   use_sim_time: true
   control_rate_hz: 20.0
   arm_control: ee
+  # std_srvs/SetBool: data true -> ee, false -> joint. Replies with the active mode in `message`.
+  mode_service: /set_arm_control_mode

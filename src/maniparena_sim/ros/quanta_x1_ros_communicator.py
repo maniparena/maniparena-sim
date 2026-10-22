@@ -187,6 +187,34 @@ class QuantaX1RosCommunicator(RosCommunicator):
                 self._sim_timers.pop(topic, None)
                 self._last_pub_time.pop(topic, None)
 
+    def reset_subscriptions(self) -> None:
+        """Recreate the command readers for the active arm control mode."""
+        for subscription in self._ros_subscribers.values():
+            self.destroy_subscription(subscription)
+        self._ros_subscribers.clear()
+        self._initRobotSubscriber()
+        self._resubscribe_pending = False
+
+    def set_arm_control(self, arm_control: str, control_callbacks) -> None:
+        """Swap to the other mode's arm topics.
+
+        Called from a service callback inside ``spin_once``, so the readers are
+        recreated after the spin batch (see ``step_control``).
+        """
+        mode = normalize_arm_control(arm_control)
+        expected = sdk_subscribe_topics(mode)
+        if set(control_callbacks) != expected:
+            raise ValueError("QUANTA_X1 callback topics do not match the selected arm control mode")
+        self._arm_control = mode
+        self.SUBSCRIBERS = {topic: self._ALL_SUBSCRIBER_TYPES[topic] for topic in expected}
+        self._control_callbacks = control_callbacks
+        self._resubscribe_pending = True
+
+    def step_control(self, sim_dt):
+        super().step_control(sim_dt)
+        if getattr(self, "_resubscribe_pending", False):
+            self.reset_subscriptions()
+
     def publish_clock(self, sim_time: float) -> None:
         """Publish simulation time to ``/clock``. No-op when *use_sim_time* is False."""
         if self._clock_publisher is not None:

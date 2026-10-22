@@ -70,11 +70,30 @@ EE `PoseStamped` 的 `header.frame_id` 统一使用 `neutral`；位姿数值仍�
 
 头部相机为 1280×720 标定针孔相机，腕部相机为鱼眼相机，镜头畸变模型与数据采集、Wall-X 评测一致。
 
-双臂控制由 YAML `ros.arm_control` 选择，默认 **`ee`**：
+双臂控制由 YAML `ros.arm_control` 选择启动模式，默认 **`ee`**：
 
 ```yaml
 ros:
   arm_control: ee    # 或 joint
+```
+
+### 控制模式与切换服务
+
+仿真环境统一使用关节位置控制。`ee` 模式在 ROS 桥内用 `maniparena_sim.kinematics` 的求解器
+（从机器人 USD 的 PhysX 关节链提取运动学，阻尼最小二乘加 Armijo 线搜索）把末端位姿解成关节目标，
+`joint` 模式直接写入关节目标，两种模式共用同一套关节驱动。
+
+`ros.arm_control`（`ee` 或 `joint`，默认 `ee`）只决定启动时的模式。运行中用
+`std_srvs/srv/SetBool` 服务 `/set_arm_control_mode` 切换（名称可用 `ros.mode_service` 修改）：
+
+- `data: true` 为 `ee`，`data: false` 为 `joint`。
+- 服务端保存当前模式。响应的 `message` 始终是生效后的模式（`ee` 或 `joint`），`success: false` 表示切换失败，模式保持不变。
+- 请求的模式与当前相同时不做任何改动，直接返回该模式。SetBool 没有只读查询，请求总是被当作期望模式。
+- 切换时手臂保持当前关节目标。服务端只订阅当前模式的臂指令话题，切换后请等待约 0.1 s 让订阅重新建立，再发送新模式的指令。
+- 切换后 `end_pose` / 关节状态在两种模式下都会发布。
+
+```bash
+ros2 service call /set_arm_control_mode std_srvs/srv/SetBool "{data: false}"   # -> message: joint
 ```
 
 ## 演示

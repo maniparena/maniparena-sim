@@ -2,8 +2,9 @@
 
 Joint mode writes absolute joint targets via *slot_map*. EE mode writes
 ``lift_link`` PoseStamped commands into :class:`EePoseCommandBuffer`; the SDK
-loop projects those into DiffIK root-frame slots each step. Gripper commands
-use the simulation-native ``0–1.89`` range directly.
+loop solves those to arm joint targets each step (the env itself only ever
+sees joint positions). Gripper commands use the simulation-native ``0–1.89``
+range directly.
 """
 
 from __future__ import annotations
@@ -14,9 +15,9 @@ from functools import partial
 
 import numpy as np
 
+from maniparena_sim.kinematics.se3 import invert, matrix_to_pose, pose_to_matrix
 from maniparena_sim.ros.math_utils import (
     compute_relative_pose,
-    lift_joint_pose_to_root,
     quat_multiply,
     to_numpy,
 )
@@ -179,17 +180,15 @@ def pose_stamped_to_diff_ik_command(msg, robot=None) -> list[float] | None:
     return [float(pos[0]), float(pos[1]), float(pos[2]), float(quat[0]), float(quat[1]), float(quat[2]), float(quat[3])]
 
 
-def control_arm_pose_command(msg, pose_slots, action_buffer, ee_pose_buffer=None, side: str = "left"):
+def control_arm_pose_command(msg, ee_pose_buffer, side: str = "left"):
     """Store a Cartesian pose command."""
     command = pose_stamped_to_diff_ik_command(msg)
     if command is None:
         return
-    if ee_pose_buffer is not None:
-        if side == "right":
-            ee_pose_buffer.set_right(command)
-        else:
-            ee_pose_buffer.set_left(command)
-    _write_joint_targets(action_buffer, pose_slots, command)
+    if side == "right":
+        ee_pose_buffer.set_right(command)
+    else:
+        ee_pose_buffer.set_left(command)
 
 
 def _scalar_joint(robot, joint_idx: int) -> float:
@@ -197,34 +196,55 @@ def _scalar_joint(robot, joint_idx: int) -> float:
     return float(np.asarray(value).reshape(-1)[0])
 
 
+def _body_matrix(robot, body_idx: int) -> np.ndarray:
+    return pose_to_matrix(
+        np.asarray(to_numpy(robot.data.body_pos_w[0, int(body_idx)]), dtype=np.float64),
+        np.asarray(to_numpy(robot.data.body_quat_w[0, int(body_idx)]), dtype=np.float64),
+    )
+
+
 def project_ee_pose_commands(
     ee_pose_buffer,
     action_buffer,
-    left_slots,
-    right_slots,
+    arm_slots,
     robot,
-    lift_joint_idx,
-    rest_pos,
-    rest_quat,
-    home_ref=None,
-) -> None:
-    """Compose received EE commands onto home, then map into DiffIK slots."""
-    if ee_pose_buffer is None or action_buffer is None or robot is None:
-        return
-    if rest_pos is None or rest_quat is None or home_ref is None:
-        return
-    left_cmd, right_cmd = ee_pose_buffer.snapshot()
-    lift_joint = _scalar_joint(robot, lift_joint_idx)
-    for command, slots, side in ((left_cmd, left_slots, "left"), (right_cmd, right_slots, "right")):
-        if command is not None and len(command) >= 7:
-            composed = home_ref.compose(side, command[:3], command[3:7])
-        else:
-            composed = home_ref.get(side)
+    arm_joint_ids,
+    flange_body_ids,
+    base_body_id,
+    home_ref,
+    ik,
+) -> list:
+    """Solve received EE commands (home-relative, ``lift_link`` frame) to arm joint targets.
+
+    ``arm_slots`` / ``arm_joint_ids`` / ``flange_body_ids`` are indexed
+    ``[left, right]``. Sides without a command keep their current joint targets.
+    """
+    results = [None, None]
+    if ee_pose_buffer is None or action_buffer is None or robot is None or home_ref is None:
+        return results
+    commands = ee_pose_buffer.snapshot()
+    to_base = invert(_body_matrix(robot, base_body_id))
+    for arm, side in enumerate(("left", "right")):
+        command = commands[arm]
+        if command is None or len(command) < 7:
+            continue
+        composed = home_ref.compose(side, command[:3], command[3:7])
         if composed is None:
             continue
-        pos_b, quat_b = composed
-        pos, quat = lift_joint_pose_to_root(pos_b, quat_b, lift_joint, rest_pos, rest_quat)
-        _write_joint_targets(action_buffer, slots, list(pos) + list(quat))
+        pos_cmd, quat_cmd = composed
+        pos_meas, quat_meas = matrix_to_pose(to_base @ _body_matrix(robot, flange_body_ids[arm]))
+        q_meas = [_scalar_joint(robot, j) for j in arm_joint_ids[arm]]
+        result = ik.solve(
+            arm,
+            np.asarray(pos_cmd, dtype=np.float64),
+            np.asarray(quat_cmd, dtype=np.float64),
+            pos_meas,
+            quat_meas,
+            q_meas,
+        )
+        results[arm] = result
+        _write_joint_targets(action_buffer, arm_slots[arm], result.q)
+    return results
 
 
 def control_arm_joint_commands(msg, joint_indices, action_buffer):
@@ -276,8 +296,6 @@ def fill_control_callbacks(
     verbose=False,
     arm_control: str = "ee",
     ee_pose_buffer=None,
-    left_ee_slots=None,
-    right_ee_slots=None,
 ):
     """Register SDK control callbacks into *control_callbacks* dict."""
     if cmd_vel_buffer is None:
@@ -295,23 +313,13 @@ def fill_control_callbacks(
     )
     mode = normalize_arm_control(arm_control)
     if mode == "ee":
-        left_slots = list(left_ee_slots or ())
-        right_slots = list(right_ee_slots or ())
-        if len(left_slots) < 7 or len(right_slots) < 7:
-            raise RuntimeError("ee arm control needs 7-D arm_action/right_arm_action slots")
+        if ee_pose_buffer is None:
+            raise ValueError("ee arm control needs an EePoseCommandBuffer")
         control_callbacks["/left_arm_cartesian_controller/pose_cmd"] = partial(
-            control_arm_pose_command,
-            pose_slots=left_slots[:7],
-            action_buffer=action_buffer,
-            ee_pose_buffer=ee_pose_buffer,
-            side="left",
+            control_arm_pose_command, ee_pose_buffer=ee_pose_buffer, side="left"
         )
         control_callbacks["/right_arm_cartesian_controller/pose_cmd"] = partial(
-            control_arm_pose_command,
-            pose_slots=right_slots[:7],
-            action_buffer=action_buffer,
-            ee_pose_buffer=ee_pose_buffer,
-            side="right",
+            control_arm_pose_command, ee_pose_buffer=ee_pose_buffer, side="right"
         )
     else:
         if action_buffer is None:

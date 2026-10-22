@@ -1,4 +1,9 @@
-"""Validated SDK commands and action mapping, independent of ROS and Isaac Sim."""
+"""Validated SDK commands and action mapping, independent of ROS and Isaac Sim.
+
+The simulator is always driven with joint-position targets. In ``joint`` mode the
+arm commands are written straight into the joint action slots; in ``ee`` mode a
+flange pose command is solved to joint targets by :mod:`maniparena_sim.kinematics`.
+"""
 
 from __future__ import annotations
 
@@ -6,9 +11,10 @@ from functools import partial
 
 import numpy as np
 
+from maniparena_sim.kinematics.arm_ik import ArmIkController, ArmSpec
+from maniparena_sim.kinematics.se3 import invert, matrix_to_pose, pose_to_matrix
 from maniparena_sim.ros.math_utils import (
     compose_home_relative_pose,
-    compose_pose,
     compute_relative_pose,
     to_numpy,
 )
@@ -33,10 +39,26 @@ def finite_command(values, size: int) -> np.ndarray | None:
     return data
 
 
-class SdkControl:
-    """Own command state and convert external EE poses into IK targets."""
+def _body_pose_matrix(robot, body: int) -> np.ndarray:
+    return pose_to_matrix(
+        np.asarray(to_numpy(robot.data.body_pos_w[0, body]), dtype=np.float64),
+        np.asarray(to_numpy(robot.data.body_quat_w[0, body]), dtype=np.float64),
+    )
 
-    def __init__(self, env, robot, actions, profile, arm_control="ee", cmd_vel_timeout_s=0.25):
+
+class SdkControl:
+    """Own command state and convert external EE poses into joint targets."""
+
+    def __init__(
+        self,
+        env,
+        robot,
+        actions,
+        profile,
+        arm_control="ee",
+        cmd_vel_timeout_s=0.25,
+        ik: ArmIkController | None = None,
+    ):
         self.profile = get_sdk_profile(profile)
         self.mode = normalize_arm_control(arm_control)
         self.mapping = SdkJointMapping(robot, self.profile)
@@ -48,63 +70,82 @@ class SdkControl:
         if tuple(actions.shape) != (1, env.action_manager.total_action_dim):
             raise ValueError("SDK ROS commands require exactly one environment and a complete action buffer")
         self.joint_slots = {}
-        self.pose_slots = []
         offset = 0
         for name in env.action_manager.active_terms:
             term = env.action_manager.get_term(name)
             size = int(term.action_dim)
             if size == 0:
                 continue
-            slots = list(range(offset, offset + size))
-            if name in self.profile.arm_action_terms and self.mode == "ee":
-                if size != 7:
-                    raise ValueError(f"{name} must have seven pose slots")
-                self.pose_slots.append((name, slots))
-            else:
-                names = list(getattr(term, "_joint_names", ()))
-                if len(names) != size:
-                    raise ValueError(f"{name} must expose one joint name per action slot")
-                self.joint_slots.update(zip(names, slots))
+            names = list(getattr(term, "_joint_names", ()))
+            if len(names) != size:
+                raise ValueError(f"{name} must expose one joint name per action slot")
+            self.joint_slots.update(zip(names, range(offset, offset + size)))
             offset += size
-        self.pose_slots = dict(self.pose_slots)
-        if self.mode == "ee" and set(self.pose_slots) != {
-            *self.profile.arm_action_terms,
-        }:
-            raise ValueError("EE mode requires arm_action and right_arm_action")
         required = list(self.profile.gripper_joint_names)
-        if self.mode == "joint":
-            for names in self.profile.arm_joint_names:
-                required += list(names)
+        for names in self.profile.arm_joint_names:
+            required += list(names)
         if self.profile.mobile:
             required += list(WAIST_JOINT_NAMES + HEAD_JOINT_NAMES + WHEEL_JOINT_NAMES)
         missing = [name for name in required if name not in self.joint_slots]
         if missing:
             raise ValueError(f"SDK action manager is missing joint slots: {missing}")
+        self.arm_slots = [[self.joint_slots[name] for name in names] for names in self.profile.arm_joint_names]
+        if ik is None:
+            usd_path = str(robot.cfg.spawn.usd_path)
+            ik = ArmIkController.from_usd(
+                usd_path,
+                [
+                    ArmSpec(tuple(names), flange)
+                    for names, flange in zip(self.profile.arm_joint_names, self.profile.flange_names)
+                ],
+            )
+        self.ik = ik
+        self.ik_results = [None] * len(self.profile.arm_joint_names)
         self.ee_commands = [None] * len(self.profile.arm_joint_names)
         self.ee_home = [None] * len(self.profile.arm_joint_names)
         self._velocity = (0.0, 0.0, 0.0)
         self._velocity_pending = False
         self._velocity_stamp = None
-        self.callbacks = {}
+        self.callbacks = self.callbacks_for(self.mode)
+        self.reset(robot)
+
+    # -- command callbacks -------------------------------------------------
+
+    def callbacks_for(self, mode: str) -> dict:
+        """Topic -> callback for ``mode``; matches ``profile.subscribe_topics(mode)``."""
+        mode = normalize_arm_control(mode)
+        callbacks = {}
         for side in range(len(self.profile.arm_joint_names)):
-            if self.mode == "ee":
-                self.callbacks[self.profile.arm_pose_commands[side]] = partial(self.pose_command, side=side)
+            if mode == "ee":
+                callbacks[self.profile.arm_pose_commands[side]] = partial(self.pose_command, side=side)
             else:
-                self.callbacks[self.profile.arm_joint_commands[side]] = partial(
+                callbacks[self.profile.arm_joint_commands[side]] = partial(
                     self.joint_command,
                     names=self.profile.arm_joint_names[side],
                 )
-            self.callbacks[self.profile.gripper_commands[side]] = partial(
+            callbacks[self.profile.gripper_commands[side]] = partial(
                 self.joint_command,
                 names=(self.profile.gripper_joint_names[side],),
             )
         if self.profile.mobile:
-            self.callbacks["/head_position_controller/commands"] = partial(self.joint_command, names=HEAD_JOINT_NAMES)
-            self.callbacks["/waist_forward_position_controller/commands"] = partial(
+            callbacks["/head_position_controller/commands"] = partial(self.joint_command, names=HEAD_JOINT_NAMES)
+            callbacks["/waist_forward_position_controller/commands"] = partial(
                 self.joint_command, names=WAIST_JOINT_NAMES
             )
-            self.callbacks["/chassis/cmd_vel"] = self.velocity_command
-        self.reset(robot)
+            callbacks["/chassis/cmd_vel"] = self.velocity_command
+        return callbacks
+
+    def set_mode(self, mode: str) -> dict:
+        """Switch arm control mode, holding the current joint targets. Returns the new callbacks."""
+        mode = normalize_arm_control(mode)
+        if mode != self.mode:
+            self.mode = mode
+            # Pending poses must not leak across modes; the arms keep the
+            # joint targets already in the action buffer until a command arrives.
+            self.ee_commands = [None] * len(self.ee_commands)
+            self.ik.reset()
+            self.callbacks = self.callbacks_for(mode)
+        return self.callbacks
 
     def joint_command(self, msg, names):
         values = finite_command(getattr(msg, "data", None), len(names))
@@ -151,6 +192,8 @@ class SdkControl:
             self._velocity = (0.0, 0.0, 0.0)
         return self._velocity
 
+    # -- state ---------------------------------------------------------------
+
     def reset(self, robot=None):
         """Discard old commands and seed every position term from current joints."""
         robot = self.robot if robot is None else robot
@@ -162,53 +205,51 @@ class SdkControl:
         self._velocity = (0.0, 0.0, 0.0)
         self._velocity_pending = False
         self._velocity_stamp = None
-        self.ee_commands = [None] * len(self.profile.arm_joint_names)
-        if self.mode == "ee":
-            base = self.mapping.base
-            for side, flange in enumerate(self.mapping.flanges):
-                pos, quat = compute_relative_pose(
-                    to_numpy(robot.data.body_pos_w[0, flange]),
-                    to_numpy(robot.data.body_quat_w[0, flange]),
-                    to_numpy(robot.data.body_pos_w[0, base]),
-                    to_numpy(robot.data.body_quat_w[0, base]),
-                )
-                home = np.concatenate((pos, quat))
-                self.ee_home[side] = home
-                if self.profile.ee_pose_init_relative:
-                    # A reset defines the public zero pose.  The internal
-                    # action is still seeded with the current absolute pose.
-                    self.ee_commands[side] = np.array(
-                        (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0),
-                        dtype=np.float64,
-                    )
-                else:
-                    self.ee_commands[side] = home.copy()
-            self.project_ee_pose_commands(robot)
+        self.ee_commands = [None] * len(self.ee_commands)
+        self.ik_results = [None] * len(self.ik_results)
+        self.ik.reset()
+        # The reset pose is the public zero pose of home-relative profiles; it
+        # is captured in both modes so end poses stay available after a switch.
+        base = self.mapping.base
+        for side, flange in enumerate(self.mapping.flanges):
+            pos, quat = compute_relative_pose(
+                to_numpy(robot.data.body_pos_w[0, flange]),
+                to_numpy(robot.data.body_quat_w[0, flange]),
+                to_numpy(robot.data.body_pos_w[0, base]),
+                to_numpy(robot.data.body_quat_w[0, base]),
+            )
+            self.ee_home[side] = np.concatenate((pos, quat))
+
+    def _arm_joint_values(self, robot, side: int) -> np.ndarray:
+        return np.array(
+            [float(np.asarray(to_numpy(robot.data.joint_pos[0, i])).reshape(-1)[0]) for i in self.mapping.arms[side]],
+            dtype=np.float64,
+        )
 
     def project_ee_pose_commands(self, robot=None):
+        """Solve pending EE commands to joint targets (no-op in joint mode)."""
         if self.mode != "ee":
             return
         robot = self.robot if robot is None else robot
-        base = self.mapping.base
-        base_pos, base_quat = compute_relative_pose(
-            to_numpy(robot.data.body_pos_w[0, base]),
-            to_numpy(robot.data.body_quat_w[0, base]),
-            to_numpy(robot.data.root_pos_w[0]),
-            to_numpy(robot.data.root_quat_w[0]),
-        )
-        for side, term_name in enumerate(self.profile.arm_action_terms):
+        to_base = invert(_body_pose_matrix(robot, self.mapping.base))
+        for side, flange in enumerate(self.mapping.flanges):
             command = self.ee_commands[side]
             if command is None:
                 continue
             if self.profile.ee_pose_init_relative:
                 home = self.ee_home[side]
-                if home is None:
-                    continue
-                flange_pos, flange_quat = compose_home_relative_pose(
-                    home[:3], home[3:], command[:3], command[3:]
-                )
+                flange_pos, flange_quat = compose_home_relative_pose(home[:3], home[3:], command[:3], command[3:])
             else:
                 flange_pos, flange_quat = command[:3], command[3:]
-            pos, quat = compose_pose(base_pos, base_quat, flange_pos, flange_quat)
-            for slot, value in zip(self.pose_slots[term_name], np.concatenate((pos, quat))):
+            measured_pos, measured_quat = matrix_to_pose(to_base @ _body_pose_matrix(robot, flange))
+            result = self.ik.solve(
+                side,
+                np.asarray(flange_pos, dtype=np.float64),
+                np.asarray(flange_quat, dtype=np.float64),
+                measured_pos,
+                measured_quat,
+                self._arm_joint_values(robot, side),
+            )
+            self.ik_results[side] = result
+            for slot, value in zip(self.arm_slots[side], result.q):
                 self.actions[0, slot] = float(value)

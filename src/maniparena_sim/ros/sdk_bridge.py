@@ -18,6 +18,7 @@ from maniparena_sim.ros.math_utils import (
     quat_rotate_inverse,
     to_numpy,
 )
+from maniparena_sim.ros.arm_mode import ArmControlMode, install_mode_service
 from maniparena_sim.ros.sdk_control import SdkControl
 from maniparena_sim.ros.sdk_profiles import DEPTH_TOPICS, RGB_TOPICS, get_sdk_profile
 
@@ -35,6 +36,13 @@ class SdkRosBridge:
         self._tf_elapsed = 0.0
         self._static_tf_sent = False
         self._lidar = None
+        self._mode = ArmControlMode(cfg.arm_control)
+        self._mode_service = None
+
+    @property
+    def arm_control(self):
+        """Active arm control mode (``ee`` or ``joint``)."""
+        return self._mode.mode
 
     @property
     def enabled(self):
@@ -85,13 +93,19 @@ class SdkRosBridge:
         data_acquirers = self._build_data_acquirers()
         self._communicator = SdkCommunicator(
             self.profile,
-            self._cfg.arm_control,
+            self._mode.mode,
             self._control.callbacks,
             data_acquirers,
             self._cfg.use_sim_time,
         )
         self._tf_broadcaster = TransformBroadcaster(self._communicator)
         self._tf_static = StaticTransformBroadcaster(self._communicator)
+        self._mode.bind(self._switch_mode)
+        self._mode_service = install_mode_service(self._communicator, self._mode, self._cfg.mode_service)
+
+    def _switch_mode(self, mode):
+        callbacks = self._control.set_mode(mode)
+        self._communicator.set_arm_control(mode, callbacks)
 
     def reset(self, robot=None):
         """Call after env.reset(); old joint, Cartesian and velocity targets are cleared."""
