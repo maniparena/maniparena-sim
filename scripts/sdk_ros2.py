@@ -3,7 +3,11 @@
 
 SDK environments run without recorders. Mobile bases combine keyboard and ROS
 velocity commands. Each robot profile defines its joint order, Cartesian
-frames, sensors and gripper range. ``ros.arm_control`` selects ``ee`` or ``joint``.
+frames, sensors and gripper range. The simulator is always driven with joint
+positions; in ``ee`` mode the bridge solves pose commands to joints
+(``maniparena_sim.kinematics``). ``ros.arm_control`` is the start-up mode
+(``ee`` or ``joint``); a ``std_srvs/SetBool`` service (``ros.mode_service``,
+``data: true`` = ee, ``false`` = joint) switches it at run time.
 
 Usage:
     python scripts/sdk_ros2.py --robot artixon_arm_6a --viz kit
@@ -212,7 +216,10 @@ def main(args: argparse.Namespace | None = None) -> int:
             linear_velocity=float(kb_cfg.get("linear_velocity", 0.5)),
             angular_velocity=float(kb_cfg.get("angular_velocity", 2.0)),
         )
-    print(f"[INFO] {profile} SDK ROS2 ready ({ros_cfg.arm_control} arm control).")
+    print(
+        f"[INFO] {profile} SDK ROS2 ready ({ros_ext.arm_control} arm control; "
+        f"SetBool service {ros_cfg.mode_service}: data=true -> ee, false -> joint)."
+    )
     if kb is not None:
         print("[INFO] Keyboard: R reset; W/S and A/D drive mobile bases alongside /chassis/cmd_vel.")
 

@@ -84,3 +84,21 @@ class SdkCommunicator(RosCommunicator):
             self.destroy_subscription(subscription)
         self._ros_subscribers.clear()
         self._initRobotSubscriber()
+        self._resubscribe_pending = False
+
+    def set_arm_control(self, arm_control, control_callbacks):
+        """Swap to the other mode's arm topics.
+
+        Called from a service callback inside ``spin_once``, so the readers are
+        recreated after the spin batch (see ``step_control``).
+        """
+        if set(control_callbacks) != self.profile.subscribe_topics(arm_control):
+            raise ValueError("SDK callback topics do not match the selected profile and control mode")
+        self.arm_control = arm_control
+        self._control_callbacks = control_callbacks
+        self._resubscribe_pending = True
+
+    def step_control(self, sim_dt):
+        super().step_control(sim_dt)
+        if getattr(self, "_resubscribe_pending", False):
+            self.reset_subscriptions()

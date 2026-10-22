@@ -26,6 +26,8 @@ env/
 *.swo
 
 # Testing / coverage
+# Local tests and closed-loop harnesses are not uploaded.
+tests/
 .pytest_cache/
 .coverage
 htmlcov/

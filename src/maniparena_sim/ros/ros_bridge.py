@@ -18,6 +18,7 @@ from typing import Any
 
 import yaml
 
+from maniparena_sim.ros.arm_mode import DEFAULT_MODE_SERVICE, ArmControlMode, install_mode_service
 from maniparena_sim.utils.debug_print import maniparenaprint
 
 CAMERA_TOPICS: set[str] = {
@@ -38,6 +39,7 @@ class RosBridgeCfg:
     control_rate_hz: float = 10.0
     cmd_vel_timeout_s: float = 0.25
     arm_control: str = "ee"
+    mode_service: str = DEFAULT_MODE_SERVICE
 
 
 def load_ros_bridge_cfg(config_path: str | Path) -> RosBridgeCfg:
@@ -51,6 +53,7 @@ def load_ros_bridge_cfg(config_path: str | Path) -> RosBridgeCfg:
         control_rate_hz=float(ros.get("control_rate_hz", 10.0)),
         cmd_vel_timeout_s=float(ros.get("cmd_vel_timeout_s", 0.25)),
         arm_control=normalize_arm_control(ros.get("arm_control", "ee")),
+        mode_service=str(ros.get("mode_service", DEFAULT_MODE_SERVICE)),
     )
 
 
@@ -77,12 +80,15 @@ class RosBridgeExtension:
         self._lidar_2d: Any = None
         self._ee_pose_buffer: Any = None
         self._ee_home: Any = None
-        self._left_ee_slots: list[int] = []
-        self._right_ee_slots: list[int] = []
-        self._lift_joint_idx: int | None = None
+        self._mode = ArmControlMode(cfg.arm_control)
+        self._mode_service: Any = None
+        self._ik: Any = None
+        self._ik_results: list = [None, None]
+        self._arm_slots: list[list[int]] = []
+        self._arm_joint_ids: list[list[int]] = []
+        self._flange_body_ids: list[int] = []
+        self._slot_map: dict[str, int] = {}
         self._lift_body_idx: int | None = None
-        self._lift_rest_pos: Any = None
-        self._lift_rest_quat: Any = None
         self._action_buffer: Any = None
         self._enabled_publishers: set[str] = set()
         self._fast_topics: set[str] = set()
@@ -92,6 +98,11 @@ class RosBridgeExtension:
     @property
     def enabled(self) -> bool:
         return self._cfg.enabled
+
+    @property
+    def arm_control(self) -> str:
+        """Active arm control mode (``ee`` or ``joint``)."""
+        return self._mode.mode
 
     @property
     def chassis_input(self) -> str:
@@ -121,20 +132,19 @@ class RosBridgeExtension:
 
         from tf2_ros import StaticTransformBroadcaster, TransformBroadcaster
 
+        from maniparena_sim.kinematics.arm_ik import ArmIkController, ArmSpec
         from maniparena_sim.ros.quanta_x1_control_callbacks import (
             CmdVelCommandBuffer,
             EePoseCommandBuffer,
             HomeEeRef,
-            fill_control_callbacks,
         )
         from maniparena_sim.ros.quanta_x1_data_acquirers import fill_data_acquirer
         from maniparena_sim.ros.quanta_x1_joint_mapping import (
             QuantaX1JointIndexMapping,
-            action_term_slots,
             build_action_slot_map,
         )
         from maniparena_sim.ros.quanta_x1_ros_communicator import QuantaX1RosCommunicator
-        from maniparena_sim.ros.quanta_x1_sdk_topics import QUANTA_X1_SDK_PUBLISH_TOPICS, sdk_subscribe_topics
+        from maniparena_sim.ros.quanta_x1_sdk_topics import QUANTA_X1_SDK_PUBLISH_TOPICS
         from maniparena_sim.ros.prim_paths import QUANTA_X1_PATHS
         from maniparena_sim.ros.ros2_config import QuantaX1RosConfig
         from maniparena_sim.ros.sim_utils import (
@@ -191,8 +201,7 @@ class RosBridgeExtension:
 
         # -- Acquirers / callbacks -----------------------------------------
         data_acquirer = {t: None for t in QuantaX1RosCommunicator.PUBLISHERS}
-        arm_control = self._cfg.arm_control
-        control_callbacks = {t: None for t in sdk_subscribe_topics(arm_control)}
+        arm_control = self._mode.mode
 
         self._ee_home = HomeEeRef()
         fill_data_acquirer(
@@ -207,37 +216,24 @@ class RosBridgeExtension:
         if shared_action_buffer is None:
             shared_action_buffer = torch.zeros(env.num_envs, env.action_manager.total_action_dim, device=env.device)
         self._action_buffer = shared_action_buffer
-        self._ee_pose_buffer = None
-        self._left_ee_slots = []
-        self._right_ee_slots = []
-        self._lift_joint_idx = int(joint_mapping.lift[0])
+        self._slot_map = slot_map
+        self._ee_pose_buffer = EePoseCommandBuffer()
         self._lift_body_idx = int(joint_mapping.arm_base_body[0])
-        self._lift_rest_pos = None
-        self._lift_rest_quat = None
-        left_ee_slots = None
-        right_ee_slots = None
-        if arm_control == "ee":
-            self._ee_pose_buffer = EePoseCommandBuffer()
-            left_ee_slots = action_term_slots(env.action_manager, "arm_action")
-            right_ee_slots = action_term_slots(env.action_manager, "right_arm_action")
-            if len(left_ee_slots) < 7 or len(right_ee_slots) < 7:
-                raise RuntimeError("ee arm terms must be 7-D pose")
-            self._left_ee_slots = left_ee_slots[:7]
-            self._right_ee_slots = right_ee_slots[:7]
-            self._calibrate_lift_rest(robot, self._lift_body_idx)
-        if self._ee_home is not None and self._lift_body_idx is not None:
-            self._ee_home.capture_from_robot(robot, self._lift_body_idx)
-
-        fill_control_callbacks(
-            control_callbacks,
-            slot_map,
-            shared_action_buffer,
-            cmd_vel_buffer=self._cmd_vel_buffer,
-            arm_control=arm_control,
-            ee_pose_buffer=self._ee_pose_buffer,
-            left_ee_slots=left_ee_slots,
-            right_ee_slots=right_ee_slots,
+        self._flange_body_ids = [int(joint_mapping.left_gripper_body[0]), int(joint_mapping.right_gripper_body[0])]
+        arm_names = [
+            [f"{side}_arm_joint{i}" for i in range(1, 7)] for side in ("left", "right")
+        ]
+        self._arm_slots = [[slot_map[n] for n in names] for names in arm_names]
+        self._arm_joint_ids = [[joint_mapping.joint_name_to_index[n] for n in names] for names in arm_names]
+        self._ik = ArmIkController.from_usd(
+            str(robot.cfg.spawn.usd_path),
+            [
+                ArmSpec(tuple(names), body)
+                for names, body in zip(arm_names, ("left_arm_gripper_base_link", "right_arm_gripper_base_link"))
+            ],
         )
+        self._ee_home.capture_from_robot(robot, self._lift_body_idx)
+        control_callbacks = self._control_callbacks_for(arm_control)
 
         # -- Communicator & TF ---------------------------------------------
         enabled_publishers = self._resolve_enabled_publishers(
@@ -260,6 +256,8 @@ class RosBridgeExtension:
         self._tf_pub = TfPublisher(tf_broadcaster, odom_origin, publish_interval=1)
         self._tf_pub.init_from_robot(robot)
         self._body_names = list(robot.data.body_names)
+        self._mode.bind(self._switch_mode)
+        self._mode_service = install_mode_service(self._communicator, self._mode, self._cfg.mode_service)
 
         maniparenaprint(
             f"INFO: [ROS] Initialized: nav_mode={nav_mode}  "
@@ -269,48 +267,57 @@ class RosBridgeExtension:
             f"arm_control={arm_control}"
         )
 
-    def _calibrate_lift_rest(self, robot, lift_body_idx: int) -> None:
-        """Cache ``lift_link`` in root at ``lift_joint=0`` (USD mount only)."""
-        from maniparena_sim.ros.math_utils import compute_relative_pose, to_numpy
+    def _control_callbacks_for(self, mode: str) -> dict:
+        from maniparena_sim.ros.quanta_x1_control_callbacks import fill_control_callbacks
 
-        if self._lift_joint_idx is None:
-            return
-        lift_q = float(to_numpy(robot.data.joint_pos[0, int(self._lift_joint_idx)]).reshape(-1)[0])
-        root_pos = to_numpy(robot.data.root_pos_w[0])
-        root_quat = to_numpy(robot.data.root_quat_w[0])
-        lift_pos = to_numpy(robot.data.body_pos_w[0, int(lift_body_idx)])
-        lift_quat = to_numpy(robot.data.body_quat_w[0, int(lift_body_idx)])
-        rel_pos, rel_quat = compute_relative_pose(lift_pos, lift_quat, root_pos, root_quat)
-        axis = rel_pos.copy()
-        axis[:] = (0.0, 0.0, 1.0)
-        self._lift_rest_pos = rel_pos - axis * lift_q
-        self._lift_rest_quat = rel_quat
+        callbacks: dict = {}
+        fill_control_callbacks(
+            callbacks,
+            self._slot_map,
+            self._action_buffer,
+            cmd_vel_buffer=self._cmd_vel_buffer,
+            arm_control=mode,
+            ee_pose_buffer=self._ee_pose_buffer,
+        )
+        return callbacks
+
+    def _switch_mode(self, mode: str) -> None:
+        """Hold the current joint targets and swap the arm command topics."""
+        callbacks = self._control_callbacks_for(mode)
+        self._ee_pose_buffer.clear()
+        self._ik.reset()
+        self._ik_results = [None, None]
+        self._communicator.set_arm_control(mode, callbacks)
 
     def seed_ee_hold(self, robot) -> None:
-        """Recapture home EE and clear pending pose commands."""
-        buf = self._ee_pose_buffer
-        if buf is None or self._ee_home is None or self._lift_body_idx is None:
+        """After an env reset: recapture home, drop pending commands, hold the reset pose."""
+        if self._ee_home is None or self._lift_body_idx is None:
             return
         self._ee_home.capture_from_robot(robot, self._lift_body_idx)
-        buf.clear()
-        self.project_ee_pose_commands(robot)
+        self._ee_pose_buffer.clear()
+        self._ik.reset()
+        self._ik_results = [None, None]
+        indices = {name: i for i, name in enumerate(robot.data.joint_names)}
+        for name, slot in self._slot_map.items():
+            if name not in ("left_wheel_joint", "right_wheel_joint"):
+                self._action_buffer[0, slot] = float(robot.data.joint_pos[0, indices[name]])
 
     def project_ee_pose_commands(self, robot) -> None:
-        """Write current EE commands into the DiffIK action slots."""
+        """Solve current EE commands to arm joint targets (no-op in joint mode)."""
         from maniparena_sim.ros.quanta_x1_control_callbacks import project_ee_pose_commands
 
-        if self._ee_pose_buffer is None or self._lift_joint_idx is None:
+        if self._mode.mode != "ee" or self._ee_pose_buffer is None:
             return
-        project_ee_pose_commands(
+        self._ik_results = project_ee_pose_commands(
             self._ee_pose_buffer,
             self._action_buffer,
-            self._left_ee_slots,
-            self._right_ee_slots,
+            self._arm_slots,
             robot,
-            self._lift_joint_idx,
-            self._lift_rest_pos,
-            self._lift_rest_quat,
-            home_ref=self._ee_home,
+            self._arm_joint_ids,
+            self._flange_body_ids,
+            self._lift_body_idx,
+            self._ee_home,
+            self._ik,
         )
 
     def latest_cmd_vel(self, sim_time_s: float) -> tuple[float, float, float]:

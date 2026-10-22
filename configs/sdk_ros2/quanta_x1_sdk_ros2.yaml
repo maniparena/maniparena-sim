@@ -20,3 +20,5 @@ ros:
   # ee: /left_arm_cartesian_controller/pose_cmd
   # joint: /left_arm_joint_controller/commands
   arm_control: ee
+  # std_srvs/SetBool: data true -> ee, false -> joint. Replies with the active mode in `message`.
+  mode_service: /set_arm_control_mode

@@ -946,13 +946,10 @@ def build_quanta_x1_sdk_ros2_gym_env(
     # SDK ROS2 spawns on the floor: drop the tabletop z-offset so the base sits at z=0.
     _p = embodiment.scene_config.robot.init_state.pos
     embodiment.scene_config.robot.init_state.pos = (_p[0], _p[1], 0.0)
-    from maniparena_sim.ros.quanta_x1_sdk_topics import normalize_arm_control
 
-    arm_control = normalize_arm_control((payload.get("ros") or {}).get("arm_control", "ee"))
-    if arm_control == "ee":
-        embodiment.action_config = embodiment.ActionsCfgSdkEe()
-    else:
-        embodiment.action_config = embodiment.ActionsCfgSdkRos2()
+    # The env is always driven with joint positions; EE commands are solved to
+    # joints in the ROS bridge (see maniparena_sim.kinematics).
+    embodiment.action_config = embodiment.ActionsCfgSdkRos2()
     task = build_task_runtime('dummy_task', scene)
     _apply_viewer_cfg_override(task, payload)
 

@@ -12,9 +12,7 @@ import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
-from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
 from isaaclab.envs.mdp.actions.actions_cfg import (
-    DifferentialInverseKinematicsActionCfg,
     JointPositionActionCfg,
     JointVelocityActionCfg,
 )
@@ -59,7 +57,7 @@ _QUANTA_X2_WAIST_GRAVITY_FF_RAMP_S = 0.4
 
 @configclass
 class QuantaX2SdkActionsCfg:
-    """24-D joint mode, or 24-D Cartesian mode with seven values per end frame."""
+    """24-D joint-position actions; EE commands are solved to joints outside the env."""
 
     arm_action: ActionTermCfg = JointPositionActionCfg(
         asset_name="robot",
@@ -293,29 +291,11 @@ class QuantaX2Embodiment(EmbodimentBase):
         if arm_control not in {"joint", "ee"}:
             raise ValueError(f"Unsupported arm control mode: {arm_control!r}")
         self.action_config = QuantaX2SdkActionsCfg()
+        # One stiff arm drive for both modes, so switching modes never changes
+        # the dynamics (and never sags the arm). EE tracking needs this stiffness.
         arms = self.scene_config.robot.actuators["arms"]
-        arms.stiffness = 16000.0 if arm_control == "ee" else 1000.0
-        arms.damping = 350.0 if arm_control == "ee" else 100.0
-        if arm_control == "ee":
-            for side, joints, term in (
-                ("left", LEFT_ARM_JOINTS, "arm_action"),
-                ("right", RIGHT_ARM_JOINTS, "right_arm_action"),
-            ):
-                setattr(
-                    self.action_config,
-                    term,
-                    DifferentialInverseKinematicsActionCfg(
-                        asset_name="robot",
-                        joint_names=list(joints),
-                        body_name=f"{side}_gripper_base_link",
-                        controller=DifferentialIKControllerCfg(
-                            command_type="pose",
-                            use_relative_mode=False,
-                            ik_method="dls",
-                        ),
-                        scale=1.0,
-                    ),
-                )
+        arms.stiffness = 16000.0
+        arms.damping = 350.0
 
     def get_observation_cfg(self):
         return self.observation_config
