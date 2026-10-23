@@ -8,7 +8,7 @@
 整机模型位于 `assets/quanta_x2/quanta_x2.usd`，模型自身包含双臂和双 G 夹爪，
 直接加载这个 USD，依赖均从仓库本地加载。
 按安装说明执行 `git lfs pull` 取得资产即可。关节顺序见
-`src/maniparena_sim/ros/sdk_profiles.py`。自定义模型可修改 `robot.usd_path`，相对路径按仓库根目录解析。
+`src/maniparena_sim/ros/sdk_profiles.py`。自定义模型可修改 `robot.usd_path`，相对路径按仓库根目录解析；使用自定义 USD 时请选 `ros.ik_backend: arm`。全身 QP 的模型数据与仓库自带 USD 校验绑定。
 
 ```bash
 source 3rd/isaaclabarena/.venv/bin/activate
@@ -51,10 +51,32 @@ python scripts/sdk_ros2.py --robot quanta_x2 --viz kit
 `header.frame_id` 使用 `base_link`（空值也按该坐标系处理）。先读取末端状态，再发送附近目标；
 不要把零位姿当作“保持当前位置”。
 
+### 带腰部的全身 QP IK
+
+X2 默认使用全身 QP IK，同时求解 4 个腰部关节和双臂各 7 个关节。
+通过 `ros.ik_backend` 选择求解器：
+
+```yaml
+ros:
+  ik_backend: whole_body_qp  # 全身 QP IK；设为 arm 使用独立手臂 IK
+```
+
+全身 QP IK 适用于仓库自带的 X2 模型；自定义 USD 请使用 `arm`。
+所需的 SciPy 和 OSQP 依赖随项目安装。
+
+- **腰部控制**：EE 模式下，求解器统一生成腰部和双臂关节目标，独立腰部指令不生效。直接控制腰部时切换到 joint 模式。
+- **双手目标**：首次有效 EE 指令会捕获当前末端位姿。仅给一只手发送指令时，另一只手以捕获位姿为目标；若已发送双手指令，则同时追踪两个目标。
+- **启动与重置**：启动、重置或模式切换后，在收到新 EE 指令前保持关节目标。
+- **速度限制**：下发关节目标的速度上限为腰部 0.2 rad/s、手臂 0.8 rad/s。默认控制频率为 20 Hz，支持 10 Hz 及以上。
+- **大范围运动**：目标保持不变且局部求解未收敛时，求解器会搜索其他关节解和可行路径。搜索期间保持关节目标；新指令、重置或模式切换会取消当前恢复任务。
+
+大范围运动可能需要绕行，双手在运动途中不保证沿笛卡尔直线移动，也不保证未指定运动的手始终静止。
+求解器中的重心和几何间隙约束采用近似模型，不提供完整的网格碰撞检测或动态平衡保证。
+
 ### 控制模式与切换服务
 
 仿真环境统一使用关节位置控制。`ee` 模式在 ROS 桥内用 `maniparena_sim.kinematics` 的求解器
-（从机器人 USD 的 PhysX 关节链提取运动学，阻尼最小二乘加 Armijo 线搜索）把末端位姿解成关节目标，
+把末端位姿解成关节目标，
 `joint` 模式直接写入关节目标，两种模式共用同一套关节驱动。
 
 `ros.arm_control`（`ee` 或 `joint`，默认 `ee`）只决定启动时的模式。运行中用

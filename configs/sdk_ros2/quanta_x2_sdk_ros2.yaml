@@ -23,5 +23,7 @@ ros:
   control_rate_hz: 20.0
   cmd_vel_timeout_s: 0.25
   arm_control: ee
+  # EE mode owns waist + both arms. Use arm to restore independent arm IK.
+  ik_backend: whole_body_qp
   # std_srvs/SetBool: data true -> ee, false -> joint. Replies with the active mode in `message`.
   mode_service: /set_arm_control_mode

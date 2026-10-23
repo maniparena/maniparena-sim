@@ -19,7 +19,7 @@ from maniparena_sim.ros.math_utils import (
     to_numpy,
 )
 from maniparena_sim.ros.arm_mode import ArmControlMode, install_mode_service
-from maniparena_sim.ros.sdk_control import SdkControl
+from maniparena_sim.ros.sdk_control import make_sdk_control
 from maniparena_sim.ros.sdk_profiles import DEPTH_TOPICS, RGB_TOPICS, get_sdk_profile
 
 
@@ -57,13 +57,14 @@ class SdkRosBridge:
         self._env, self._robot = env, robot
         if action_buffer is None:
             action_buffer = torch.zeros((1, env.action_manager.total_action_dim), device=env.device)
-        self._control = SdkControl(
+        self._control = make_sdk_control(
             env,
             robot,
             action_buffer,
             self.profile,
             self._cfg.arm_control,
             self._cfg.cmd_vel_timeout_s,
+            ik_backend=self._cfg.ik_backend,
         )
         if not self.enabled:
             return
