@@ -39,6 +39,7 @@ class RosBridgeCfg:
     control_rate_hz: float = 10.0
     cmd_vel_timeout_s: float = 0.25
     arm_control: str = "ee"
+    ik_backend: str = "arm"
     mode_service: str = DEFAULT_MODE_SERVICE
 
 
@@ -54,6 +55,7 @@ def load_ros_bridge_cfg(config_path: str | Path) -> RosBridgeCfg:
         cmd_vel_timeout_s=float(ros.get("cmd_vel_timeout_s", 0.25)),
         arm_control=normalize_arm_control(ros.get("arm_control", "ee")),
         mode_service=str(ros.get("mode_service", DEFAULT_MODE_SERVICE)),
+        ik_backend=str(ros.get("ik_backend", "arm")),
     )
 
 

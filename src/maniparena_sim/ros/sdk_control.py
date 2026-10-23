@@ -253,3 +253,14 @@ class SdkControl:
             self.ik_results[side] = result
             for slot, value in zip(self.arm_slots[side], result.q):
                 self.actions[0, slot] = float(value)
+
+
+def make_sdk_control(*args, ik_backend="arm", **kwargs):
+    """Select a controller explicitly; importing the legacy backend needs no QP runtime."""
+    if ik_backend == "arm":
+        return SdkControl(*args, **kwargs)
+    if ik_backend == "whole_body_qp":
+        from maniparena_sim.ros.whole_body_control import WholeBodySdkControl
+
+        return WholeBodySdkControl(*args, **kwargs)
+    raise ValueError(f"Unknown IK backend: {ik_backend!r}; expected arm or whole_body_qp")
